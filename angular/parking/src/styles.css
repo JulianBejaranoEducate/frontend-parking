@@ -1,1 +1,55 @@
-/* You can add global styles to this file, and also import other style files */
+/* Estilos globales de Uni-parking.
+   Las reglas @import deben ir primero por especificación de CSS. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap');
+@import 'bootstrap/dist/css/bootstrap.css';
+
+/* ── Tokens de marca ────────────────────────────────────────────────────────
+   Valores por defecto de Uniempresarial, tomados del campus virtual oficial.
+   applyBrandTheme() los sobrescribe en tiempo de ejecución cuando el producto
+   se despliega para otro cliente, así que ningún componente lleva colores
+   escritos a mano.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --brand-primary: #003da5;
+  --brand-primary-dark: #002e7a;
+  --brand-primary-contrast: #ffffff;
+  --brand-primary-soft: rgb(0 61 165 / 8%);
+  --brand-primary-ring: rgb(0 61 165 / 28%);
+
+  --brand-secondary: #c8102e;
+  --brand-secondary-dark: #a00c24;
+  --brand-secondary-soft: rgb(200 16 46 / 8%);
+  --brand-secondary-ring: rgb(200 16 46 / 28%);
+
+  --brand-accent: #ff9635;
+  --brand-accent-soft: rgb(255 150 53 / 14%);
+
+  --brand-background: #ffffff;
+  --brand-surface: #ffffff;
+  --brand-text: #1a2340;
+  --brand-text-muted: #4a5878;
+  --brand-border: #e2e7f0;
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Poppins', var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--brand-text);
+  background: var(--brand-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Evita el rebote de scroll de WebView en la app híbrida. */
+  overscroll-behavior-y: none;
+}

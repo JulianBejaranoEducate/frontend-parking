@@ -1,1 +1,92 @@
-<p>login works!</p>
+<main class="login">
+  <!-- Fondo blanco con halos institucionales muy suaves: da profundidad en
+       pantallas grandes sin abandonar el blanco dominante del campus. -->
+  <div class="login__backdrop" aria-hidden="true">
+    <span class="backdrop__glow backdrop__glow--primary"></span>
+    <span class="backdrop__glow backdrop__glow--secondary"></span>
+  </div>
+
+  <section class="panel" aria-labelledby="login-title">
+    <span class="panel__stripe" aria-hidden="true"></span>
+
+    <header class="panel__head">
+      @if (brand.logoUrl) {
+        <img class="panel__logo" [src]="brand.logoUrl" [alt]="brand.logoAlt" width="220" height="36" />
+      } @else {
+        <!-- Logotipo genérico del producto mientras no se cargue el del cliente. -->
+        <svg class="panel__mark" viewBox="0 0 64 64" role="img" [attr.aria-label]="brand.logoAlt">
+          <rect x="2" y="2" width="60" height="60" rx="16" fill="var(--brand-primary)" />
+          <path d="M2 40h60v6a16 16 0 0 1-16 16H18A16 16 0 0 1 2 46z" fill="var(--brand-secondary)" opacity=".92" />
+          <path
+            d="M23 17h13.5c6.6 0 10.9 4 10.9 10.1S43.1 37.4 36.5 37.4h-5.9V47H23zm7.6 6v8.3h5c2.7 0 4.4-1.6 4.4-4.2s-1.7-4.1-4.4-4.1z"
+            fill="#FFFFFF"
+          />
+        </svg>
+      }
+
+      <h1 class="panel__title" id="login-title">{{ brand.productName }}</h1>
+      <span class="panel__rule" aria-hidden="true"></span>
+      <p class="panel__tagline">{{ brand.tagline }}</p>
+    </header>
+
+    <p class="notice">
+      <svg class="notice__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 4.5a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6M13.3 17h-2.6v-6.4h2.6z"
+          fill="currentColor"
+        />
+      </svg>
+      <span>
+        Ingresa con tu cuenta institucional
+        <strong>&#64;{{ brand.emailDomain }}</strong>
+      </span>
+    </p>
+
+    <div class="actions">
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="loading()"
+        [attr.aria-busy]="loading()"
+        (click)="signInWithMicrosoft()"
+      >
+        @if (loading()) {
+          <span class="btn__spinner" aria-hidden="true"></span>
+          <span>Conectando con Microsoft…</span>
+        } @else {
+          <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 2h9.5v9.5H2z" fill="#F25022" />
+            <path d="M12.5 2H22v9.5h-9.5z" fill="#7FBA00" />
+            <path d="M2 12.5h9.5V22H2z" fill="#00A4EF" />
+            <path d="M12.5 12.5H22V22h-9.5z" fill="#FFB900" />
+          </svg>
+          <span>Iniciar sesión</span>
+        }
+      </button>
+
+      <span class="actions__divider"><span>o</span></span>
+
+      <button type="button" class="btn btn--secondary" [disabled]="loading()" (click)="goToVisitors()">
+        <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-4.4 0-8 2.4-8 5.4V21h16v-1.6c0-3-3.6-5.4-8-5.4"
+            fill="currentColor"
+          />
+        </svg>
+        <span>Visitantes</span>
+      </button>
+    </div>
+
+    @if (error(); as message) {
+      <div class="alert" role="alert">
+        <span>{{ message }}</span>
+        <button type="button" class="alert__close" aria-label="Cerrar aviso" (click)="dismissError()">&times;</button>
+      </div>
+    }
+
+    <footer class="panel__foot">
+      <p>Uso exclusivo de la comunidad {{ brand.organizationName }}.</p>
+      <p class="panel__copy">&copy; {{ currentYear }} {{ brand.organizationName }}</p>
+    </footer>
+  </section>
+</main>
