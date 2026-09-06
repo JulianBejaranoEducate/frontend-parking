@@ -1,1 +1,266 @@
-<p>visitor works!</p>
+<main class="visitor">
+  <div class="visitor__backdrop" aria-hidden="true">
+    <span class="backdrop__glow backdrop__glow--primary"></span>
+    <span class="backdrop__glow backdrop__glow--secondary"></span>
+  </div>
+
+  <section class="panel" aria-labelledby="visitor-title">
+    <span class="panel__stripe" aria-hidden="true"></span>
+
+    <a class="back" routerLink="/login">
+      <svg class="back__icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M15.3 4.7 8 12l7.3 7.3 1.4-1.4-5.9-5.9 5.9-5.9z" fill="currentColor" />
+      </svg>
+      Volver al acceso
+    </a>
+
+    <header class="panel__head">
+      @if (brand.logoUrl) {
+        <img
+          class="panel__logo"
+          [src]="brand.logoUrl"
+          [alt]="brand.logoAlt"
+          [width]="brand.logoWidth"
+          [height]="brand.logoHeight"
+        />
+      }
+
+      <h1 class="panel__title" id="visitor-title">
+        @if (pass()) {
+          Tu pase de ingreso
+        } @else {
+          Registro de visitante
+        }
+      </h1>
+      <span class="panel__rule" aria-hidden="true"></span>
+    </header>
+
+    @if (pass(); as visit) {
+      <div class="pass">
+        <p class="pass__intro">
+          Muestra este código en la entrada. El personal de seguridad verá tus datos al escanearlo.
+        </p>
+
+        <div class="qr" [class.qr--blocked]="qrConcealed() || expired()">
+          @if (qrDataUrl(); as image) {
+            <img class="qr__image" [src]="image" alt="Código QR de tu pase de ingreso" width="512" height="512" />
+          }
+
+          @if (expired()) {
+            <p class="qr__cover">
+              <svg class="qr__cover-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m1 5v6h-2V7zm0 8v2h-2v-2z" fill="currentColor" />
+              </svg>
+              Código vencido
+            </p>
+          } @else if (qrConcealed()) {
+            <button type="button" class="qr__cover qr__cover--action" (click)="revealQr()">
+              <svg class="qr__cover-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 5c-5 0-9 4.5-9 7s4 7 9 7 9-4.5 9-7-4-7-9-7m0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8m0-6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"
+                  fill="currentColor"
+                />
+              </svg>
+              Toca para mostrar el código
+            </button>
+          }
+        </div>
+
+        <p class="pass__holder">
+          {{ visit.visitor.firstName }} {{ visit.visitor.lastName }}
+          <span class="pass__plate">{{ visit.visitor.plate }}</span>
+        </p>
+
+        @if (expired()) {
+          <p class="pass__timer pass__timer--expired" role="status">
+            Este código ya no es válido. Genera uno nuevo para poder ingresar.
+          </p>
+        } @else {
+          <p class="pass__timer" role="timer" aria-live="off">
+            Válido por <strong>{{ countdown() }}</strong>
+          </p>
+        }
+
+        <p class="pass__warning">
+          <svg class="pass__warning-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M18 8h-1V6A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2M9 6a3 3 0 0 1 6 0v2H9zm3 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4"
+              fill="currentColor"
+            />
+          </svg>
+          <span>
+            Es personal y de un solo uso: al validarlo en portería deja de servir.
+            No lo compartas, quien tenga el código puede entrar en tu lugar.
+          </span>
+        </p>
+
+        <div class="actions">
+          @if (expired()) {
+            <button type="button" class="btn btn--primary" [disabled]="submitting()" (click)="regenerate()">
+              @if (submitting()) {
+                <span class="btn__spinner" aria-hidden="true"></span>
+                <span>Generando…</span>
+              } @else {
+                <span>Generar un código nuevo</span>
+              }
+            </button>
+          } @else {
+            <button type="button" class="btn btn--primary" (click)="registerAnother()">
+              Registrar otro visitante
+            </button>
+          }
+          <a class="btn btn--ghost" routerLink="/login">Salir</a>
+        </div>
+      </div>
+    } @else {
+      <p class="intro">
+        Completa tus datos para registrar el ingreso del vehículo. Todos los campos son obligatorios.
+      </p>
+
+      <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="grid">
+          <div class="field">
+            <label class="field__label" for="firstName">Nombre</label>
+            <input
+              class="field__control"
+              id="firstName"
+              type="text"
+              formControlName="firstName"
+              autocomplete="given-name"
+              placeholder="Ana María"
+              [class.field__control--invalid]="isInvalid('firstName')"
+              [attr.aria-invalid]="isInvalid('firstName')"
+              [attr.aria-describedby]="isInvalid('firstName') ? 'firstName-error' : null"
+            />
+            @if (errorFor('firstName'); as message) {
+              <p class="field__error" id="firstName-error">{{ message }}</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="lastName">Apellido</label>
+            <input
+              class="field__control"
+              id="lastName"
+              type="text"
+              formControlName="lastName"
+              autocomplete="family-name"
+              placeholder="Rodríguez"
+              [class.field__control--invalid]="isInvalid('lastName')"
+              [attr.aria-invalid]="isInvalid('lastName')"
+              [attr.aria-describedby]="isInvalid('lastName') ? 'lastName-error' : null"
+            />
+            @if (errorFor('lastName'); as message) {
+              <p class="field__error" id="lastName-error">{{ message }}</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="documentType">Tipo de documento</label>
+            <div class="field__select">
+              <select
+                class="field__control"
+                id="documentType"
+                formControlName="documentType"
+                [class.field__control--invalid]="isInvalid('documentType')"
+                [attr.aria-invalid]="isInvalid('documentType')"
+                [attr.aria-describedby]="isInvalid('documentType') ? 'documentType-error' : null"
+              >
+                <option value="" disabled>Selecciona una opción</option>
+                @for (type of documentTypes; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+              <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+              </svg>
+            </div>
+            @if (errorFor('documentType'); as message) {
+              <p class="field__error" id="documentType-error">{{ message }}</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="documentNumber">Número de documento</label>
+            <input
+              class="field__control field__control--numeric"
+              id="documentNumber"
+              type="text"
+              formControlName="documentNumber"
+              inputmode="numeric"
+              autocomplete="off"
+              maxlength="11"
+              placeholder="1012345678"
+              (input)="normalizeDocumentNumber()"
+              [class.field__control--invalid]="isInvalid('documentNumber')"
+              [attr.aria-invalid]="isInvalid('documentNumber')"
+              [attr.aria-describedby]="isInvalid('documentNumber') ? 'documentNumber-error' : null"
+            />
+            @if (errorFor('documentNumber'); as message) {
+              <p class="field__error" id="documentNumber-error">{{ message }}</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="plate">Placa</label>
+            <input
+              class="field__control field__control--plate"
+              id="plate"
+              type="text"
+              formControlName="plate"
+              autocapitalize="characters"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="6"
+              placeholder="ABC123"
+              (input)="normalizePlate()"
+              [class.field__control--invalid]="isInvalid('plate')"
+              [attr.aria-invalid]="isInvalid('plate')"
+              [attr.aria-describedby]="isInvalid('plate') ? 'plate-error' : 'plate-hint'"
+            />
+            @if (errorFor('plate'); as message) {
+              <p class="field__error" id="plate-error">{{ message }}</p>
+            } @else {
+              <p class="field__hint" id="plate-hint">Auto ABC123 · Moto ABC12D</p>
+            }
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="reason">Motivo de la visita</label>
+            <input
+              class="field__control"
+              id="reason"
+              type="text"
+              formControlName="reason"
+              maxlength="160"
+              placeholder="Reunión con admisiones"
+              [class.field__control--invalid]="isInvalid('reason')"
+              [attr.aria-invalid]="isInvalid('reason')"
+              [attr.aria-describedby]="isInvalid('reason') ? 'reason-error' : null"
+            />
+            @if (errorFor('reason'); as message) {
+              <p class="field__error" id="reason-error">{{ message }}</p>
+            }
+          </div>
+        </div>
+
+        <div class="actions">
+          <button
+            type="submit"
+            class="btn btn--primary"
+            [disabled]="submitting()"
+            [attr.aria-busy]="submitting()"
+          >
+            @if (submitting()) {
+              <span class="btn__spinner" aria-hidden="true"></span>
+              <span>Generando pase…</span>
+            } @else {
+              <span>Registrar ingreso</span>
+            }
+          </button>
+          <a class="btn btn--ghost" routerLink="/login">Cancelar</a>
+        </div>
+      </form>
+    }
+  </section>
+</main>

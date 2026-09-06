@@ -11,7 +11,13 @@
 
     <header class="panel__head">
       @if (brand.logoUrl) {
-        <img class="panel__logo" [src]="brand.logoUrl" [alt]="brand.logoAlt" width="220" height="36" />
+        <img
+          class="panel__logo"
+          [src]="brand.logoUrl"
+          [alt]="brand.logoAlt"
+          [width]="brand.logoWidth"
+          [height]="brand.logoHeight"
+        />
       } @else {
         <!-- Logotipo genérico del producto mientras no se cargue el del cliente. -->
         <svg class="panel__mark" viewBox="0 0 64 64" role="img" [attr.aria-label]="brand.logoAlt">

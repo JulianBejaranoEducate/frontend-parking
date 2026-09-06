@@ -43,6 +43,13 @@ export interface BrandConfig {
    */
   logoUrl: string | null;
   logoAlt: string;
+  /**
+   * Dimensiones intrínsecas del archivo del logo. Se usan como relación de
+   * aspecto para reservar el espacio y evitar saltos de maquetación mientras
+   * carga. Cada cliente pone aquí las de su propio archivo.
+   */
+  logoWidth: number;
+  logoHeight: number;
   /** Dominio institucional esperado en el inicio de sesión. */
   emailDomain: string;
   supportEmail: string;
@@ -55,8 +62,10 @@ export const BRAND: BrandConfig = {
   organizationName: 'Uniempresarial',
   productName: 'Uni-parking',
   tagline: 'Sistema de control y gestión de parqueadero',
-  logoUrl: null,
+  logoUrl: 'brand/logo_uniempresarial.png',
   logoAlt: 'Uniempresarial - Fundación Universitaria Empresarial',
+  logoWidth: 1600,
+  logoHeight: 1600,
   emailDomain: 'uniempresarial.edu.co',
   supportEmail: 'soporte@uniempresarial.edu.co',
   theme: {

@@ -83,10 +83,14 @@
 }
 
 .panel__logo {
+  /* El logo puede ser apaisado o cuadrado según el cliente: se limita por ancho
+     y por alto a la vez, y object-fit evita cualquier deformación. */
   width: auto;
   max-width: min(15rem, 80%);
   height: auto;
+  max-height: 7rem;
   margin-bottom: 0.25rem;
+  object-fit: contain;
 }
 
 .panel__mark {

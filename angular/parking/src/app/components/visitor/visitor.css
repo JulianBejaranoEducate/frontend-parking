@@ -1,0 +1,523 @@
+/* Registro de visitantes y pase con código QR.
+   Mantiene el lenguaje visual del login (tarjeta blanca, franja azul->rojo,
+   acentos institucionales) con la tarjeta más ancha para el formulario. */
+
+:host {
+  display: block;
+}
+
+.visitor {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: clamp(1rem, 5vw, 2.5rem);
+  padding-top: max(clamp(1rem, 5vw, 2.5rem), env(safe-area-inset-top));
+  padding-bottom: max(clamp(1rem, 5vw, 2.5rem), env(safe-area-inset-bottom));
+  background: var(--brand-background);
+  overflow: hidden;
+}
+
+.visitor__backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backdrop__glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
+}
+
+.backdrop__glow--primary {
+  top: -18vmax;
+  left: -14vmax;
+  width: 46vmax;
+  height: 46vmax;
+  background: var(--brand-primary-soft);
+}
+
+.backdrop__glow--secondary {
+  right: -16vmax;
+  bottom: -20vmax;
+  width: 42vmax;
+  height: 42vmax;
+  background: var(--brand-secondary-soft);
+}
+
+/* ---------- Tarjeta ---------- */
+
+.panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.75rem 1.5rem 1.5rem;
+  overflow: hidden;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 1.25rem;
+  box-shadow: 0 1px 2px rgb(26 35 64 / 4%), 0 18px 40px -22px rgb(26 35 64 / 28%);
+  animation: panel-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.panel__stripe {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 0.3125rem;
+  background: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-primary) 45%, var(--brand-secondary) 100%);
+}
+
+.back {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  text-decoration: none;
+  border-radius: 0.375rem;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.back:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+
+.back__icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.panel__head {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.panel__logo {
+  width: auto;
+  max-width: min(11rem, 65%);
+  height: auto;
+  max-height: 4.5rem;
+  object-fit: contain;
+}
+
+.panel__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 5.5vw, 1.625rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  color: var(--brand-primary);
+}
+
+.panel__rule {
+  width: 3rem;
+  height: 0.1875rem;
+  background: var(--brand-secondary);
+  border-radius: 999px;
+}
+
+.intro {
+  margin: 1.25rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--brand-text-muted);
+}
+
+/* ---------- Formulario ---------- */
+
+.form {
+  margin-top: 1.25rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+  /* Sin esto los campos se estiran hasta la altura de la fila: cuando uno
+     muestra su mensaje de error, el vecino crece y deforma su control. */
+  align-items: start;
+}
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: 0.375rem;
+}
+
+.field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.field__control {
+  width: 100%;
+  /* 3rem de alto: objetivo táctil cómodo en móvil. */
+  height: 3rem;
+  padding: 0.6875rem 0.875rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--brand-text);
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 0.625rem;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  appearance: none;
+}
+
+.field__control::placeholder {
+  color: var(--brand-text-muted);
+  opacity: 0.6;
+}
+
+.field__control:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-primary-ring);
+}
+
+.field__control--invalid {
+  border-color: var(--brand-secondary);
+}
+
+.field__control--invalid:focus {
+  border-color: var(--brand-secondary);
+  box-shadow: 0 0 0 3px var(--brand-secondary-ring);
+}
+
+.field__control--plate {
+  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.field__control--numeric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.field__select {
+  position: relative;
+}
+
+.field__select .field__control {
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.field__chevron {
+  position: absolute;
+  top: 50%;
+  right: 0.875rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--brand-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.field__error,
+.field__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.field__error {
+  font-weight: 500;
+  color: var(--brand-secondary-dark);
+}
+
+.field__hint {
+  color: var(--brand-text-muted);
+}
+
+/* ---------- Acciones ---------- */
+
+.actions {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.btn {
+  display: inline-flex;
+  gap: 0.625rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.25rem;
+  padding: 0.75rem 1.25rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0.75rem;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+
+.btn:disabled {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+.btn:not(:disabled):active {
+  transform: translateY(1px);
+}
+
+.btn--primary {
+  color: var(--brand-primary-contrast);
+  background: var(--brand-primary);
+  box-shadow: 0 10px 20px -12px var(--brand-primary-ring);
+}
+
+.btn--primary:not(:disabled):hover {
+  background: var(--brand-primary-dark);
+}
+
+.btn--ghost {
+  color: var(--brand-text-muted);
+  border-color: var(--brand-border);
+}
+
+.btn--ghost:hover {
+  color: var(--brand-text);
+  background: var(--brand-primary-soft);
+}
+
+.btn__spinner {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid rgb(255 255 255 / 35%);
+  border-top-color: currentcolor;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ---------- Pase con código QR ---------- */
+
+.pass {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.pass__intro {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--brand-text-muted);
+}
+
+.qr {
+  position: relative;
+  width: min(15rem, 68vw);
+  margin: 1.125rem auto 0;
+  padding: 0.625rem;
+  background: #fff;
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  box-shadow: 0 10px 28px -18px rgb(26 35 64 / 45%);
+}
+
+.qr__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: filter 0.2s ease, opacity 0.2s ease;
+  /* Corta el menú de "guardar imagen" de la pulsación larga en móvil. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  pointer-events: none;
+}
+
+.qr--blocked .qr__image {
+  filter: blur(14px);
+  opacity: 0.3;
+}
+
+.qr__cover {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 0.375rem;
+  place-content: center;
+  justify-items: center;
+  width: 100%;
+  padding: 1rem;
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--brand-text-muted);
+  background: rgb(255 255 255 / 55%);
+  border: 0;
+  border-radius: inherit;
+}
+
+.qr__cover--action {
+  color: var(--brand-primary);
+  cursor: pointer;
+}
+
+.qr__cover--action:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+.qr__cover-icon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.pass__holder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.pass__plate {
+  padding: 0.1875rem 0.5rem;
+  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--brand-secondary);
+  background: var(--brand-secondary-soft);
+  border-radius: 0.375rem;
+}
+
+.pass__timer {
+  margin: 0.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--brand-text-muted);
+}
+
+.pass__timer strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--brand-primary);
+}
+
+.pass__timer--expired {
+  font-weight: 600;
+  color: var(--brand-secondary-dark);
+}
+
+.pass__warning {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  margin: 1.125rem 0 0;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: left;
+  color: var(--brand-text-muted);
+  background: var(--brand-accent-soft);
+  border-radius: 0.75rem;
+}
+
+.pass__warning-icon {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  color: var(--brand-accent);
+}
+
+/* ---------- Animaciones ---------- */
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ---------- Adaptaciones por pantalla ---------- */
+
+/* A partir de 40rem el formulario pasa a dos columnas. */
+@media (min-width: 40rem) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem 1.25rem;
+  }
+
+  .field--full {
+    grid-column: 1 / -1;
+  }
+
+  .actions {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    justify-content: end;
+  }
+
+  /* El botón principal queda a la derecha, el secundario a su izquierda. */
+  .actions .btn--ghost {
+    order: -1;
+  }
+}
+
+@media (min-width: 48rem) {
+  .panel {
+    padding: 2rem 2.25rem 1.75rem;
+    border-radius: 1.5rem;
+  }
+}
+
+@media (max-width: 22.5rem) {
+  .panel {
+    padding-inline: 1.125rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .btn__spinner {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+
+  .btn,
+  .field__control,
+  .qr__image {
+    transition: none;
+  }
+}

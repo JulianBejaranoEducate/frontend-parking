@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService, type AuthUser } from '../../core/services/auth.service';
 
 @Component({
   imports: [],
@@ -19,22 +19,22 @@ export class Login {
   protected readonly error = this.auth.error;
   protected readonly currentYear = new Date().getFullYear();
 
+  constructor() {
+    // En la app híbrida el acceso se hace por redirección: al volver de
+    // Microsoft se aterriza aquí de nuevo y hay que recoger la sesión.
+    void this.resumeRedirectSignIn();
+  }
+
   /**
-   * Acceso institucional: delega en Firebase, que redirige al login de
-   * Microsoft. Al volver, el rol decide el dashboard de destino.
+   * Acceso institucional: delega en Firebase, que lleva al login de Microsoft.
+   * Al volver, el rol decide el dashboard de destino.
    */
   protected async signInWithMicrosoft(): Promise<void> {
     if (this.loading()) {
       return;
     }
 
-    const user = await this.auth.loginWithMicrosoft();
-
-    if (!user) {
-      return;
-    }
-
-    await this.router.navigate([user.role === 'admin' ? '/admin' : '/inicio']);
+    await this.enterDashboard(await this.auth.loginWithMicrosoft());
   }
 
   /** Acceso de visitantes: sin cuenta institucional, registro temporal. */
@@ -45,5 +45,17 @@ export class Login {
 
   protected dismissError(): void {
     this.auth.clearError();
+  }
+
+  private async resumeRedirectSignIn(): Promise<void> {
+    await this.enterDashboard(await this.auth.resumeRedirectSignIn());
+  }
+
+  private async enterDashboard(user: AuthUser | null): Promise<void> {
+    if (!user) {
+      return;
+    }
+
+    await this.router.navigate([user.role === 'admin' ? '/admin' : '/inicio']);
   }
 }
