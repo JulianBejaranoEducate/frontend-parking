@@ -1,38 +1,58 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { FormBuilder, ReactiveFormsModule, type ValidatorFn, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 import {
   DOCUMENT_TYPES,
   type DocumentType,
+  VEHICLE_TYPES,
+  type VehicleType,
   type VisitorPass,
   type VisitorRegistration,
+  type VisitorVehicle,
+  requirementsFor,
+  vehicleLabel,
 } from '../../core/models/visitor-pass';
 import { PASS_TTL_MINUTES, VisitorPassService } from '../../core/services/visitor-pass.service';
 
 /**
- * Placa colombiana: tres letras y tres caracteres.
- * Automóvil ABC123 y motocicleta ABC12D quedan cubiertos.
+ * Placa de moto colombiana: tres letras, dos dígitos y una letra final.
+ * La letra final se dejó opcional porque las motos más antiguas no la llevan.
+ * El formato de automóvil (ABC123) queda fuera a propósito: la universidad solo
+ * tiene parqueadero para vehículos de dos ruedas.
  */
-const PLATE_PATTERN = /^[A-Z]{3}\d{2}[\dA-Z]$/;
+const PLATE_PATTERN = /^[A-Z]{3}\d{2}[A-Z]?$/;
 
 /** Cédulas y tarjetas de identidad colombianas: solo dígitos, de 6 a 11. */
 const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
 
-type FieldName = 'firstName' | 'lastName' | 'documentType' | 'documentNumber' | 'plate' | 'reason';
+type FieldName =
+  | 'firstName'
+  | 'lastName'
+  | 'documentType'
+  | 'documentNumber'
+  | 'vehicleType'
+  | 'vehicleBrand'
+  | 'vehicleColor'
+  | 'plate'
+  | 'reason';
 
 const REQUIRED_MESSAGES: Record<FieldName, string> = {
   firstName: 'Escribe tu nombre.',
   lastName: 'Escribe tu apellido.',
   documentType: 'Selecciona un tipo de documento.',
   documentNumber: 'Escribe tu número de documento.',
-  plate: 'Escribe la placa del vehículo.',
+  vehicleType: 'Selecciona el tipo de vehículo.',
+  vehicleBrand: 'Escribe la marca del vehículo.',
+  vehicleColor: 'Escribe el color del vehículo.',
+  plate: 'Escribe la placa de la moto.',
   reason: 'Cuéntanos el motivo de tu visita.',
 };
 
 const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
   documentNumber: 'Debe tener entre 6 y 11 dígitos, sin puntos ni espacios.',
-  plate: 'Usa el formato de placa colombiana: ABC123 o ABC12D.',
+  plate: 'Usa el formato de placa de moto: ABC12D.',
 };
 
 @Component({
@@ -47,7 +67,9 @@ export class Visitor {
 
   protected readonly brand = BRAND;
   protected readonly documentTypes = DOCUMENT_TYPES;
+  protected readonly vehicleTypes = VEHICLE_TYPES;
   protected readonly ttlMinutes = PASS_TTL_MINUTES;
+  protected readonly vehicleLabel = vehicleLabel;
 
   /** Se activa al primer intento de envío para revelar todos los errores. */
   protected readonly submitAttempted = signal(false);
@@ -63,6 +85,16 @@ export class Visitor {
    * a la vista en la miniatura del selector de aplicaciones.
    */
   protected readonly qrConcealed = signal(false);
+
+  /** Tipo de vehículo elegido: decide qué campos se piden y cuáles se validan. */
+  protected readonly vehicleType = signal<VehicleType | ''>('');
+  protected readonly requires = computed(() => requirementsFor(this.vehicleType()));
+
+  /** Caso del scooter: ya eligió vehículo y no hay nada más que preguntarle. */
+  protected readonly vehicleNeedsNoExtras = computed(() => {
+    const requirements = this.requires();
+    return this.vehicleType() !== '' && !requirements.brand && !requirements.color && !requirements.plate;
+  });
 
   private readonly now = signal(Date.now());
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -84,11 +116,20 @@ export class Visitor {
     lastName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(40)]],
     documentType: ['', Validators.required],
     documentNumber: ['', [Validators.required, Validators.pattern(DOCUMENT_NUMBER_PATTERN)]],
-    plate: ['', [Validators.required, Validators.pattern(PLATE_PATTERN)]],
+    vehicleType: ['', Validators.required],
+    // Marca, color y placa se validan según el vehículo: los validadores se
+    // montan y desmontan en applyVehicleRules().
+    vehicleBrand: [''],
+    vehicleColor: [''],
+    plate: [''],
     reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(160)]],
   });
 
   constructor() {
+    this.form.controls.vehicleType.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((type) => this.applyVehicleRules((type ?? '') as VehicleType | ''));
+
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && this.pass()) {
         this.qrConcealed.set(true);
@@ -122,13 +163,28 @@ export class Visitor {
     }
 
     const value = this.form.getRawValue();
+    const requirements = this.requires();
+    const vehicle: VisitorVehicle = { type: value.vehicleType as VehicleType };
+
+    // Solo se guarda lo que ese vehículo realmente pide, sin campos vacíos.
+    if (requirements.brand) {
+      vehicle.brand = value.vehicleBrand.trim();
+    }
+
+    if (requirements.color) {
+      vehicle.color = value.vehicleColor.trim();
+    }
+
+    if (requirements.plate) {
+      vehicle.plate = value.plate;
+    }
 
     await this.issuePass({
       firstName: value.firstName.trim(),
       lastName: value.lastName.trim(),
       documentType: value.documentType as DocumentType,
       documentNumber: value.documentNumber,
-      plate: value.plate,
+      vehicle,
       reason: value.reason.trim(),
     });
   }
@@ -188,6 +244,47 @@ export class Visitor {
     }
 
     return 'Revisa este dato.';
+  }
+
+  /**
+   * Monta los validadores del vehículo elegido y limpia los campos que ese
+   * vehículo no usa, para que no arrastren un valor viejo hasta el pase.
+   */
+  private applyVehicleRules(type: VehicleType | ''): void {
+    this.vehicleType.set(type);
+
+    const requirements = requirementsFor(type);
+
+    this.toggleControl('vehicleBrand', requirements.brand, [
+      Validators.required,
+      Validators.maxLength(30),
+    ]);
+    this.toggleControl('vehicleColor', requirements.color, [
+      Validators.required,
+      Validators.maxLength(20),
+    ]);
+    this.toggleControl('plate', requirements.plate, [
+      Validators.required,
+      Validators.pattern(PLATE_PATTERN),
+    ]);
+  }
+
+  private toggleControl(
+    name: 'vehicleBrand' | 'vehicleColor' | 'plate',
+    required: boolean,
+    validators: ValidatorFn[],
+  ): void {
+    const control = this.form.controls[name];
+
+    if (required) {
+      control.setValidators(validators);
+    } else {
+      control.clearValidators();
+      control.setValue('', { emitEvent: false });
+      control.markAsUntouched();
+    }
+
+    control.updateValueAndValidity({ emitEvent: false });
   }
 
   private async issuePass(visitor: VisitorRegistration): Promise<void> {

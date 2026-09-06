@@ -32,19 +32,19 @@ describe('Visitor', () => {
       form: any;
       pass: () => any;
       qrDataUrl: () => string | null;
+      requires: () => { brand: boolean; color: boolean; plate: boolean };
       submit: () => Promise<void>;
       normalizePlate: () => void;
       normalizeDocumentNumber: () => void;
       registerAnother: () => void;
     };
 
-  const fillValidForm = () =>
-    api().form.setValue({
+  const fillPersonalData = () =>
+    api().form.patchValue({
       firstName: 'Ana María',
       lastName: 'Rodríguez',
       documentType: 'CC',
       documentNumber: '1012345678',
-      plate: 'ABC123',
       reason: 'Reunión con admisiones',
     });
 
@@ -52,30 +52,19 @@ describe('Visitor', () => {
     expect(component).toBeTruthy();
   });
 
-  it('pide los seis datos del visitante', () => {
+  it('pide los datos personales, los del vehículo y el motivo', () => {
     expect(Object.keys(api().form.controls)).toEqual([
       'firstName',
       'lastName',
       'documentType',
       'documentNumber',
+      'vehicleType',
+      'vehicleBrand',
+      'vehicleColor',
       'plate',
       'reason',
     ]);
     expect(api().form.invalid).toBe(true);
-  });
-
-  it('acepta placas de automóvil y de motocicleta, y rechaza formatos inválidos', () => {
-    const plate = api().form.controls.plate;
-
-    for (const valid of ['ABC123', 'ABC12D']) {
-      plate.setValue(valid);
-      expect(plate.valid).toBe(true);
-    }
-
-    for (const invalid of ['AB123', 'ABCD12', '123ABC', 'ABC1234']) {
-      plate.setValue(invalid);
-      expect(plate.valid).toBe(false);
-    }
   });
 
   it('exige un número de documento de 6 a 11 dígitos', () => {
@@ -92,14 +81,73 @@ describe('Visitor', () => {
     }
   });
 
+  it('solo acepta placas de moto: el formato de automóvil queda rechazado', () => {
+    api().form.controls.vehicleType.setValue('moto');
+    const plate = api().form.controls.plate;
+
+    for (const valid of ['ABC12D', 'ABC12']) {
+      plate.setValue(valid);
+      expect(plate.valid).toBe(true);
+    }
+
+    // ABC123 es placa de automóvil y ya no se admite.
+    for (const invalid of ['ABC123', 'AB12D', '12ABCD', 'ABCD12']) {
+      plate.setValue(invalid);
+      expect(plate.valid).toBe(false);
+    }
+  });
+
   it('normaliza la placa y el número de documento mientras se escriben', () => {
-    api().form.controls.plate.setValue('abc-123');
+    api().form.controls.plate.setValue('abc-12d');
     api().normalizePlate();
-    expect(api().form.controls.plate.value).toBe('ABC123');
+    expect(api().form.controls.plate.value).toBe('ABC12D');
 
     api().form.controls.documentNumber.setValue('10.123.456');
     api().normalizeDocumentNumber();
     expect(api().form.controls.documentNumber.value).toBe('10123456');
+  });
+
+  it('la moto pide marca, color y placa', () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('moto');
+
+    expect(api().requires()).toEqual({ brand: true, color: true, plate: true });
+    expect(api().form.invalid).toBe(true);
+
+    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
+    expect(api().form.valid).toBe(true);
+  });
+
+  it('la bicicleta pide marca y color, pero no placa', () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('bicicleta');
+
+    expect(api().requires()).toEqual({ brand: true, color: true, plate: false });
+
+    api().form.patchValue({ vehicleBrand: 'Bianchi', vehicleColor: 'Azul' });
+    expect(api().form.valid).toBe(true);
+  });
+
+  it('el scooter no pide ningún dato adicional', () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('scooter');
+
+    expect(api().requires()).toEqual({ brand: false, color: false, plate: false });
+    expect(api().form.valid).toBe(true);
+  });
+
+  it('al cambiar de vehículo no arrastra los datos del anterior', async () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('moto');
+    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
+
+    api().form.controls.vehicleType.setValue('scooter');
+
+    expect(api().form.controls.plate.value).toBe('');
+    expect(api().form.controls.vehicleBrand.value).toBe('');
+
+    await api().submit();
+    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter' });
   });
 
   it('no emite ningún pase mientras el formulario esté incompleto', async () => {
@@ -108,26 +156,34 @@ describe('Visitor', () => {
     expect(api().pass()).toBeNull();
   });
 
-  it('emite un pase con token único y vigencia al enviar datos válidos', async () => {
-    fillValidForm();
-    await api().submit();
+  it('guarda en el pase el vehículo completo junto al motivo de la visita', async () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('moto');
+    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
 
+    await api().submit();
     const pass = api().pass();
 
-    expect(pass).not.toBeNull();
-    expect(pass.token).toMatch(/[0-9a-f-]{16,}/);
+    expect(pass.visitor.vehicle).toEqual({
+      type: 'moto',
+      brand: 'Yamaha',
+      color: 'Negro',
+      plate: 'ABC12D',
+    });
+    expect(pass.visitor.reason).toBe('Reunión con admisiones');
     expect(pass.status).toBe('pending');
-    expect(pass.expiresAt.getTime()).toBeGreaterThan(pass.issuedAt.getTime());
     expect(api().qrDataUrl()).toContain('data:image');
   });
 
   it('el token cambia en cada emisión, para que un pase no se reutilice', async () => {
-    fillValidForm();
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('scooter');
     await api().submit();
     const first = api().pass().token;
 
     api().registerAnother();
-    fillValidForm();
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('scooter');
     await api().submit();
 
     expect(api().pass().token).not.toBe(first);

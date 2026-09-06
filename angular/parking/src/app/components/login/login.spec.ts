@@ -22,11 +22,11 @@ describe('Login', () => {
     expect(component).toBeTruthy();
   });
 
-  it('muestra el nombre del producto y el dominio institucional de la marca activa', () => {
+  it('muestra el nombre del producto y la organización de la marca activa', () => {
     const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
     expect(text).toContain(BRAND.productName);
-    expect(text).toContain(BRAND.emailDomain);
+    expect(text).toContain(BRAND.organizationName);
   });
 
   it('expone las dos acciones de acceso', () => {

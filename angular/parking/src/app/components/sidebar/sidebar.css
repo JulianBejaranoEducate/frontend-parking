@@ -1,0 +1,141 @@
+/* Barra lateral. Cajón deslizante en móvil, columna fija en escritorio. */
+
+:host {
+  display: block;
+}
+
+.sidebar {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: min(17rem, 84vw);
+  padding: 1.25rem 1rem;
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  background: var(--brand-surface);
+  border-right: 1px solid var(--brand-border);
+  /* visibility saca el menú cerrado del orden de tabulación y del lector de
+     pantalla, sin renunciar a la transición de deslizamiento. */
+  visibility: hidden;
+  transform: translateX(-100%);
+  transition: transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.sidebar--open {
+  visibility: visible;
+  transform: none;
+  transition: transform 0.25s ease;
+}
+
+.sidebar__head {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.sidebar__logo {
+  width: auto;
+  max-width: 70%;
+  height: auto;
+  max-height: 5rem;
+  object-fit: contain;
+}
+
+.sidebar__product {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--brand-primary);
+}
+
+.sidebar__nav {
+  flex: 1;
+  margin-top: 1.25rem;
+  overflow-y: auto;
+}
+
+.menu {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.menu__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  /* 2.75rem de alto: objetivo táctil cómodo en móvil. */
+  min-height: 2.75rem;
+  padding: 0.625rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--brand-text-muted);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.625rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu__item:hover {
+  color: var(--brand-text);
+  background: var(--brand-primary-soft);
+}
+
+.menu__item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.menu__item--active {
+  position: relative;
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+/* Marca roja de la institución sobre la opción seleccionada. */
+.menu__item--active::before {
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0;
+  width: 0.1875rem;
+  content: '';
+  background: var(--brand-secondary);
+  border-radius: 999px;
+}
+
+.menu__icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.sidebar__foot {
+  padding-top: 1rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--brand-text-muted);
+  text-align: center;
+  border-top: 1px solid var(--brand-border);
+  opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .menu__item {
+    transition: none;
+  }
+}

@@ -68,7 +68,11 @@
 
         <p class="pass__holder">
           {{ visit.visitor.firstName }} {{ visit.visitor.lastName }}
-          <span class="pass__plate">{{ visit.visitor.plate }}</span>
+          @if (visit.visitor.vehicle.plate; as plate) {
+            <span class="pass__badge pass__badge--plate">{{ plate }}</span>
+          } @else {
+            <span class="pass__badge">{{ vehicleLabel(visit.visitor.vehicle.type) }}</span>
+          }
         </p>
 
         @if (expired()) {
@@ -118,130 +122,213 @@
       </p>
 
       <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
-        <div class="grid">
-          <div class="field">
-            <label class="field__label" for="firstName">Nombre</label>
-            <input
-              class="field__control"
-              id="firstName"
-              type="text"
-              formControlName="firstName"
-              autocomplete="given-name"
-              placeholder="Ana María"
-              [class.field__control--invalid]="isInvalid('firstName')"
-              [attr.aria-invalid]="isInvalid('firstName')"
-              [attr.aria-describedby]="isInvalid('firstName') ? 'firstName-error' : null"
-            />
-            @if (errorFor('firstName'); as message) {
-              <p class="field__error" id="firstName-error">{{ message }}</p>
-            }
-          </div>
+        <fieldset class="block">
+          <legend class="block__legend">Datos personales</legend>
 
-          <div class="field">
-            <label class="field__label" for="lastName">Apellido</label>
-            <input
-              class="field__control"
-              id="lastName"
-              type="text"
-              formControlName="lastName"
-              autocomplete="family-name"
-              placeholder="Rodríguez"
-              [class.field__control--invalid]="isInvalid('lastName')"
-              [attr.aria-invalid]="isInvalid('lastName')"
-              [attr.aria-describedby]="isInvalid('lastName') ? 'lastName-error' : null"
-            />
-            @if (errorFor('lastName'); as message) {
-              <p class="field__error" id="lastName-error">{{ message }}</p>
-            }
-          </div>
-
-          <div class="field">
-            <label class="field__label" for="documentType">Tipo de documento</label>
-            <div class="field__select">
-              <select
+          <div class="grid">
+            <div class="field">
+              <label class="field__label" for="firstName">Nombre</label>
+              <input
                 class="field__control"
-                id="documentType"
-                formControlName="documentType"
-                [class.field__control--invalid]="isInvalid('documentType')"
-                [attr.aria-invalid]="isInvalid('documentType')"
-                [attr.aria-describedby]="isInvalid('documentType') ? 'documentType-error' : null"
-              >
-                <option value="" disabled>Selecciona una opción</option>
-                @for (type of documentTypes; track type.value) {
-                  <option [value]="type.value">{{ type.label }}</option>
-                }
-              </select>
-              <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
-              </svg>
+                id="firstName"
+                type="text"
+                formControlName="firstName"
+                autocomplete="given-name"
+                placeholder="Ana María"
+                [class.field__control--invalid]="isInvalid('firstName')"
+                [attr.aria-invalid]="isInvalid('firstName')"
+                [attr.aria-describedby]="isInvalid('firstName') ? 'firstName-error' : null"
+              />
+              @if (errorFor('firstName'); as message) {
+                <p class="field__error" id="firstName-error">{{ message }}</p>
+              }
             </div>
-            @if (errorFor('documentType'); as message) {
-              <p class="field__error" id="documentType-error">{{ message }}</p>
-            }
-          </div>
 
-          <div class="field">
-            <label class="field__label" for="documentNumber">Número de documento</label>
-            <input
-              class="field__control field__control--numeric"
-              id="documentNumber"
-              type="text"
-              formControlName="documentNumber"
-              inputmode="numeric"
-              autocomplete="off"
-              maxlength="11"
-              placeholder="1012345678"
-              (input)="normalizeDocumentNumber()"
-              [class.field__control--invalid]="isInvalid('documentNumber')"
-              [attr.aria-invalid]="isInvalid('documentNumber')"
-              [attr.aria-describedby]="isInvalid('documentNumber') ? 'documentNumber-error' : null"
-            />
-            @if (errorFor('documentNumber'); as message) {
-              <p class="field__error" id="documentNumber-error">{{ message }}</p>
-            }
-          </div>
+            <div class="field">
+              <label class="field__label" for="lastName">Apellido</label>
+              <input
+                class="field__control"
+                id="lastName"
+                type="text"
+                formControlName="lastName"
+                autocomplete="family-name"
+                placeholder="Rodríguez"
+                [class.field__control--invalid]="isInvalid('lastName')"
+                [attr.aria-invalid]="isInvalid('lastName')"
+                [attr.aria-describedby]="isInvalid('lastName') ? 'lastName-error' : null"
+              />
+              @if (errorFor('lastName'); as message) {
+                <p class="field__error" id="lastName-error">{{ message }}</p>
+              }
+            </div>
 
-          <div class="field">
-            <label class="field__label" for="plate">Placa</label>
-            <input
-              class="field__control field__control--plate"
-              id="plate"
-              type="text"
-              formControlName="plate"
-              autocapitalize="characters"
-              autocomplete="off"
-              spellcheck="false"
-              maxlength="6"
-              placeholder="ABC123"
-              (input)="normalizePlate()"
-              [class.field__control--invalid]="isInvalid('plate')"
-              [attr.aria-invalid]="isInvalid('plate')"
-              [attr.aria-describedby]="isInvalid('plate') ? 'plate-error' : 'plate-hint'"
-            />
-            @if (errorFor('plate'); as message) {
-              <p class="field__error" id="plate-error">{{ message }}</p>
-            } @else {
-              <p class="field__hint" id="plate-hint">Auto ABC123 · Moto ABC12D</p>
-            }
-          </div>
+            <div class="field">
+              <label class="field__label" for="documentType">Tipo de documento</label>
+              <div class="field__select">
+                <select
+                  class="field__control"
+                  id="documentType"
+                  formControlName="documentType"
+                  [class.field__control--invalid]="isInvalid('documentType')"
+                  [attr.aria-invalid]="isInvalid('documentType')"
+                  [attr.aria-describedby]="isInvalid('documentType') ? 'documentType-error' : null"
+                >
+                  <option value="" disabled>Selecciona una opción</option>
+                  @for (type of documentTypes; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+                <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+                </svg>
+              </div>
+              @if (errorFor('documentType'); as message) {
+                <p class="field__error" id="documentType-error">{{ message }}</p>
+              }
+            </div>
 
-          <div class="field">
-            <label class="field__label" for="reason">Motivo de la visita</label>
-            <input
-              class="field__control"
-              id="reason"
-              type="text"
-              formControlName="reason"
-              maxlength="160"
-              placeholder="Reunión con admisiones"
-              [class.field__control--invalid]="isInvalid('reason')"
-              [attr.aria-invalid]="isInvalid('reason')"
-              [attr.aria-describedby]="isInvalid('reason') ? 'reason-error' : null"
-            />
-            @if (errorFor('reason'); as message) {
-              <p class="field__error" id="reason-error">{{ message }}</p>
+            <div class="field">
+              <label class="field__label" for="documentNumber">Número de documento</label>
+              <input
+                class="field__control field__control--numeric"
+                id="documentNumber"
+                type="text"
+                formControlName="documentNumber"
+                inputmode="numeric"
+                autocomplete="off"
+                maxlength="11"
+                placeholder="1012345678"
+                (input)="normalizeDocumentNumber()"
+                [class.field__control--invalid]="isInvalid('documentNumber')"
+                [attr.aria-invalid]="isInvalid('documentNumber')"
+                [attr.aria-describedby]="isInvalid('documentNumber') ? 'documentNumber-error' : null"
+              />
+              @if (errorFor('documentNumber'); as message) {
+                <p class="field__error" id="documentNumber-error">{{ message }}</p>
+              }
+            </div>
+          </div>
+        </fieldset>
+
+        <fieldset class="block">
+          <legend class="block__legend">Datos del vehículo</legend>
+
+          <div class="grid">
+            <div class="field">
+              <label class="field__label" for="vehicleType">Tipo de vehículo</label>
+              <div class="field__select">
+                <select
+                  class="field__control"
+                  id="vehicleType"
+                  formControlName="vehicleType"
+                  [class.field__control--invalid]="isInvalid('vehicleType')"
+                  [attr.aria-invalid]="isInvalid('vehicleType')"
+                  [attr.aria-describedby]="isInvalid('vehicleType') ? 'vehicleType-error' : null"
+                >
+                  <option value="" disabled>Selecciona una opción</option>
+                  @for (type of vehicleTypes; track type.value) {
+                    <option [value]="type.value">{{ type.label }}</option>
+                  }
+                </select>
+                <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+                </svg>
+              </div>
+              @if (errorFor('vehicleType'); as message) {
+                <p class="field__error" id="vehicleType-error">{{ message }}</p>
+              }
+            </div>
+
+            @if (vehicleNeedsNoExtras()) {
+              <p class="grid__note">Un scooter no necesita datos adicionales.</p>
+            }
+
+            @if (requires().brand) {
+              <div class="field">
+                <label class="field__label" for="vehicleBrand">Marca</label>
+                <input
+                  class="field__control"
+                  id="vehicleBrand"
+                  type="text"
+                  formControlName="vehicleBrand"
+                  autocomplete="off"
+                  maxlength="30"
+                  placeholder="Yamaha, Bianchi…"
+                  [class.field__control--invalid]="isInvalid('vehicleBrand')"
+                  [attr.aria-invalid]="isInvalid('vehicleBrand')"
+                  [attr.aria-describedby]="isInvalid('vehicleBrand') ? 'vehicleBrand-error' : null"
+                />
+                @if (errorFor('vehicleBrand'); as message) {
+                  <p class="field__error" id="vehicleBrand-error">{{ message }}</p>
+                }
+              </div>
+            }
+
+            @if (requires().color) {
+              <div class="field">
+                <label class="field__label" for="vehicleColor">Color</label>
+                <input
+                  class="field__control"
+                  id="vehicleColor"
+                  type="text"
+                  formControlName="vehicleColor"
+                  autocomplete="off"
+                  maxlength="20"
+                  placeholder="Negro"
+                  [class.field__control--invalid]="isInvalid('vehicleColor')"
+                  [attr.aria-invalid]="isInvalid('vehicleColor')"
+                  [attr.aria-describedby]="isInvalid('vehicleColor') ? 'vehicleColor-error' : null"
+                />
+                @if (errorFor('vehicleColor'); as message) {
+                  <p class="field__error" id="vehicleColor-error">{{ message }}</p>
+                }
+              </div>
+            }
+
+            @if (requires().plate) {
+              <div class="field">
+                <label class="field__label" for="plate">Placa</label>
+                <input
+                  class="field__control field__control--plate"
+                  id="plate"
+                  type="text"
+                  formControlName="plate"
+                  autocapitalize="characters"
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="6"
+                  placeholder="ABC12D"
+                  (input)="normalizePlate()"
+                  [class.field__control--invalid]="isInvalid('plate')"
+                  [attr.aria-invalid]="isInvalid('plate')"
+                  [attr.aria-describedby]="isInvalid('plate') ? 'plate-error' : 'plate-hint'"
+                />
+                @if (errorFor('plate'); as message) {
+                  <p class="field__error" id="plate-error">{{ message }}</p>
+                } @else {
+                  <p class="field__hint" id="plate-hint">Placa de moto. Ej. ABC12D</p>
+                }
+              </div>
             }
           </div>
+        </fieldset>
+
+        <div class="field field--standalone">
+          <label class="field__label" for="reason">Motivo de la visita</label>
+          <input
+            class="field__control"
+            id="reason"
+            type="text"
+            formControlName="reason"
+            maxlength="160"
+            placeholder="Reunión con admisiones"
+            [class.field__control--invalid]="isInvalid('reason')"
+            [attr.aria-invalid]="isInvalid('reason')"
+            [attr.aria-describedby]="isInvalid('reason') ? 'reason-error' : null"
+          />
+          @if (errorFor('reason'); as message) {
+            <p class="field__error" id="reason-error">{{ message }}</p>
+          }
         </div>
 
         <div class="actions">

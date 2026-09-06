@@ -24,6 +24,15 @@
   --brand-accent: #ff9635;
   --brand-accent-soft: rgb(255 150 53 / 14%);
 
+  /* Colores de estado. Van aparte de la marca: significan siempre lo mismo y
+     nunca se reutilizan como color decorativo. Los tres superan 5:1 de
+     contraste sobre blanco, y en pantalla siempre van con icono y etiqueta
+     porque ámbar y rojo se confunden con daltonismo. */
+  --brand-success: #0f7a3d;
+  --brand-success-soft: rgb(15 122 61 / 10%);
+  --brand-warning: #9a5b00;
+  --brand-warning-soft: rgb(154 91 0 / 12%);
+
   --brand-background: #ffffff;
   --brand-surface: #ffffff;
   --brand-text: #1a2340;

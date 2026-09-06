@@ -6,6 +6,21 @@
  * motivo, y el detalle solo aparece cuando el personal de seguridad resuelve
  * ese token contra el sistema.
  */
+import type { Vehicle } from './vehicle';
+
+// La taxonomía de vehículos vive en ./vehicle porque el dashboard de usuarios
+// también la necesita; se reexporta para no romper a quien ya la importa de aquí.
+export {
+  NO_VEHICLE_REQUIREMENTS,
+  VEHICLE_REQUIREMENTS,
+  VEHICLE_TYPES,
+  requirementsFor,
+  vehicleLabel,
+} from './vehicle';
+export type { Vehicle, VehicleRequirements, VehicleType } from './vehicle';
+
+/** Un visitante declara el mismo vehículo que cualquier otro usuario. */
+export type VisitorVehicle = Vehicle;
 
 export const DOCUMENT_TYPES = [
   { value: 'CC', label: 'Cédula de ciudadanía' },
@@ -19,7 +34,7 @@ export interface VisitorRegistration {
   lastName: string;
   documentType: DocumentType;
   documentNumber: string;
-  plate: string;
+  vehicle: Vehicle;
   reason: string;
 }
 
