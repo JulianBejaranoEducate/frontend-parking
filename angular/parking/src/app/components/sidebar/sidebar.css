@@ -12,9 +12,9 @@
   display: flex;
   flex-direction: column;
   width: min(17rem, 84vw);
-  padding: 1.25rem 1rem;
-  padding-top: max(1.25rem, env(safe-area-inset-top));
-  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  /* Sin relleno propio: la cabecera, el nav y el pie ponen el suyo, para que la
+     línea de la cabecera pueda llegar hasta los bordes. */
+  padding: 0;
   background: var(--brand-surface);
   border-right: 1px solid var(--brand-border);
   /* visibility saca el menú cerrado del orden de tabulación y del lector de
@@ -31,19 +31,15 @@
 }
 
 .sidebar__head {
-  display: grid;
-  justify-items: center;
-  gap: 0.5rem;
-  padding-bottom: 1.25rem;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  /* Misma altura que la barra superior: así las dos líneas divisorias se
+     continúan la una a la otra en lugar de quedar escalonadas. */
+  height: calc(var(--app-topbar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 1rem 0;
   border-bottom: 1px solid var(--brand-border);
-}
-
-.sidebar__logo {
-  width: auto;
-  max-width: 70%;
-  height: auto;
-  max-height: 5rem;
-  object-fit: contain;
 }
 
 .sidebar__product {
@@ -57,7 +53,7 @@
 
 .sidebar__nav {
   flex: 1;
-  margin-top: 1.25rem;
+  padding: 1rem 0.75rem;
   overflow-y: auto;
 }
 
@@ -124,7 +120,8 @@
 }
 
 .sidebar__foot {
-  padding-top: 1rem;
+  padding: 1rem 0.75rem;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
   margin: 0;
   font-size: 0.75rem;
   color: var(--brand-text-muted);

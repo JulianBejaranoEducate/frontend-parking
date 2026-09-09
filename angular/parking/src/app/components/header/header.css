@@ -1,0 +1,334 @@
+/* Barra superior: buscador al centro, notificaciones y cuenta a la derecha. */
+
+:host {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: block;
+}
+
+.topbar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  /* Misma altura que la cabecera de la barra lateral, para que las dos líneas
+     divisorias se continúen la una a la otra. */
+  height: calc(var(--app-topbar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) clamp(0.75rem, 3vw, 1.5rem) 0;
+  background: color-mix(in srgb, var(--brand-surface) 88%, transparent);
+  border-bottom: 1px solid var(--brand-border);
+  backdrop-filter: blur(8px);
+}
+
+.icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  /* 2.75rem: objetivo táctil cómodo en móvil. */
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--brand-text-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.625rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-btn svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.icon-btn:hover {
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* ---------- Buscador ---------- */
+
+.topbar__center {
+  /* En móvil se reemplaza por el botón de lupa. */
+  display: none;
+}
+
+.search {
+  display: flex;
+  width: 100%;
+  max-width: 34rem;
+  height: 2.5rem;
+  overflow: hidden;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.search:focus-within {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-primary-ring);
+}
+
+.search--full {
+  flex: 1;
+  max-width: none;
+}
+
+.search__input {
+  flex: 1;
+  min-width: 0;
+  padding: 0 0.5rem 0 1rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  color: var(--brand-text);
+  background: none;
+  border: 0;
+}
+
+.search__input::placeholder {
+  color: var(--brand-text-muted);
+  opacity: 0.7;
+}
+
+.search__input:focus {
+  outline: none;
+}
+
+.search__submit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3.25rem;
+  color: var(--brand-text-muted);
+  cursor: pointer;
+  background: var(--brand-primary-soft);
+  border: 0;
+  border-left: 1px solid var(--brand-border);
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.search__submit svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.search__submit:hover {
+  color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 14%, transparent);
+}
+
+.search__submit:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+/* ---------- Zona derecha ---------- */
+
+.topbar__end {
+  display: flex;
+  gap: 0.125rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.avatar-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.avatar-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-primary-contrast);
+  background: var(--brand-primary);
+  border-radius: 50%;
+}
+
+.avatar--photo {
+  object-fit: cover;
+}
+
+/* ---------- Menú de cuenta ---------- */
+
+.profile {
+  position: relative;
+}
+
+.account {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 50;
+  width: min(21.5rem, calc(100vw - 1.5rem));
+  overflow: hidden;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  box-shadow: 0 14px 36px -14px rgb(26 35 64 / 32%);
+  animation: menu-in 0.16s ease-out both;
+}
+
+.account__head {
+  display: flex;
+  gap: 0.875rem;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.account__avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-primary-contrast);
+  background: var(--brand-primary);
+  border-radius: 50%;
+}
+
+.account__avatar--photo {
+  object-fit: cover;
+}
+
+.account__identity {
+  min-width: 0;
+}
+
+.account__name,
+.account__email {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Nombre y correo se recortan: son identificadores, no se leen palabra a
+     palabra. El vínculo institucional sí, así que ese se deja envolver. */
+  white-space: nowrap;
+}
+
+.account__name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+
+.account__email {
+  font-size: 0.8125rem;
+  color: var(--brand-text-muted);
+}
+
+/* Vínculo con la universidad: llega del directorio, no lo edita el usuario. */
+.account__affiliation {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--brand-primary);
+}
+
+.account__group {
+  padding: 0.375rem;
+}
+
+.account__item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--brand-text);
+  text-align: left;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.625rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.account__item svg {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--brand-text-muted);
+}
+
+.account__item:hover {
+  background: var(--brand-primary-soft);
+}
+
+.account__item:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
+}
+
+.account__item--exit:hover {
+  color: var(--brand-secondary);
+  background: var(--brand-secondary-soft);
+}
+
+.account__item--exit:hover svg {
+  color: var(--brand-secondary);
+}
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.375rem);
+  }
+}
+
+/* ---------- Adaptaciones por pantalla ---------- */
+
+/* Desde 48rem el buscador cabe en la barra y la lupa deja de hacer falta. */
+@media (min-width: 48rem) {
+  .topbar__center {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .icon-btn--search {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn,
+  .search,
+  .search__submit,
+  .account,
+  .account__item {
+    transition: none;
+    animation: none;
+  }
+}

@@ -5,12 +5,28 @@ import { isFirebaseConfigured } from '../config/firebase.config';
 /** Roles del sistema. El rol determina a qué dashboard entra el usuario. */
 export type UserRole = 'admin' | 'user' | 'visitor';
 
+/**
+ * Vínculo de la persona con la universidad. Llega del directorio institucional
+ * (Azure AD / Firestore), no lo elige el usuario.
+ */
+export type Affiliation = 'estudiante' | 'docente' | 'administrativo';
+
+export const AFFILIATION_LABELS: Record<Affiliation, string> = {
+  estudiante: 'Estudiante',
+  docente: 'Docente',
+  administrativo: 'Administrativo',
+};
+
 export interface AuthUser {
   uid: string;
   displayName: string;
   email: string;
   photoUrl: string | null;
   role: UserRole;
+  /** Null mientras el directorio no informe el vínculo. */
+  affiliation: Affiliation | null;
+  /** Carrera del estudiante, o área en el caso de docentes y administrativos. */
+  program: string | null;
 }
 
 /** Errores de Firebase traducidos a mensajes que sí puede leer el usuario final. */
@@ -135,6 +151,8 @@ export class AuthService {
   }): Promise<AuthUser> {
     const token = await account.getIdTokenResult();
     const claimedRole = token.claims['role'];
+    const claimedAffiliation = token.claims['affiliation'];
+    const claimedProgram = token.claims['program'];
 
     return {
       uid: account.uid,
@@ -142,7 +160,13 @@ export class AuthService {
       email: account.email ?? '',
       photoUrl: account.photoURL,
       role: claimedRole === 'admin' || claimedRole === 'visitor' ? claimedRole : 'user',
+      affiliation: this.toAffiliation(claimedAffiliation),
+      program: typeof claimedProgram === 'string' ? claimedProgram : null,
     };
+  }
+
+  private toAffiliation(value: unknown): Affiliation | null {
+    return typeof value === 'string' && value in AFFILIATION_LABELS ? (value as Affiliation) : null;
   }
 
   /** En la app híbrida no existe el popup: hay que usar redirección. */
@@ -179,10 +203,12 @@ export class AuthService {
         () =>
           resolve({
             uid: 'demo-uid',
-            displayName: 'Usuario de prueba',
-            email: `demo@${BRAND.emailDomain}`,
+            displayName: 'Julian Bejarano',
+            email: `julian.bejarano@${BRAND.emailDomain}`,
             photoUrl: null,
             role: 'user',
+            affiliation: 'estudiante',
+            program: 'Administración de Empresas',
           }),
         1200,
       );

@@ -24,7 +24,6 @@ describe('MainDashboard', () => {
       menuOpen: () => boolean;
       toggleMenu: () => void;
       greeting: () => string;
-      initials: () => string;
       elapsedSince: (date: Date) => string;
       status: (zone: any) => string;
       freeSpots: (zone: any) => number;

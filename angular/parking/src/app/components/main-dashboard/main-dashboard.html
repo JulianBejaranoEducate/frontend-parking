@@ -12,34 +12,7 @@
   ></button>
 
   <div class="content">
-    <header class="topbar">
-      <button
-        type="button"
-        class="icon-btn"
-        [attr.aria-expanded]="menuOpen()"
-        [attr.aria-label]="menuOpen() ? 'Cerrar menú' : 'Abrir menú'"
-        (click)="toggleMenu()"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" fill="currentColor" />
-        </svg>
-      </button>
-
-      <p class="topbar__product">{{ brand.productName }}</p>
-
-      <div class="topbar__user">
-        <span class="avatar" aria-hidden="true">{{ initials() }}</span>
-        <span class="topbar__name">{{ displayName() }}</span>
-        <button type="button" class="icon-btn" aria-label="Cerrar sesión" (click)="logout()">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm6.2 4.4-1.4 1.4 2.2 2.2H9v2h8l-2.2 2.2 1.4 1.4L21 12z"
-              fill="currentColor"
-            />
-          </svg>
-        </button>
-      </div>
-    </header>
+    <app-header [menuOpen]="menuOpen()" (menuToggled)="toggleMenu()" />
 
     <main class="page">
       <header class="page__head">

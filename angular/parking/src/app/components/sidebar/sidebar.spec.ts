@@ -20,17 +20,12 @@ describe('Sidebar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('lista las cuatro opciones iniciales del menú', () => {
+  it('lista las opciones iniciales del menú', () => {
     const labels = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.menu__item')].map(
       (item) => item.textContent?.trim(),
     );
 
-    expect(labels).toEqual([
-      'Registrar vehículo',
-      'Parqueaderos',
-      'Estadísticas',
-      'Configuración',
-    ]);
+    expect(labels).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
   });
 
   it('marca la opción elegida y avisa para que el cajón se cierre en móvil', async () => {
@@ -44,6 +39,13 @@ describe('Sidebar', () => {
     expect(first?.classList.contains('menu__item--active')).toBe(true);
     expect(first?.getAttribute('aria-current')).toBe('page');
     expect(closedCount).toBe(1);
+  });
+
+  it('no muestra el logo: la identidad ya la lleva el nombre del producto', () => {
+    expect((fixture.nativeElement as HTMLElement).querySelector('img')).toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('.sidebar__product')?.textContent?.trim()).toBe(
+      'Uni-parking',
+    );
   });
 
   it('queda oculto para lectores de pantalla mientras está cerrado', async () => {
@@ -60,7 +62,6 @@ describe('Sidebar', () => {
       'registrar-vehiculo',
       'parqueaderos',
       'estadisticas',
-      'configuracion',
     ]);
   });
 });

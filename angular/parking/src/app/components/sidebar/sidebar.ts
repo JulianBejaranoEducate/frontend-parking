@@ -24,11 +24,6 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
     label: 'Estadísticas',
     icon: 'M4 20h16v2H4a2 2 0 0 1-2-2V3h2zm3-2V9h3v9zm5 0V4h3v14zm5 0v-6h3v6z',
   },
-  {
-    id: 'configuracion',
-    label: 'Configuración',
-    icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4M10.6 2h2.8l.4 2.6q.9.3 1.6.8l2.4-1.1 1.4 2.4-2 1.7q.1.5.1 1t-.1 1l2 1.7-1.4 2.4-2.4-1.1q-.7.5-1.6.8L13.4 22h-2.8l-.4-2.6q-.9-.3-1.6-.8l-2.4 1.1-1.4-2.4 2-1.7q-.1-.5-.1-1t.1-1l-2-1.7 1.4-2.4 2.4 1.1q.7-.5 1.6-.8z',
-  },
 ];
 
 @Component({

@@ -1,1 +1,148 @@
-<p>header works!</p>
+<header class="topbar">
+  @if (searchExpanded()) {
+    <!-- Móvil: el buscador toma toda la barra hasta que se cierra. -->
+    <button type="button" class="icon-btn" aria-label="Cerrar búsqueda" (click)="collapseSearch()">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z" fill="currentColor" />
+      </svg>
+    </button>
+
+    <form class="search search--full" role="search" (submit)="submitSearch($event, expanded.value)">
+      <input
+        #expanded
+        class="search__input"
+        type="search"
+        name="q"
+        autocomplete="off"
+        placeholder="Buscar"
+        aria-label="Buscar"
+      />
+      <button type="submit" class="search__submit" aria-label="Buscar">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+    </form>
+  } @else {
+    <button
+      type="button"
+      class="icon-btn"
+      [attr.aria-expanded]="menuOpen()"
+      [attr.aria-label]="menuOpen() ? 'Cerrar menú' : 'Abrir menú'"
+      (click)="menuToggled.emit()"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z" fill="currentColor" />
+      </svg>
+    </button>
+
+    <div class="topbar__center">
+      <form class="search" role="search" (submit)="submitSearch($event, inline.value)">
+        <input
+          #inline
+          class="search__input"
+          type="search"
+          name="q"
+          autocomplete="off"
+          placeholder="Buscar"
+          aria-label="Buscar"
+        />
+        <button type="submit" class="search__submit" aria-label="Buscar">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <div class="topbar__end">
+      <button type="button" class="icon-btn icon-btn--search" aria-label="Buscar" (click)="expandSearch()">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+
+      <button type="button" class="icon-btn" aria-label="Notificaciones">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2m6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 1 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+
+      <div class="profile" #profile>
+        <button
+          type="button"
+          class="avatar-btn"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="profileOpen()"
+          aria-label="Cuenta"
+          (click)="toggleProfile()"
+        >
+          @if (photoUrl(); as photo) {
+            <img class="avatar avatar--photo" [src]="photo" alt="" width="32" height="32" />
+          } @else {
+            <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+          }
+        </button>
+
+        @if (profileOpen()) {
+          <div class="account" role="menu">
+            <div class="account__head">
+              @if (photoUrl(); as photo) {
+                <img class="account__avatar account__avatar--photo" [src]="photo" alt="" width="48" height="48" />
+              } @else {
+                <span class="account__avatar" aria-hidden="true">{{ initials() }}</span>
+              }
+
+              <div class="account__identity">
+                <p class="account__name">{{ displayName() }}</p>
+                <p class="account__email">{{ email() }}</p>
+                @if (affiliationLine(); as line) {
+                  <p class="account__affiliation">{{ line }}</p>
+                }
+              </div>
+            </div>
+
+            <div class="account__group">
+              <button type="button" class="account__item" role="menuitem" (click)="openSettings()">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4M10.6 2h2.8l.4 2.6q.9.3 1.6.8l2.4-1.1 1.4 2.4-2 1.7q.1.5.1 1t-.1 1l2 1.7-1.4 2.4-2.4-1.1q-.7.5-1.6.8L13.4 22h-2.8l-.4-2.6q-.9-.3-1.6-.8l-2.4 1.1-1.4-2.4 2-1.7q-.1-.5-.1-1t.1-1l-2-1.7 1.4-2.4 2.4 1.1q.7-.5 1.6-.8z"
+                    fill="currentColor"
+                  />
+                </svg>
+                Configuración
+              </button>
+
+              <button
+                type="button"
+                class="account__item account__item--exit"
+                role="menuitem"
+                (click)="logout()"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5zm6.2 4.4-1.4 1.4 2.2 2.2H9v2h8l-2.2 2.2 1.4 1.4L21 12z"
+                    fill="currentColor"
+                  />
+                </svg>
+                Cerrar sesión
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</header>

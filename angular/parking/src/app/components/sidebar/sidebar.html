@@ -5,15 +5,6 @@
   aria-label="Menú principal"
 >
   <div class="sidebar__head">
-    @if (brand.logoUrl) {
-      <img
-        class="sidebar__logo"
-        [src]="brand.logoUrl"
-        [alt]="brand.logoAlt"
-        [width]="brand.logoWidth"
-        [height]="brand.logoHeight"
-      />
-    }
     <p class="sidebar__product">{{ brand.productName }}</p>
   </div>
 

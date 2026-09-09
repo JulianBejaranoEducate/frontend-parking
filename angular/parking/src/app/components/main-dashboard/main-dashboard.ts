@@ -1,5 +1,4 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 import {
   type ParkingZone,
@@ -12,6 +11,7 @@ import {
 import { vehicleLabel } from '../../core/models/vehicle';
 import { AuthService } from '../../core/services/auth.service';
 import { ParkingService } from '../../core/services/parking.service';
+import { Header } from '../header/header';
 import { Sidebar } from '../sidebar/sidebar';
 
 /** Ancho a partir del cual la barra lateral cabe junto al contenido. */
@@ -28,7 +28,7 @@ function isDesktop(): boolean {
 }
 
 @Component({
-  imports: [Sidebar],
+  imports: [Header, Sidebar],
   selector: 'app-main-dashboard',
   styleUrl: './main-dashboard.css',
   templateUrl: './main-dashboard.html',
@@ -36,7 +36,6 @@ function isDesktop(): boolean {
 export class MainDashboard {
   private readonly auth = inject(AuthService);
   private readonly parking = inject(ParkingService);
-  private readonly router = inject(Router);
 
   protected readonly brand = BRAND;
   protected readonly vehicleLabel = vehicleLabel;
@@ -55,15 +54,6 @@ export class MainDashboard {
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? 'Invitado');
 
   protected readonly firstName = computed(() => this.displayName().split(' ')[0]);
-
-  protected readonly initials = computed(() =>
-    this.displayName()
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
-      .join(''),
-  );
 
   constructor() {
     // Al cruzar el umbral (rotar el celular, redimensionar la ventana) la barra
@@ -97,11 +87,6 @@ export class MainDashboard {
     if (!isDesktop()) {
       this.menuOpen.set(false);
     }
-  }
-
-  protected async logout(): Promise<void> {
-    await this.auth.logout();
-    await this.router.navigate(['/login']);
   }
 
   // ---- Ayudas de presentación ------------------------------------------------

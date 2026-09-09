@@ -41,6 +41,10 @@
 
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-display: 'Poppins', var(--font-sans);
+
+  /* Alto de la barra superior. La cabecera de la barra lateral usa el mismo
+     valor para que sus dos líneas divisorias queden a la misma altura. */
+  --app-topbar-height: 4rem;
 }
 
 * {
