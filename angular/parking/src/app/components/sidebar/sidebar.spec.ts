@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { SIDEBAR_ITEMS, Sidebar } from './sidebar';
 
 describe('Sidebar', () => {
@@ -8,6 +9,7 @@ describe('Sidebar', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Sidebar],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Sidebar);
@@ -16,43 +18,60 @@ describe('Sidebar', () => {
     await fixture.whenStable();
   });
 
+  const host = () => fixture.nativeElement as HTMLElement;
+
   it('should create', () => {
     expect(component).toBeTruthy();
   });
 
   it('lista las opciones iniciales del menú', () => {
-    const labels = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.menu__item')].map(
-      (item) => item.textContent?.trim(),
-    );
+    const labels = [...host().querySelectorAll('.menu__label')].map((item) => item.textContent?.trim());
 
     expect(labels).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
   });
 
-  it('marca la opción elegida y avisa para que el cajón se cierre en móvil', async () => {
+  it('las opciones con ruta son enlaces reales', () => {
+    const link = host().querySelector<HTMLAnchorElement>('a.menu__item');
+
+    expect(link?.textContent).toContain('Registrar vehículo');
+    expect(link?.getAttribute('href')).toBe('/vehiculos/registrar');
+  });
+
+  it('una opción sin ruta marca la selección y avisa para que el cajón se cierre en móvil', async () => {
     let closedCount = 0;
     component.closed.subscribe(() => (closedCount += 1));
 
-    const first = (fixture.nativeElement as HTMLElement).querySelector<HTMLButtonElement>('.menu__item');
-    first?.click();
+    const button = host().querySelector<HTMLButtonElement>('button.menu__item');
+    button?.click();
     await fixture.whenStable();
 
-    expect(first?.classList.contains('menu__item--active')).toBe(true);
-    expect(first?.getAttribute('aria-current')).toBe('page');
+    expect(button?.classList.contains('menu__item--active')).toBe(true);
+    expect(button?.getAttribute('aria-current')).toBe('page');
     expect(closedCount).toBe(1);
   });
 
+  it('muestra contadores y un contexto cuando otra pantalla los pide', async () => {
+    fixture.componentRef.setInput('context', 'Administración');
+    fixture.componentRef.setInput('items', [
+      { id: 'pendientes', label: 'Pendientes', icon: 'M0 0h24v24H0z', route: '/admin/pendientes', badge: 4, badgeLabel: 'por revisar' },
+    ]);
+    await fixture.whenStable();
+
+    expect(host().querySelector('.sidebar__context')?.textContent?.trim()).toBe('Administración');
+    expect(host().querySelector('.menu__badge')?.textContent?.trim()).toBe('4');
+    expect(host().querySelector('.menu__item .sr-only')?.textContent?.trim()).toBe('(4 por revisar)');
+  });
+
   it('no muestra el logo: la identidad ya la lleva el nombre del producto', () => {
-    expect((fixture.nativeElement as HTMLElement).querySelector('img')).toBeNull();
-    expect((fixture.nativeElement as HTMLElement).querySelector('.sidebar__product')?.textContent?.trim()).toBe(
-      'Uni-parking',
-    );
+    expect(host().querySelector('img')).toBeNull();
+    expect(host().querySelector('.sidebar__product')?.textContent?.trim()).toBe('Uni-parking');
   });
 
   it('queda oculto para lectores de pantalla mientras está cerrado', async () => {
     fixture.componentRef.setInput('open', false);
     await fixture.whenStable();
 
-    const aside = (fixture.nativeElement as HTMLElement).querySelector('.sidebar');
+    const aside = host().querySelector('.sidebar');
     expect(aside?.getAttribute('aria-hidden')).toBe('true');
     expect(aside?.classList.contains('sidebar--open')).toBe(false);
   });

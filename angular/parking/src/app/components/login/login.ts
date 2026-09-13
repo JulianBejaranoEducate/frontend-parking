@@ -17,6 +17,7 @@ export class Login {
   protected readonly brand = BRAND;
   protected readonly loading = this.auth.loading;
   protected readonly error = this.auth.error;
+  protected readonly demoMode = this.auth.demoMode;
   protected readonly currentYear = new Date().getFullYear();
 
   constructor() {
@@ -35,6 +36,15 @@ export class Login {
     }
 
     await this.enterDashboard(await this.auth.loginWithMicrosoft());
+  }
+
+  /** Solo en demostración: permite recorrer el dashboard de administración. */
+  protected async signInAsDemoAdmin(): Promise<void> {
+    if (this.loading()) {
+      return;
+    }
+
+    await this.enterDashboard(await this.auth.loginAsDemoAdmin());
   }
 
   /** Acceso de visitantes: sin cuenta institucional, registro temporal. */

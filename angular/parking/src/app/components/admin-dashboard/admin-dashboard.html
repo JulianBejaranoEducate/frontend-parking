@@ -1,1 +1,865 @@
-<p>admin-dashboard works!</p>
+<div class="shell" [class.shell--menu-open]="menuOpen()">
+  <app-sidebar
+    [open]="menuOpen()"
+    [items]="sidebarItems()"
+    context="Administración"
+    (closed)="closeMenu()"
+  />
+
+  <!-- Velo que oscurece el contenido mientras el cajón está abierto en móvil. -->
+  <button
+    type="button"
+    class="scrim"
+    [class.scrim--visible]="menuOpen()"
+    tabindex="-1"
+    aria-label="Cerrar menú"
+    (click)="closeMenu()"
+  ></button>
+
+  <div class="content">
+    <app-header [menuOpen]="menuOpen()" (menuToggled)="toggleMenu()" />
+
+    <main class="page">
+      @if (selected(); as registration) {
+        <ng-container [ngTemplateOutlet]="review" [ngTemplateOutletContext]="{ $implicit: registration }" />
+      } @else {
+        <header class="page__head">
+          <h1 class="page__title">{{ copy().title }}</h1>
+          <p class="page__subtitle">{{ copy().subtitle }}</p>
+        </header>
+
+        <p class="sr-only" aria-live="polite">{{ flash() }}</p>
+        @if (flash(); as message) {
+          <div class="flash">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+            </svg>
+            <span>{{ message }}</span>
+            <button type="button" class="flash__close" aria-label="Cerrar aviso" (click)="flash.set(null)">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+            </button>
+          </div>
+        }
+
+        @switch (activeSection()) {
+          <!-- ================================ Resumen ================================ -->
+          @case ('resumen') {
+            <section class="tiles tiles--4" aria-label="Indicadores de hoy">
+              <article class="tile">
+                <p class="tile__label">Por revisar</p>
+                <p class="tile__value">{{ pending().length }}</p>
+                <p class="tile__note">
+                  @if (oldestPending(); as oldest) {
+                    La más antigua llegó {{ timeAgo(oldest.updatedAt) }}.
+                  } @else {
+                    No hay solicitudes esperando.
+                  }
+                </p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Esperando documentos</p>
+                <p class="tile__value">{{ needsUpdate().length }}</p>
+                <p class="tile__note">Devueltas a la persona para actualizar.</p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Incidencias sin resolver</p>
+                <p class="tile__value">{{ unresolvedIncidents().length }}</p>
+                <p class="tile__note">Abiertas o en revisión.</p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Ocupación ahora</p>
+                <p class="tile__value">{{ occupancyPercent() }} %</p>
+                <p class="tile__note">{{ totalOccupied() }} de {{ totalCapacity() }} cupos ocupados.</p>
+              </article>
+            </section>
+
+            <div class="split">
+              <section class="card card--flush" aria-labelledby="summary-pending">
+                <div class="card__head card__head--padded">
+                  <h2 class="card__title" id="summary-pending">Por revisar</h2>
+                  <a class="link-btn" routerLink="/admin/pendientes">Ver todas</a>
+                </div>
+                @if (pending().length) {
+                  <ul class="requests">
+                    @for (registration of pending().slice(0, 5); track registration.id) {
+                      <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
+                    }
+                  </ul>
+                } @else {
+                  <p class="empty empty--padded">No hay solicitudes pendientes.</p>
+                }
+              </section>
+
+              <section class="card card--flush" aria-labelledby="summary-incidents">
+                <div class="card__head card__head--padded">
+                  <h2 class="card__title" id="summary-incidents">Incidencias sin resolver</h2>
+                  <a class="link-btn" routerLink="/admin/incidencias">Ver todas</a>
+                </div>
+                @if (unresolvedIncidents().length) {
+                  <ul class="incidents">
+                    @for (incident of unresolvedIncidents().slice(0, 3); track incident.id) {
+                      <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: true }" />
+                    }
+                  </ul>
+                } @else {
+                  <p class="empty empty--padded">No hay incidencias abiertas.</p>
+                }
+              </section>
+            </div>
+          }
+
+          <!-- ============================== Estadísticas ============================== -->
+          @case ('estadisticas') {
+            <!-- El periodo filtra todo lo que hay debajo: indicadores, gráficas y tablas. -->
+            <div class="toolbar">
+              <div class="range" role="radiogroup" aria-label="Periodo de las estadísticas">
+                @for (option of statsRanges; track option.days) {
+                  <label class="range__option">
+                    <input
+                      class="range__input"
+                      type="radio"
+                      name="stats-range"
+                      [checked]="statsDays() === option.days"
+                      (change)="statsDays.set(option.days)"
+                    />
+                    <span class="range__label">Últimos {{ option.label }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+
+            <section class="tiles tiles--4" aria-label="Indicadores del periodo">
+              <article class="tile">
+                <p class="tile__label">Ingresos</p>
+                <p class="tile__value">{{ summary().totalEntries.toLocaleString('es-CO') }}</p>
+                <p class="tile__note">En los últimos {{ statsDays() }} días.</p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Promedio diario</p>
+                <p class="tile__value">{{ summary().dailyAverage.toLocaleString('es-CO') }}</p>
+                <p class="tile__note">Ingresos por día.</p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Hora pico</p>
+                <p class="tile__value">{{ hourLabel(summary().peakHour) }}</p>
+                <p class="tile__note">La franja con más ocupación.</p>
+              </article>
+              <article class="tile">
+                <p class="tile__label">Permanencia promedio</p>
+                <p class="tile__value">{{ durationLabel(summary().averageStayMinutes) }}</p>
+                <p class="tile__note">De la entrada a la salida.</p>
+              </article>
+            </section>
+
+            <!-- Ingresos por día: magnitud por categoría → columnas de un solo tono. -->
+            <section class="card" aria-labelledby="chart-daily">
+              <h2 class="card__title" id="chart-daily">Ingresos por día</h2>
+              <p class="chart-caption">Vehículos que entraron cada día, de todos los tipos.</p>
+
+              <div class="chart" [style.--columns]="daily().length">
+                <div class="chart__plot">
+                  <div class="chart__grid" aria-hidden="true">
+                    @for (tick of dailyTicks(); track $index) {
+                      <span class="chart__tick" [style.bottom.%]="barHeight(tick, dailyMax())">
+                        <span class="chart__tick-label">{{ tick }}</span>
+                      </span>
+                    }
+                  </div>
+                  <ul class="chart__bars" aria-label="Ingresos por día">
+                    @for (day of daily(); track day.date.getTime(); let index = $index, count = $count) {
+                      <li
+                        class="chart__column"
+                        [class.chart__column--start]="index < count / 3"
+                        [class.chart__column--end]="index >= (count * 2) / 3"
+                        tabindex="0"
+                        [attr.aria-label]="fullDayLabel(day.date) + ': ' + day.entries + ' ingresos'"
+                      >
+                        <span class="chart__bar" [style.height.%]="barHeight(day.entries, dailyMax())">
+                          <span class="chart__tip" aria-hidden="true">
+                            <strong>{{ day.entries }}</strong>
+                            <span>{{ fullDayLabel(day.date) }}</span>
+                          </span>
+                        </span>
+                      </li>
+                    }
+                  </ul>
+                </div>
+                <div class="chart__labels" aria-hidden="true">
+                  @for (day of daily(); track day.date.getTime(); let index = $index) {
+                    <span>{{ index % dailyLabelEvery() === (daily().length - 1) % dailyLabelEvery() ? dayLabel(day.date) : '' }}</span>
+                  }
+                </div>
+              </div>
+
+              <details class="chart-table">
+                <summary>Ver los datos en tabla</summary>
+                <div class="chart-table__scroll">
+                  <table class="data-table data-table--numeric">
+                    <thead><tr><th scope="col">Día</th><th scope="col">Ingresos</th></tr></thead>
+                    <tbody>
+                      @for (day of daily(); track day.date.getTime()) {
+                        <tr><td>{{ fullDayLabel(day.date) }}</td><td>{{ day.entries }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            </section>
+
+            <div class="split">
+              <!-- Ocupación por hora, con la línea de "casi lleno" como referencia. -->
+              <section class="card" aria-labelledby="chart-hourly">
+                <h2 class="card__title" id="chart-hourly">Ocupación promedio por hora</h2>
+                <p class="chart-caption">Porcentaje de cupos ocupados en cada franja.</p>
+
+                <div class="chart" [style.--columns]="hourly().length">
+                  <div class="chart__plot">
+                    <div class="chart__grid" aria-hidden="true">
+                      @for (tick of [0, 50, 100]; track tick) {
+                        <span class="chart__tick" [style.bottom.%]="tick">
+                          <span class="chart__tick-label">{{ tick }} %</span>
+                        </span>
+                      }
+                      <span class="chart__threshold" [style.bottom.%]="fillingThreshold">
+                        <span class="chart__threshold-label">Casi lleno</span>
+                      </span>
+                    </div>
+                    <ul class="chart__bars" aria-label="Ocupación promedio por hora">
+                      @for (slot of hourly(); track slot.hour; let index = $index, count = $count) {
+                        <li
+                          class="chart__column"
+                          [class.chart__column--start]="index < count / 3"
+                          [class.chart__column--end]="index >= (count * 2) / 3"
+                          tabindex="0"
+                          [attr.aria-label]="hourLabel(slot.hour) + ': ' + percent(slot.ratio) + ' % de ocupación'"
+                        >
+                          <span class="chart__bar" [style.height.%]="barHeight(slot.ratio, 1)">
+                            <span class="chart__tip" aria-hidden="true">
+                              <strong>{{ percent(slot.ratio) }} %</strong>
+                              <span>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</span>
+                            </span>
+                          </span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                  <div class="chart__labels" aria-hidden="true">
+                    @for (slot of hourly(); track slot.hour; let index = $index) {
+                      <span>{{ index % 3 === 0 ? slot.hour + 'h' : '' }}</span>
+                    }
+                  </div>
+                </div>
+
+                <details class="chart-table">
+                  <summary>Ver los datos en tabla</summary>
+                  <div class="chart-table__scroll">
+                    <table class="data-table data-table--numeric">
+                      <thead><tr><th scope="col">Franja</th><th scope="col">Ocupación</th></tr></thead>
+                      <tbody>
+                        @for (slot of hourly(); track slot.hour) {
+                          <tr><td>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</td><td>{{ percent(slot.ratio) }} %</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              </section>
+
+              <!-- Uso por tipo: tres barras horizontales con el valor en la punta. -->
+              <section class="card" aria-labelledby="chart-types">
+                <h2 class="card__title" id="chart-types">Ingresos por tipo de vehículo</h2>
+                <p class="chart-caption">Total del periodo.</p>
+
+                <ul class="hbars">
+                  @for (item of typeUsage(); track item.type) {
+                    <li class="hbar">
+                      <span class="hbar__label">{{ vehicleLabel(item.type) }}</span>
+                      <span class="hbar__track">
+                        <span class="hbar__fill" [style.--ratio]="item.entries / typeMax()"></span>
+                        <span class="hbar__value">{{ item.entries.toLocaleString('es-CO') }}</span>
+                      </span>
+                    </li>
+                  }
+                </ul>
+              </section>
+            </div>
+          }
+
+          <!-- =============================== Incidencias =============================== -->
+          @case ('incidencias') {
+            <div class="toolbar">
+              <div class="range" role="radiogroup" aria-label="Estado de las incidencias">
+                @for (option of [
+                  { value: 'unresolved', label: 'Sin resolver' },
+                  { value: 'resolved', label: 'Resueltas' },
+                  { value: 'all', label: 'Todas' }
+                ]; track option.value) {
+                  <label class="range__option">
+                    <input
+                      class="range__input"
+                      type="radio"
+                      name="incident-filter"
+                      [checked]="incidentFilter() === option.value"
+                      (change)="setIncidentFilter($any(option.value))"
+                    />
+                    <span class="range__label">{{ option.label }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+
+            <section class="card card--flush" aria-label="Listado de incidencias">
+              @if (filteredIncidents().length) {
+                <ul class="incidents">
+                  @for (incident of filteredIncidents(); track incident.id) {
+                    <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: false }" />
+                  }
+                </ul>
+              } @else {
+                <p class="empty empty--padded">No hay incidencias en esta vista.</p>
+              }
+            </section>
+          }
+
+          <!-- ================== Pendientes · Aprobados · Rechazados · Actualizaciones ================== -->
+          @default {
+            <div class="toolbar">
+              <label class="search-field">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+                    fill="currentColor"
+                  />
+                </svg>
+                <span class="sr-only">Buscar solicitudes</span>
+                <input
+                  class="search-field__input"
+                  type="search"
+                  placeholder="Buscar por nombre, placa o documento"
+                  [value]="query()"
+                  (input)="setQuery($event)"
+                />
+              </label>
+
+              <div class="range" role="radiogroup" aria-label="Tipo de vehículo">
+                <label class="range__option">
+                  <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === 'all'" (change)="setTypeFilter('all')" />
+                  <span class="range__label">Todos</span>
+                </label>
+                @for (type of vehicleTypes; track type) {
+                  <label class="range__option">
+                    <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === type" (change)="setTypeFilter(type)" />
+                    <span class="range__label">{{ vehicleLabel(type) }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+
+            <section class="card card--flush" [attr.aria-label]="copy().title">
+              @if (listItems().length) {
+                <ul class="requests">
+                  @for (registration of listItems(); track registration.id) {
+                    <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
+                  }
+                </ul>
+              } @else if (query() || typeFilter() !== 'all') {
+                <p class="empty empty--padded">Ninguna solicitud coincide con la búsqueda.</p>
+              } @else {
+                <p class="empty empty--padded">No hay solicitudes en esta vista.</p>
+              }
+            </section>
+          }
+        }
+      }
+    </main>
+  </div>
+</div>
+
+<!-- ============================ Fila de una solicitud ============================ -->
+<ng-template #requestRow let-registration>
+  <li class="request">
+    <span class="request__icon" aria-hidden="true">
+      <ng-container [ngTemplateOutlet]="vehicleIcon" [ngTemplateOutletContext]="{ $implicit: registration.vehicle.type }" />
+    </span>
+
+    <div class="request__main">
+      <p class="request__title">
+        <span [class.plate]="!!registration.vehicle.plate">{{ vehicleTitle(registration.vehicle) }}</span>
+        <span class="request__details">{{ vehicleDetails(registration.vehicle) }}</span>
+      </p>
+      <p class="request__person">
+        {{ registration.applicant.displayName }}
+        @if (affiliationLine(registration)) {
+          <span class="request__affiliation">· {{ affiliationLine(registration) }}</span>
+        }
+      </p>
+
+      <p class="request__meta">
+        @if (activeSection() === 'resumen') {
+          <span class="chip" [class]="'chip chip--' + registration.status">{{ statusLabel(registration.status) }}</span>
+        }
+        @if (wasResubmitted(registration)) {
+          <span class="chip chip--neutral">Documentos actualizados</span>
+        }
+        @if (registration.status === 'pending' && nameMatchFor(registration) !== 'match') {
+          <span class="chip chip--warning">
+            <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+            </svg>
+            Nombre no coincide con la cuenta
+          </span>
+        }
+        <time class="request__time" [attr.datetime]="registration.updatedAt.toISOString()">
+          @switch (registration.status) {
+            @case ('pending') { Enviada {{ timeAgo(registration.updatedAt) }} }
+            @case ('approved') { Aprobada {{ timeAgo(registration.updatedAt) }} }
+            @case ('rejected') { Rechazada {{ timeAgo(registration.updatedAt) }} }
+            @default { Devuelta {{ timeAgo(registration.updatedAt) }} }
+          }
+        </time>
+      </p>
+
+      @if (latestReview(registration); as review) {
+        @if (registration.status === 'rejected' || registration.status === 'needs-update') {
+          <p class="request__note">
+            @if (review.reason) {
+              <strong>{{ review.reason }}.</strong>
+            }
+            @if (review.documentKind) {
+              <strong>Pidió: {{ documentLabel(review.documentKind) }}.</strong>
+            }
+            {{ review.note }}
+          </p>
+        }
+      }
+    </div>
+
+    <button
+      type="button"
+      class="small-btn"
+      [class.small-btn--primary]="registration.status === 'pending'"
+      [class.small-btn--ghost]="registration.status !== 'pending'"
+      [attr.aria-label]="(registration.status === 'pending' ? 'Revisar ' : 'Ver ') + vehicleTitle(registration.vehicle) + ' de ' + registration.applicant.displayName"
+      (click)="openReview(registration)"
+    >
+      {{ registration.status === 'pending' ? 'Revisar' : 'Ver' }}
+    </button>
+  </li>
+</ng-template>
+
+<!-- ============================ Fila de una incidencia ============================ -->
+<ng-template #incidentRow let-incident let-compact="compact">
+  <li class="incident">
+    <div class="incident__head">
+      <span class="chip" [class]="'chip ' + severityChip(incident)">
+        <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
+          @switch (incident.severity) {
+            @case ('high') {
+              <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+            }
+            @case ('medium') {
+              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 5h2v6h-2zm0 8h2v2h-2z" fill="currentColor" />
+            }
+            @default {
+              <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1 8h2v7h-2zm0-3h2v2h-2z" fill="currentColor" />
+            }
+          }
+        </svg>
+        Gravedad {{ severityLabel(incident).toLowerCase() }}
+      </span>
+      <span class="chip" [class]="incident.status === 'resolved' ? 'chip chip--success' : 'chip chip--neutral'">
+        {{ incidentStatusLabel(incident) }}
+      </span>
+      <time class="incident__time" [attr.datetime]="incident.reportedAt.toISOString()">{{ timeAgo(incident.reportedAt) }}</time>
+    </div>
+
+    <p class="incident__title">{{ incident.title }}</p>
+    @if (!compact) {
+      <p class="incident__description">{{ incident.description }}</p>
+    }
+    <p class="incident__meta">
+      {{ incident.zoneName }}
+      @if (incident.plate) {
+        · <span class="plate">{{ incident.plate }}</span>
+      }
+      · Reportó {{ incident.reportedBy }}
+    </p>
+
+    @if (!compact && incident.status !== 'resolved') {
+      <div class="incident__actions">
+        @if (incident.status === 'open') {
+          <button type="button" class="small-btn small-btn--ghost" (click)="setIncidentStatus(incident, 'in-review')">
+            Marcar en revisión
+          </button>
+        }
+        <button type="button" class="small-btn small-btn--primary" (click)="setIncidentStatus(incident, 'resolved')">
+          Marcar resuelta
+        </button>
+      </div>
+    }
+  </li>
+</ng-template>
+
+<!-- ============================ Revisión de una solicitud ============================ -->
+<ng-template #review let-registration>
+  <button type="button" class="link-btn review__back" (click)="closeReview()">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15.3 4.7 8 12l7.3 7.3 1.4-1.4-5.9-5.9 5.9-5.9z" fill="currentColor" />
+    </svg>
+    Volver a {{ copy().title.toLowerCase() }}
+  </button>
+
+  <header class="review__head">
+    <span class="request__icon request__icon--large" aria-hidden="true">
+      <ng-container [ngTemplateOutlet]="vehicleIcon" [ngTemplateOutletContext]="{ $implicit: registration.vehicle.type }" />
+    </span>
+    <div class="review__heading">
+      <h1 class="page__title">
+        <span [class.plate]="!!registration.vehicle.plate">{{ vehicleTitle(registration.vehicle) }}</span>
+      </h1>
+      <p class="page__subtitle">{{ vehicleDetails(registration.vehicle) }}</p>
+    </div>
+    <span class="chip" [class]="'chip chip--' + registration.status">{{ statusLabel(registration.status) }}</span>
+  </header>
+
+  @if (actionError(); as message) {
+    <p class="alert" role="alert">{{ message }}</p>
+  }
+
+  <div class="review">
+    <!-- Documentos: la evidencia contra la que se compara todo lo demás. -->
+    <section class="card review__documents" aria-labelledby="review-documents">
+      <div class="card__head">
+        <h2 class="card__title" id="review-documents">Documentos</h2>
+        @if (registration.documents.length > 1) {
+          <div class="range" role="radiogroup" aria-label="Documento visible">
+            @for (document of registration.documents; track document.kind; let index = $index) {
+              <label class="range__option">
+                <input
+                  class="range__input"
+                  type="radio"
+                  name="document-tab"
+                  [checked]="documentIndex() === index"
+                  (change)="showDocument(index)"
+                />
+                <span class="range__label">{{ documentLabel(document.kind) }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+
+      @if (activeDocument(); as document) {
+        <div class="viewer" [class.viewer--zoomed]="zoomed()">
+          @if (isImage(document)) {
+            <img
+              class="viewer__image"
+              [src]="document.dataUrl"
+              [alt]="documentLabel(document.kind) + ' enviada por ' + registration.applicant.displayName"
+              [style.transform]="'rotate(' + rotation() + 'deg)'"
+            />
+          } @else {
+            <object class="viewer__pdf" [attr.data]="document.dataUrl" type="application/pdf">
+              <p class="empty">Este navegador no muestra PDF dentro de la página.</p>
+            </object>
+          }
+        </div>
+        <div class="viewer__tools">
+          @if (isImage(document)) {
+            <button type="button" class="small-btn small-btn--ghost" (click)="rotate()">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7" fill="currentColor" />
+              </svg>
+              Girar
+            </button>
+            <button type="button" class="small-btn small-btn--ghost" [attr.aria-pressed]="zoomed()" (click)="toggleZoom()">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8m-.5-6h1v1.5H12v1h-1.5V12h-1v-1.5H8v-1h1.5z"
+                  fill="currentColor"
+                />
+              </svg>
+              {{ zoomed() ? 'Ajustar' : 'Ampliar' }}
+            </button>
+          }
+          <span class="viewer__meta">{{ document.fileName }} · {{ timeAgo(document.uploadedAt) }}</span>
+        </div>
+      } @else {
+        <p class="empty">Esta solicitud no incluye documentos: son opcionales para este tipo de vehículo.</p>
+      }
+    </section>
+
+    <div class="review__side">
+      <!-- Primera validación, automática. -->
+      <section class="card" aria-labelledby="review-auto">
+        <h2 class="card__title" id="review-auto">Verificación automática</h2>
+        <ul class="auto-checks">
+          <li class="auto-check" [class.auto-check--ok]="accountMatch() === 'match'">
+            <span class="auto-check__icon" aria-hidden="true">
+              @if (accountMatch() === 'match') {
+                <svg viewBox="0 0 24 24"><path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" /></svg>
+              } @else {
+                <svg viewBox="0 0 24 24"><path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" /></svg>
+              }
+            </span>
+            <span>
+              <strong>
+                @switch (accountMatch()) {
+                  @case ('match') { Los nombres coinciden con la cuenta }
+                  @case ('partial') { Los nombres coinciden solo en parte con la cuenta }
+                  @default { Los nombres no coinciden con la cuenta }
+                }
+              </strong>
+              <span class="auto-check__detail">
+                Declaró «{{ declaredName(registration) }}» · Cuenta «{{ registration.applicant.displayName }}»
+              </span>
+            </span>
+          </li>
+          @if (registration.vehicle.plate) {
+            <li class="auto-check" [class.auto-check--ok]="!duplicatePlate()">
+              <span class="auto-check__icon" aria-hidden="true">
+                @if (!duplicatePlate()) {
+                  <svg viewBox="0 0 24 24"><path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" /></svg>
+                } @else {
+                  <svg viewBox="0 0 24 24"><path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" /></svg>
+                }
+              </span>
+              <span>
+                <strong>{{ duplicatePlate() ? 'La placa ya está en otra solicitud vigente' : 'La placa no está registrada por nadie más' }}</strong>
+              </span>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="card" aria-labelledby="review-applicant">
+        <h2 class="card__title" id="review-applicant">Solicitante y datos declarados</h2>
+        <dl class="facts">
+          <div>
+            <dt>Cuenta</dt>
+            @let email = emailParts(registration.applicant.email);
+            <dd>{{ registration.applicant.displayName }}<span class="facts__sub">{{ email[0] }}<wbr />{{ email[1] }}</span></dd>
+          </div>
+          @if (affiliationLine(registration)) {
+            <div><dt>Vínculo</dt><dd>{{ affiliationLine(registration) }}</dd></div>
+          }
+          <div><dt>Declaró</dt><dd>{{ declaredName(registration) }}</dd></div>
+          @if (registration.owner.documentNumber) {
+            <div><dt>Documento</dt><dd>{{ documentTypeLabel(registration) }} {{ registration.owner.documentNumber }}</dd></div>
+          }
+          @if (registration.vehicle.plate) {
+            <div><dt>Placa</dt><dd class="plate">{{ registration.vehicle.plate }}</dd></div>
+          }
+          @if (registration.vehicle.brand) {
+            <div><dt>Marca</dt><dd>{{ registration.vehicle.brand }}</dd></div>
+          }
+          @if (registration.vehicle.line) {
+            <div><dt>Línea</dt><dd>{{ registration.vehicle.line }}</dd></div>
+          }
+          @if (registration.vehicle.modelYear) {
+            <div><dt>Modelo</dt><dd>{{ registration.vehicle.modelYear }}</dd></div>
+          }
+          @if (registration.vehicle.color) {
+            <div><dt>Color</dt><dd>{{ registration.vehicle.color }}</dd></div>
+          }
+          @if (registration.vehicle.frameSerial) {
+            <div><dt>Serial</dt><dd class="plate">{{ registration.vehicle.frameSerial }}</dd></div>
+          }
+          <div><dt>Enviada</dt><dd>{{ formatDateTime(registration.submittedAt) }}</dd></div>
+        </dl>
+      </section>
+
+      @if (registration.reviews.length) {
+        <section class="card" aria-labelledby="review-history">
+          <h2 class="card__title" id="review-history">Historial de revisión</h2>
+          <ol class="timeline">
+            @for (entry of registration.reviews; track entry.decidedAt.getTime()) {
+              <li class="timeline__item">
+                <p class="timeline__title">
+                  @switch (entry.outcome) {
+                    @case ('approved') { Aprobada }
+                    @case ('rejected') { Rechazada{{ entry.reason ? ': ' + entry.reason.toLowerCase() : '' }} }
+                    @default { Pidió actualizar{{ entry.documentKind ? ': ' + documentLabel(entry.documentKind).toLowerCase() : '' }} }
+                  }
+                </p>
+                @if (entry.note) {
+                  <p class="timeline__note">{{ entry.note }}</p>
+                }
+                <p class="timeline__meta">{{ entry.reviewer }} · {{ formatDateTime(entry.decidedAt) }}</p>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+
+      <!-- Segunda validación, humana: solo mientras la solicitud espera decisión. -->
+      @if (registration.status === 'pending') {
+        <section class="card" aria-labelledby="review-checklist">
+          <div class="card__head">
+            <h2 class="card__title" id="review-checklist">Comparar con el documento</h2>
+            <span class="card__count">{{ checkedCount() }} de {{ checklist().length }}</span>
+          </div>
+          <p class="hint">Marca cada punto después de comprobarlo en la foto.</p>
+
+          <ul class="checklist">
+            @for (item of checklist(); track item.id) {
+              <li>
+                <label class="check">
+                  <input type="checkbox" [checked]="!!checks()[item.id]" (change)="toggleCheck(item.id, $event)" />
+                  <span class="check__text">
+                    <span>{{ item.label }}</span>
+                    @if (item.value) {
+                      <span class="check__value">{{ item.value }}</span>
+                    }
+                  </span>
+                </label>
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="card decision" aria-labelledby="review-decision">
+          <h2 class="card__title" id="review-decision">Decisión</h2>
+
+          @switch (decision()) {
+            @case ('reject') {
+              <div class="field">
+                <label class="field__label" for="reject-reason">Motivo del rechazo</label>
+                <div class="field__select">
+                  <select
+                    class="field__control"
+                    id="reject-reason"
+                    [class.field__control--invalid]="decisionAttempted() && !rejectReason()"
+                    [attr.aria-invalid]="decisionAttempted() && !rejectReason()"
+                    (change)="setText('rejectReason', $event)"
+                  >
+                    <option value="" [selected]="!rejectReason()" disabled>Selecciona un motivo</option>
+                    @for (reason of rejectionReasons; track reason) {
+                      <option [value]="reason" [selected]="rejectReason() === reason">{{ reason }}</option>
+                    }
+                  </select>
+                  <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+                  </svg>
+                </div>
+                @if (decisionAttempted() && !rejectReason()) {
+                  <p class="field__error">Elige el motivo: la persona lo verá.</p>
+                }
+              </div>
+              <div class="field decision__note">
+                <label class="field__label" for="reject-note">Detalle <span class="field__optional">(opcional)</span></label>
+                <textarea class="field__control" id="reject-note" maxlength="240" [value]="decisionNote()" (input)="setText('decisionNote', $event)"></textarea>
+              </div>
+              <div class="decision__actions">
+                <button type="button" class="small-btn small-btn--ghost" (click)="chooseDecision('none')">Cancelar</button>
+                <button type="button" class="small-btn small-btn--danger" (click)="confirmReject()">Confirmar rechazo</button>
+              </div>
+            }
+
+            @case ('update') {
+              <div class="field">
+                <label class="field__label" for="update-document">Documento a reenviar</label>
+                <div class="field__select">
+                  <select
+                    class="field__control"
+                    id="update-document"
+                    [class.field__control--invalid]="decisionAttempted() && !updateDocument()"
+                    [attr.aria-invalid]="decisionAttempted() && !updateDocument()"
+                    (change)="setUpdateDocument($event)"
+                  >
+                    <option value="" [selected]="!updateDocument()" disabled>Selecciona un documento</option>
+                    @for (kind of updatableDocuments(registration); track kind) {
+                      <option [value]="kind" [selected]="updateDocument() === kind">{{ documentLabel(kind) }}</option>
+                    }
+                  </select>
+                  <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+                  </svg>
+                </div>
+                @if (decisionAttempted() && !updateDocument()) {
+                  <p class="field__error">Elige qué documento debe volver a enviar.</p>
+                }
+              </div>
+              <div class="field decision__note">
+                <label class="field__label" for="update-note">Qué debe corregir</label>
+                <textarea
+                  class="field__control"
+                  id="update-note"
+                  maxlength="240"
+                  placeholder="Ej. La foto tiene reflejo y no se lee el propietario."
+                  [class.field__control--invalid]="decisionAttempted() && !decisionNote().trim()"
+                  [attr.aria-invalid]="decisionAttempted() && !decisionNote().trim()"
+                  [value]="decisionNote()"
+                  (input)="setText('decisionNote', $event)"
+                ></textarea>
+                @if (decisionAttempted() && !decisionNote().trim()) {
+                  <p class="field__error">Explica qué debe corregir: es lo que leerá la persona.</p>
+                }
+              </div>
+              <div class="decision__actions">
+                <button type="button" class="small-btn small-btn--ghost" (click)="chooseDecision('none')">Cancelar</button>
+                <button type="button" class="small-btn small-btn--primary" (click)="confirmRequestUpdate()">Pedir actualización</button>
+              </div>
+            }
+
+            @default {
+              <div class="decision__actions decision__actions--main">
+                <button
+                  type="button"
+                  class="small-btn small-btn--primary"
+                  [attr.aria-disabled]="!allChecked()"
+                  [attr.aria-describedby]="allChecked() ? null : 'approve-hint'"
+                  (click)="approve()"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+                  </svg>
+                  Aprobar
+                </button>
+                <button type="button" class="small-btn small-btn--ghost" (click)="chooseDecision('update')">
+                  Pedir actualización
+                </button>
+                <button type="button" class="small-btn small-btn--ghost decision__reject" (click)="chooseDecision('reject')">
+                  Rechazar
+                </button>
+              </div>
+              @if (!allChecked()) {
+                <p class="hint" id="approve-hint">Para aprobar, marca todos los puntos de la comparación.</p>
+              }
+              @if (accountMatch() !== 'match') {
+                <p class="hint hint--warning">
+                  Los nombres declarados no coinciden del todo con la cuenta. Confirma en la foto a nombre de quién está el
+                  vehículo antes de decidir.
+                </p>
+              }
+            }
+          }
+        </section>
+      }
+    </div>
+  </div>
+</ng-template>
+
+<ng-template #vehicleIcon let-type>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    @switch (type) {
+      @case ('moto') {
+        <circle cx="5.5" cy="16.5" r="3" />
+        <circle cx="18.5" cy="16.5" r="3" />
+        <path d="M5.5 16.5h4l2.5-5h3.5l3 5M12 11.5 10.5 8H8M15.5 11.5 14 7.5h2.5" />
+      }
+      @case ('scooter') {
+        <circle cx="5" cy="17.5" r="2.5" />
+        <circle cx="19" cy="17.5" r="2.5" />
+        <path d="M7.5 17.5h9M19 17.5 16 5M14 5h4" />
+      }
+      @default {
+        <circle cx="5.5" cy="16.5" r="3.5" />
+        <circle cx="18.5" cy="16.5" r="3.5" />
+        <path d="M5.5 16.5H12L9 9zM9 9h6.5l3 7.5M15.5 9 12 16.5M9 9V7M7.5 7h3M15.5 9l-1-2.5M13.5 6.5h2.5" />
+      }
+    }
+  </svg>
+</ng-template>

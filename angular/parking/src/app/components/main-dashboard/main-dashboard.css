@@ -1,217 +1,122 @@
-/* Dashboard del usuario: resumen de su vehículo, cupos e historial. */
+/* Dashboard del usuario: vehículos, cupos e historial.
+   El armazón (shell, tarjetas, botones pequeños, selector de periodo, tabla)
+   vive en styles.css porque lo comparte el dashboard de administración. */
 
 :host {
   display: block;
 }
 
-.shell {
-  min-height: 100dvh;
-  background: var(--brand-background);
-}
+/* ---------- Mis vehículos ---------- */
 
-/* Solo cubre el contenido en móvil; en escritorio la barra convive con él. */
-.scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 30;
+.vehicles {
+  display: grid;
+  gap: 0.625rem;
   padding: 0;
-  cursor: pointer;
-  visibility: hidden;
-  background: rgb(26 35 64 / 45%);
-  border: 0;
-  opacity: 0;
-  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
-}
-
-.scrim--visible {
-  visibility: visible;
-  opacity: 1;
-  transition: opacity 0.25s ease;
-}
-
-.content {
-  transition: padding-left 0.25s ease;
-}
-
-/* ---------- Página ---------- */
-
-.page {
-  max-width: 72rem;
-  padding: clamp(1.25rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem);
-  padding-bottom: max(2rem, env(safe-area-inset-bottom));
-  margin-inline: auto;
-}
-
-.page__title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: clamp(1.375rem, 5vw, 1.75rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: var(--brand-text);
+  list-style: none;
 }
-
-.page__subtitle {
-  margin: 0.25rem 0 0;
-  font-size: 0.9375rem;
-  color: var(--brand-text-muted);
-}
-
-/* ---------- Tarjetas de resumen ---------- */
-
-.tiles {
-  display: grid;
-  gap: 0.875rem;
-  margin-top: 1.5rem;
-}
-
-.tile,
-.card {
-  padding: 1.125rem 1.25rem;
-  background: var(--brand-surface);
-  border: 1px solid var(--brand-border);
-  border-radius: 1rem;
-  box-shadow: 0 1px 2px rgb(26 35 64 / 4%);
-}
-
-.tile__label {
-  margin: 0;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--brand-text-muted);
-}
-
-.tile__value {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  margin: 0.5rem 0 0;
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  color: var(--brand-text);
-}
-
-.tile__note {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--brand-text-muted);
-}
-
-/* La marca de color acompaña al texto "Adentro"/"Afuera", nunca lo sustituye. */
-.dot {
-  flex: none;
-  width: 0.625rem;
-  height: 0.625rem;
-  border-radius: 50%;
-}
-
-.dot--in {
-  background: var(--brand-success);
-}
-
-.dot--out {
-  background: var(--brand-text-muted);
-  opacity: 0.5;
-}
-
-/* ---------- Tarjetas de contenido ---------- */
-
-.columns {
-  display: grid;
-  gap: 0.875rem;
-  margin-top: 0.875rem;
-}
-
-.card {
-  margin-top: 0.875rem;
-}
-
-.columns .card {
-  margin-top: 0;
-}
-
-.card__title {
-  margin: 0 0 1rem;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--brand-text);
-}
-
-.empty {
-  margin: 0;
-  font-size: 0.875rem;
-  color: var(--brand-text-muted);
-}
-
-/* ---------- Mi vehículo ---------- */
 
 .vehicle {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.vehicle__badge {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 3rem;
-  height: 3rem;
-  color: var(--brand-primary);
-  background: var(--brand-primary-soft);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem 0.875rem;
+  align-items: center;
+  padding: 0.75rem 0.5rem 0.75rem 0.875rem;
+  background: color-mix(in srgb, var(--brand-border) 30%, var(--brand-surface));
+  border: 1px solid var(--brand-border);
   border-radius: 0.875rem;
 }
 
-.vehicle__badge svg {
-  width: 1.75rem;
-  height: 1.75rem;
+.vehicle__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  border-radius: 0.75rem;
 }
 
-.specs {
-  display: grid;
-  gap: 0.5rem;
+.vehicle__icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.vehicle__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
   margin: 0;
-}
-
-.specs__row {
-  display: grid;
-  grid-template-columns: 4.5rem 1fr;
-  gap: 0.75rem;
-  align-items: baseline;
-  font-size: 0.875rem;
-}
-
-.specs dt {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--brand-text-muted);
-}
-
-.specs dd {
-  margin: 0;
+  font-size: 0.9375rem;
   font-weight: 600;
   color: var(--brand-text);
 }
 
-.specs__plate {
-  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
-  letter-spacing: 0.1em;
-  color: var(--brand-secondary) !important;
+.vehicle__details {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--brand-text-muted);
+}
+
+/* Qué pidió la administración: se lee sin abrir nada. */
+.vehicle__note {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--brand-text);
+}
+
+.vehicle__actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.vehicle__delete {
+  color: var(--brand-secondary);
+}
+
+.vehicle__delete svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.vehicle__delete:hover {
+  color: var(--brand-secondary-dark);
+  background: var(--brand-secondary-soft);
+}
+
+.vehicle--confirming {
+  border-color: var(--brand-secondary-ring);
+}
+
+/* En móvil la confirmación baja a su propia fila, a todo el ancho. */
+.vehicle__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1 / -1;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.vehicle__question {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--brand-secondary-dark);
+}
+
+.vehicle__confirm .small-btn {
+  flex: 1;
 }
 
 /* ---------- Disponibilidad ---------- */
 
 .zones {
   display: grid;
-  gap: 1.125rem;
+  gap: 1.125rem 1.75rem;
   padding: 0;
   margin: 0;
   list-style: none;
@@ -229,37 +134,6 @@
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--brand-text);
-}
-
-/* Cada estado lleva icono y etiqueta: el color solo refuerza. */
-.chip {
-  display: inline-flex;
-  gap: 0.25rem;
-  align-items: center;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: 999px;
-}
-
-.chip__icon {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.chip--available {
-  color: var(--brand-success);
-  background: var(--brand-success-soft);
-}
-
-.chip--filling {
-  color: var(--brand-warning);
-  background: var(--brand-warning-soft);
-}
-
-.chip--full {
-  color: var(--brand-secondary);
-  background: var(--brand-secondary-soft);
 }
 
 /* Barra de ocupación: un solo tono, porque mide magnitud, no categoría. */
@@ -291,97 +165,112 @@
 
 /* ---------- Historial ---------- */
 
-.history {
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.time--in {
+  color: var(--brand-success);
+}
+
+.time--out {
+  color: var(--brand-secondary);
+}
+
+.history-table {
+  display: none;
+  margin: 0 -1.25rem -1.125rem;
+  overflow-x: auto;
+}
+
+.data-table__muted {
+  color: var(--brand-text-muted) !important;
+}
+
+.stays {
   display: grid;
+  gap: 0.625rem;
   padding: 0;
   margin: 0;
   list-style: none;
 }
 
-.record {
+.stay {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--brand-border);
+  border-radius: 0.75rem;
+}
+
+.stay__head {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   align-items: center;
-  padding: 0.75rem 0;
-  border-top: 1px solid var(--brand-border);
+  justify-content: space-between;
+  font-size: 0.875rem;
 }
 
-.record:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.record__mark {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
+.stay__date {
+  font-weight: 600;
   color: var(--brand-text-muted);
-  background: var(--brand-primary-soft);
-  border-radius: 0.5rem;
 }
 
-.record__mark svg {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-
-.record__mark--in {
-  color: var(--brand-success);
-  background: var(--brand-success-soft);
-}
-
-.record__body {
+.stay__times {
   display: grid;
-  min-width: 0;
+  /* La tercera columna es más ancha: "Permanencia" es la etiqueta más larga y
+     a 375 px se partía por la mitad. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 0.5rem;
+  margin: 0.625rem 0 0;
 }
 
-.record__kind {
+.stay__times dt {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  color: var(--brand-text-muted);
+}
+
+.stay__times dd {
+  margin: 0.125rem 0 0;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--brand-text);
-}
-
-.record__zone {
-  font-size: 0.75rem;
-  color: var(--brand-text-muted);
-}
-
-.record__time {
-  margin-left: auto;
-  font-size: 0.8125rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--brand-text-muted);
-  text-align: right;
 }
 
 /* ---------- Adaptaciones por pantalla ---------- */
 
 @media (min-width: 40rem) {
-  .tiles {
-    grid-template-columns: repeat(3, 1fr);
+  /* Con espacio, la confirmación cabe en la misma fila del vehículo. */
+  .vehicle__confirm {
+    grid-column: auto;
+  }
+
+  .vehicle__question {
+    flex-basis: auto;
+    margin-right: 0.25rem;
+  }
+
+  .vehicle__confirm .small-btn {
+    flex: none;
   }
 }
 
-@media (min-width: 64rem) {
-  /* La barra lateral deja de ser un cajón y empuja el contenido. */
-  .shell--menu-open .content {
-    padding-left: 17rem;
+@media (min-width: 48rem) {
+  .zones {
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   }
 
-  .scrim {
+  .history-table {
+    display: block;
+  }
+
+  .stays {
     display: none;
-  }
-
-  .columns {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .content,
-  .scrim,
   .meter__fill {
     transition: none;
   }

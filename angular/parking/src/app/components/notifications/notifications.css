@@ -1,0 +1,263 @@
+/* Campana de notificaciones y su panel desplegable. */
+
+:host {
+  display: block;
+}
+
+/* En móvil la campana no queda en el borde derecho (a su lado está el avatar),
+   así que un panel anclado a ella se saldría por la izquierda. Sin posición
+   propia, el panel se ubica respecto a la barra superior, a todo el ancho. */
+.bell {
+  position: static;
+}
+
+.bell__trigger {
+  position: relative;
+}
+
+.bell__badge {
+  position: absolute;
+  top: 0.3125rem;
+  right: 0.25rem;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 0.875rem;
+  color: #fff;
+  text-align: center;
+  background: var(--brand-secondary);
+  /* El borde del color de la barra separa la insignia del trazo de la campana. */
+  border: 2px solid var(--brand-surface);
+  border-radius: 999px;
+}
+
+/* ---------- Panel ---------- */
+
+.panel {
+  position: absolute;
+  top: 100%;
+  right: 0.75rem;
+  left: 0.75rem;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  max-height: min(32rem, calc(100dvh - var(--app-topbar-height) - env(safe-area-inset-top) - 1.5rem));
+  margin-top: 0.5rem;
+  overflow: hidden;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  box-shadow: 0 14px 36px -14px rgb(26 35 64 / 32%);
+  animation: panel-in 0.16s ease-out both;
+}
+
+.panel__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.panel__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+
+.panel__settings {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.panel__settings svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.panel__list {
+  padding: 0.375rem;
+  margin: 0;
+  overflow-y: auto;
+  list-style: none;
+  overscroll-behavior: contain;
+}
+
+/* ---------- Aviso ---------- */
+
+.note {
+  /* Ancla del área de clic del enlace (.note__link::after). */
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.75rem 0.5rem 0.75rem 0.625rem;
+  border-radius: 0.75rem;
+  transition: background-color 0.16s ease;
+}
+
+.note + .note {
+  margin-top: 0.125rem;
+}
+
+.note:hover {
+  background: var(--brand-primary-soft);
+}
+
+.note__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  border-radius: 50%;
+}
+
+.note__icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.note__body {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.note__title,
+.note__message {
+  margin: 0;
+}
+
+.note__title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--brand-text);
+}
+
+.note__link {
+  text-decoration: none;
+  border-radius: 0.25rem;
+}
+
+/* Todo el aviso responde al clic, no solo el título. */
+.note__link::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+.note__link:hover {
+  color: var(--brand-primary);
+}
+
+.note__link:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.note__message {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--brand-text-muted);
+}
+
+.note__time {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: var(--brand-text-muted);
+  opacity: 0.85;
+}
+
+.note__dismiss {
+  /* Por encima del área de clic del enlace, para poder descartar sin navegar. */
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--brand-text-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 50%;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.note__dismiss svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.note__dismiss:hover {
+  color: var(--brand-text);
+  background: var(--brand-surface);
+}
+
+.note__dismiss:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+/* ---------- Sin notificaciones ---------- */
+
+.panel__empty {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
+  padding: 2.25rem 1.5rem 2.5rem;
+  text-align: center;
+}
+
+.panel__empty svg {
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--brand-text-muted);
+  opacity: 0.6;
+}
+
+.panel__empty p {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--brand-text-muted);
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.375rem);
+  }
+}
+
+/* Desde 32rem cabe un panel de ancho fijo anclado bajo la campana. */
+@media (min-width: 32rem) {
+  .bell {
+    position: relative;
+  }
+
+  .panel {
+    top: calc(100% + 0.5rem);
+    right: 0;
+    left: auto;
+    width: 24rem;
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .note,
+  .note__dismiss {
+    transition: none;
+    animation: none;
+  }
+}

@@ -1,4 +1,6 @@
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, input, output, signal } from '@angular/core';
+import { RouterLink, RouterLinkActive } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 
 export interface SidebarItem {
@@ -6,13 +8,21 @@ export interface SidebarItem {
   label: string;
   /** Trazado del icono, en el lienzo de 24x24 que usan todas las pantallas. */
   icon: string;
+  /** Sin ruta, la opción todavía no lleva a ningún lado: solo marca la selección. */
+  route?: string;
+  /** Contador visible junto a la opción, p. ej. solicitudes por revisar. */
+  badge?: number;
+  /** Qué cuenta el contador, para lectores de pantalla: "por revisar". */
+  badgeLabel?: string;
 }
 
+/** Opciones del dashboard de usuarios institucionales. */
 export const SIDEBAR_ITEMS: SidebarItem[] = [
   {
     id: 'registrar-vehiculo',
     label: 'Registrar vehículo',
     icon: 'M12 4a1 1 0 0 1 1 1v6h6a1 1 0 1 1 0 2h-6v6a1 1 0 1 1-2 0v-6H5a1 1 0 1 1 0-2h6V5a1 1 0 0 1 1-1',
+    route: '/vehiculos/registrar',
   },
   {
     id: 'parqueaderos',
@@ -27,7 +37,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 ];
 
 @Component({
-  imports: [],
+  imports: [NgTemplateOutlet, RouterLink, RouterLinkActive],
   selector: 'app-sidebar',
   styleUrl: './sidebar.css',
   templateUrl: './sidebar.html',
@@ -38,15 +48,14 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 export class Sidebar {
   /** En escritorio arranca desplegada; en móvil se abre desde la hamburguesa. */
   readonly open = input(false);
+  readonly items = input<readonly SidebarItem[]>(SIDEBAR_ITEMS);
+  /** Texto bajo el nombre del producto, p. ej. "Administración". */
+  readonly context = input<string | null>(null);
   readonly closed = output<void>();
 
   protected readonly brand = BRAND;
-  protected readonly items = SIDEBAR_ITEMS;
 
-  /**
-   * Ninguna opción arranca activa: la vista actual es el dashboard y todavía
-   * ninguna de estas secciones existe. Al pulsarlas solo se marca la selección.
-   */
+  /** Selección de las opciones que todavía no tienen ruta. */
   protected readonly activeId = signal<string | null>(null);
 
   protected select(item: SidebarItem): void {

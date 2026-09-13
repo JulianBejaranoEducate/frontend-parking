@@ -69,6 +69,16 @@
       </button>
     </div>
 
+    @if (demoMode) {
+      <!-- Desaparece en cuanto Firebase esté configurado: el rol vendrá del token. -->
+      <p class="demo">
+        <span class="demo__tag">Demostración</span>
+        <button type="button" class="demo__link" [disabled]="loading()" (click)="signInAsDemoAdmin()">
+          Entrar como administrador
+        </button>
+      </p>
+    }
+
     @if (error(); as message) {
       <div class="alert" role="alert">
         <span>{{ message }}</span>

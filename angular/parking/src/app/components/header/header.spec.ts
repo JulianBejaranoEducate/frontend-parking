@@ -54,7 +54,8 @@ describe('Header', () => {
     const labels = [...host().querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
 
     expect(labels).toContain('Buscar');
-    expect(labels).toContain('Notificaciones');
+    // La campana incluye la cuenta de pendientes en su etiqueta.
+    expect(labels.some((label) => label?.startsWith('Notificaciones'))).toBe(true);
     expect(labels).toContain('Cuenta');
     expect(host().textContent).not.toContain('Create');
   });

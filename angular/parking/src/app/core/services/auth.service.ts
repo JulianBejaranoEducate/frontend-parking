@@ -1,6 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { BRAND } from '../config/branding.config';
 import { isFirebaseConfigured } from '../config/firebase.config';
+import { clearDemo, loadDemo, saveDemo } from '../demo/demo-storage';
 
 /** Roles del sistema. El rol determina a qué dashboard entra el usuario. */
 export type UserRole = 'admin' | 'user' | 'visitor';
@@ -41,9 +42,37 @@ const ERROR_MESSAGES: Record<string, string> = {
   'auth/invalid-domain': `Debes ingresar con tu correo institucional @${BRAND.emailDomain}.`,
 };
 
+/** Cuentas del modo demostración: una por cada dashboard. */
+export const DEMO_ACCOUNTS: Record<'user' | 'admin', AuthUser> = {
+  user: {
+    uid: 'demo-uid',
+    displayName: 'Julian Bejarano',
+    email: `julian.bejarano@${BRAND.emailDomain}`,
+    photoUrl: null,
+    role: 'user',
+    affiliation: 'estudiante',
+    program: 'Administración de Empresas',
+  },
+  admin: {
+    uid: 'demo-admin',
+    displayName: 'Laura Martínez',
+    email: `laura.martinez@${BRAND.emailDomain}`,
+    photoUrl: null,
+    role: 'admin',
+    affiliation: 'administrativo',
+    program: 'Seguridad y parqueaderos',
+  },
+};
+
+const DEMO_SESSION_KEY = 'session';
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly _user = signal<AuthUser | null>(null);
+  /**
+   * En demostración la sesión se guarda en la pestaña, para que recargar no
+   * obligue a entrar de nuevo. Con Firebase, la sesión la restaura su SDK.
+   */
+  private readonly _user = signal<AuthUser | null>(loadDemo<AuthUser>(DEMO_SESSION_KEY, 'session'));
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
 
@@ -51,33 +80,31 @@ export class AuthService {
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly isAuthenticated = computed(() => this._user() !== null);
+  readonly isAdmin = computed(() => this._user()?.role === 'admin');
+
+  /** Sin credenciales de Firebase la app funciona con cuentas simuladas. */
+  readonly demoMode = !isFirebaseConfigured();
 
   /**
    * Inicio de sesión institucional con Microsoft (Azure AD) a través de Firebase.
    * Devuelve null si hubo error o si se lanzó una redirección todavía en curso.
    */
   async loginWithMicrosoft(): Promise<AuthUser | null> {
-    this._loading.set(true);
-    this._error.set(null);
+    return this.runSignIn(() =>
+      isFirebaseConfigured() ? this.signInWithFirebase() : this.signInSimulated('user'),
+    );
+  }
 
-    try {
-      const user = isFirebaseConfigured() ? await this.signInWithFirebase() : await this.signInSimulated();
-
-      // En el flujo por redirección la app se recarga: aquí todavía no hay usuario.
-      if (!user) {
-        return null;
-      }
-
-      this.assertInstitutionalDomain(user.email);
-      this._user.set(user);
-
-      return user;
-    } catch (error) {
-      this._error.set(this.describe(error));
+  /**
+   * Solo existe en demostración, para poder probar el dashboard de
+   * administración sin un tenant real. Con Firebase, el rol viene del token.
+   */
+  async loginAsDemoAdmin(): Promise<AuthUser | null> {
+    if (!this.demoMode) {
       return null;
-    } finally {
-      this._loading.set(false);
     }
+
+    return this.runSignIn(() => this.signInSimulated('admin'));
   }
 
   /**
@@ -99,7 +126,7 @@ export class AuthService {
 
       const user = await this.toAuthUser(account);
       this.assertInstitutionalDomain(user.email);
-      this._user.set(user);
+      this.setUser(user);
 
       return user;
     } catch (error) {
@@ -119,12 +146,46 @@ export class AuthService {
       await signOutUser();
     }
 
-    this._user.set(null);
+    this.setUser(null);
     this._error.set(null);
   }
 
   clearError(): void {
     this._error.set(null);
+  }
+
+  private async runSignIn(signIn: () => Promise<AuthUser | null>): Promise<AuthUser | null> {
+    this._loading.set(true);
+    this._error.set(null);
+
+    try {
+      const user = await signIn();
+
+      // En el flujo por redirección la app se recarga: aquí todavía no hay usuario.
+      if (!user) {
+        return null;
+      }
+
+      this.assertInstitutionalDomain(user.email);
+      this.setUser(user);
+
+      return user;
+    } catch (error) {
+      this._error.set(this.describe(error));
+      return null;
+    } finally {
+      this._loading.set(false);
+    }
+  }
+
+  private setUser(user: AuthUser | null): void {
+    this._user.set(user);
+
+    if (user) {
+      saveDemo(DEMO_SESSION_KEY, user, 'session');
+    } else {
+      clearDemo(DEMO_SESSION_KEY, 'session');
+    }
   }
 
   /**
@@ -195,23 +256,9 @@ export class AuthService {
   }
 
   /** Sustituto mientras firebase.config.ts no tenga credenciales reales. */
-  private signInSimulated(): Promise<AuthUser> {
+  private signInSimulated(profile: 'user' | 'admin'): Promise<AuthUser> {
     console.warn('[AuthService] Firebase sin configurar: usando un inicio de sesión simulado.');
 
-    return new Promise((resolve) => {
-      setTimeout(
-        () =>
-          resolve({
-            uid: 'demo-uid',
-            displayName: 'Julian Bejarano',
-            email: `julian.bejarano@${BRAND.emailDomain}`,
-            photoUrl: null,
-            role: 'user',
-            affiliation: 'estudiante',
-            program: 'Administración de Empresas',
-          }),
-        1200,
-      );
-    });
+    return new Promise((resolve) => setTimeout(() => resolve(DEMO_ACCOUNTS[profile]), 1200));
   }
 }

@@ -6,24 +6,36 @@
 >
   <div class="sidebar__head">
     <p class="sidebar__product">{{ brand.productName }}</p>
+    @if (context(); as label) {
+      <p class="sidebar__context">{{ label }}</p>
+    }
   </div>
 
   <nav class="sidebar__nav">
     <ul class="menu">
-      @for (item of items; track item.id) {
+      @for (item of items(); track item.id) {
         <li>
-          <button
-            type="button"
-            class="menu__item"
-            [class.menu__item--active]="activeId() === item.id"
-            [attr.aria-current]="activeId() === item.id ? 'page' : null"
-            (click)="select(item)"
-          >
-            <svg class="menu__icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path [attr.d]="item.icon" fill="currentColor" />
-            </svg>
-            <span>{{ item.label }}</span>
-          </button>
+          @if (item.route) {
+            <a
+              class="menu__item"
+              [routerLink]="item.route"
+              routerLinkActive="menu__item--active"
+              ariaCurrentWhenActive="page"
+              (click)="closed.emit()"
+            >
+              <ng-container [ngTemplateOutlet]="itemContent" [ngTemplateOutletContext]="{ $implicit: item }" />
+            </a>
+          } @else {
+            <button
+              type="button"
+              class="menu__item"
+              [class.menu__item--active]="activeId() === item.id"
+              [attr.aria-current]="activeId() === item.id ? 'page' : null"
+              (click)="select(item)"
+            >
+              <ng-container [ngTemplateOutlet]="itemContent" [ngTemplateOutletContext]="{ $implicit: item }" />
+            </button>
+          }
         </li>
       }
     </ul>
@@ -31,3 +43,14 @@
 
   <p class="sidebar__foot">{{ brand.organizationName }}</p>
 </aside>
+
+<ng-template #itemContent let-item>
+  <svg class="menu__icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path [attr.d]="item.icon" fill="currentColor" />
+  </svg>
+  <span class="menu__label">{{ item.label }}</span>
+  @if (item.badge) {
+    <span class="menu__badge" aria-hidden="true">{{ item.badge }}</span>
+    <span class="sr-only">({{ item.badge }} {{ item.badgeLabel ?? '' }})</span>
+  }
+</ng-template>

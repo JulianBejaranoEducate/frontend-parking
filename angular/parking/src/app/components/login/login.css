@@ -254,6 +254,47 @@
   outline-offset: 2px;
 }
 
+/* ---------- Acceso de demostración ---------- */
+
+.demo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  justify-content: center;
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+}
+
+.demo__tag {
+  padding: 0.0625rem 0.4375rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--brand-warning);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--brand-warning-soft);
+  border-radius: 999px;
+}
+
+.demo__link {
+  padding: 0.25rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--brand-primary);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.25rem;
+  text-decoration: underline;
+  text-underline-offset: 0.1875rem;
+}
+
+.demo__link:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
 /* ---------- Pie ---------- */
 
 .panel__foot {

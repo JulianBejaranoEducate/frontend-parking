@@ -66,3 +66,604 @@ body {
   /* Evita el rebote de scroll de WebView en la app híbrida. */
   overscroll-behavior-y: none;
 }
+
+/* ── Utilidades compartidas entre componentes ─────────────────────────────── */
+
+/* Botón cuadrado de solo icono (barra superior, paneles). Siempre lleva
+   aria-label, porque no tiene texto visible. */
+.icon-btn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  /* 2.75rem: objetivo táctil cómodo en móvil. */
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--brand-text-muted);
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.625rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-btn svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.icon-btn:hover {
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Oculta el contenido a la vista pero lo deja disponible para lectores de
+   pantalla, p. ej. para anunciar lo que acaba de pasar. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Placa de vehículo: monoespaciada para que cada carácter se lea sin dudas. */
+.plate {
+  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--brand-text);
+}
+
+/* Chips de estado. Siempre llevan texto (y casi siempre icono): el color solo
+   refuerza, porque ámbar y rojo se confunden con daltonismo. */
+
+.chip {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: normal;
+  white-space: nowrap;
+  border-radius: 999px;
+}
+
+.chip__icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.chip--available,
+.chip--approved,
+.chip--inside {
+  color: var(--brand-success);
+  background: var(--brand-success-soft);
+}
+
+.chip--filling,
+.chip--pending {
+  color: var(--brand-warning);
+  background: var(--brand-warning-soft);
+}
+
+.chip--full,
+.chip--rejected,
+.chip--critical {
+  color: var(--brand-secondary);
+  background: var(--brand-secondary-soft);
+}
+
+.chip--success {
+  color: var(--brand-success);
+  background: var(--brand-success-soft);
+}
+
+.chip--warning,
+.chip--needs-update {
+  color: var(--brand-warning);
+  background: var(--brand-warning-soft);
+}
+
+.chip--neutral {
+  color: var(--brand-text-muted);
+  background: color-mix(in srgb, var(--brand-border) 60%, var(--brand-surface));
+}
+
+/* ── Campos de formulario (registro de visitantes y de vehículos) ─────────── */
+
+.field {
+  display: grid;
+  align-content: start;
+  gap: 0.375rem;
+}
+
+.field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.field__optional {
+  font-weight: 500;
+  color: var(--brand-text-muted);
+}
+
+.field__control {
+  width: 100%;
+  /* 3rem de alto: objetivo táctil cómodo en móvil. */
+  height: 3rem;
+  padding: 0.6875rem 0.875rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--brand-text);
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 0.625rem;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  appearance: none;
+}
+
+.field__control::placeholder {
+  color: var(--brand-text-muted);
+  opacity: 0.6;
+}
+
+.field__control:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 3px var(--brand-primary-ring);
+}
+
+.field__control--invalid {
+  border-color: var(--brand-secondary);
+}
+
+.field__control--invalid:focus {
+  border-color: var(--brand-secondary);
+  box-shadow: 0 0 0 3px var(--brand-secondary-ring);
+}
+
+.field__control--plate {
+  font-family: ui-monospace, 'SFMono-Regular', 'Consolas', monospace;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.field__control--numeric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+textarea.field__control {
+  height: auto;
+  min-height: 5.5rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.field__select {
+  position: relative;
+}
+
+.field__select .field__control {
+  padding-right: 2.5rem;
+  cursor: pointer;
+}
+
+.field__chevron {
+  position: absolute;
+  top: 50%;
+  right: 0.875rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--brand-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.field__error,
+.field__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.field__error {
+  font-weight: 500;
+  color: var(--brand-secondary-dark);
+}
+
+.field__hint {
+  color: var(--brand-text-muted);
+}
+
+/* ── Armazón de los dashboards (usuario y administración) ─────────────────── */
+
+.shell {
+  min-height: 100dvh;
+  background: var(--brand-background);
+}
+
+/* Solo cubre el contenido en móvil; en escritorio la barra convive con él. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  padding: 0;
+  cursor: pointer;
+  visibility: hidden;
+  background: rgb(26 35 64 / 45%);
+  border: 0;
+  opacity: 0;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.scrim--visible {
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.content {
+  transition: padding-left 0.25s ease;
+}
+
+.page {
+  max-width: 72rem;
+  padding: clamp(1.25rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem);
+  padding-bottom: max(2rem, env(safe-area-inset-bottom));
+  margin-inline: auto;
+}
+
+.page__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.375rem, 5vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--brand-text);
+}
+
+.page__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--brand-text-muted);
+}
+
+.tiles {
+  display: grid;
+  gap: 0.875rem;
+  margin-top: 1.5rem;
+}
+
+/* Bootstrap también define .card: estas reglas van después y ganan el empate. */
+.tile,
+.card {
+  padding: 1.125rem 1.25rem;
+  background: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(26 35 64 / 4%);
+}
+
+.card {
+  margin-top: 0.875rem;
+}
+
+.tile__label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--brand-text-muted);
+}
+
+.tile__value {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 0;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--brand-text);
+}
+
+.tile__note {
+  margin: 0.375rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--brand-text-muted);
+}
+
+/* La marca de color acompaña al texto, nunca lo sustituye. */
+.dot {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+}
+
+.dot--in {
+  background: var(--brand-success);
+}
+
+.dot--out {
+  background: var(--brand-text-muted);
+  opacity: 0.5;
+}
+
+.card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.card__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+  margin: 0 0 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+
+.card__head .card__title {
+  margin: 0;
+}
+
+.card__count {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--brand-text-muted);
+}
+
+.card__hint {
+  padding: 0.625rem 0.875rem;
+  margin: -0.25rem 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--brand-warning);
+  background: var(--brand-warning-soft);
+  border-radius: 0.625rem;
+}
+
+.empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--brand-text-muted);
+}
+
+.link-btn {
+  display: inline-flex;
+  gap: 0.375rem;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  border-radius: 0.625rem;
+  transition: background-color 0.16s ease;
+}
+
+.link-btn svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.link-btn:hover {
+  background: var(--brand-primary-soft);
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+/* Sigue enfocable a propósito: así se descubre el motivo del bloqueo. */
+.link-btn[aria-disabled='true'] {
+  color: var(--brand-text-muted);
+  cursor: not-allowed;
+  background: none;
+  opacity: 0.7;
+}
+
+.small-btn {
+  display: inline-flex;
+  gap: 0.375rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.375rem 0.875rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+}
+
+.small-btn svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.small-btn:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 2px;
+}
+
+.small-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.small-btn--ghost {
+  color: var(--brand-text);
+  background: var(--brand-surface);
+  border-color: var(--brand-border);
+}
+
+.small-btn--primary {
+  color: var(--brand-primary-contrast);
+  background: var(--brand-primary);
+}
+
+.small-btn--primary:not(:disabled):hover {
+  background: var(--brand-primary-dark);
+}
+
+.small-btn--danger {
+  color: #fff;
+  background: var(--brand-secondary);
+}
+
+.small-btn--danger:not(:disabled):hover {
+  background: var(--brand-secondary-dark);
+}
+
+/* Selector segmentado: radios nativos, así las flechas del teclado funcionan. */
+.range {
+  display: grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  width: 100%;
+  padding: 0.1875rem;
+  background: color-mix(in srgb, var(--brand-border) 45%, var(--brand-surface));
+  border-radius: 0.75rem;
+}
+
+.range__option {
+  position: relative;
+  cursor: pointer;
+}
+
+.range__input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.range__label {
+  display: block;
+  padding: 0.4375rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--brand-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  border-radius: 0.5625rem;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.range__option:hover .range__label {
+  color: var(--brand-text);
+}
+
+.range__input:checked + .range__label {
+  color: var(--brand-primary);
+  background: var(--brand-surface);
+  box-shadow: 0 1px 3px rgb(26 35 64 / 14%);
+}
+
+.range__input:focus-visible + .range__label {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+/* Tabla de datos. No se llama .table para no heredar los estilos de Bootstrap. */
+.data-table {
+  width: 100%;
+  font-size: 0.875rem;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  padding: 0.75rem 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--brand-text-muted);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--brand-border) 30%, var(--brand-surface));
+  border-block: 1px solid var(--brand-border);
+}
+
+.data-table td {
+  padding: 0.875rem 1.25rem;
+  color: var(--brand-text);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--brand-border);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.data-table--numeric td:not(:first-child),
+.data-table--numeric th:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (min-width: 40rem) {
+  .tiles {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .range {
+    width: auto;
+  }
+}
+
+@media (min-width: 64rem) {
+  /* La barra lateral deja de ser un cajón y empuja el contenido. */
+  .shell--menu-open .content {
+    padding-left: 17rem;
+  }
+
+  .scrim {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn,
+  .field__control,
+  .content,
+  .scrim,
+  .link-btn,
+  .range__label {
+    transition: none;
+  }
+}

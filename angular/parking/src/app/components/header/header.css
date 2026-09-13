@@ -8,6 +8,8 @@
 }
 
 .topbar {
+  /* Referencia de posición para los paneles desplegables en móvil. */
+  position: relative;
   display: flex;
   gap: 0.5rem;
   align-items: center;
@@ -18,37 +20,6 @@
   background: color-mix(in srgb, var(--brand-surface) 88%, transparent);
   border-bottom: 1px solid var(--brand-border);
   backdrop-filter: blur(8px);
-}
-
-.icon-btn {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  /* 2.75rem: objetivo táctil cómodo en móvil. */
-  width: 2.75rem;
-  height: 2.75rem;
-  color: var(--brand-text-muted);
-  cursor: pointer;
-  background: none;
-  border: 0;
-  border-radius: 0.625rem;
-  transition: background-color 0.16s ease, color 0.16s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.icon-btn svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.icon-btn:hover {
-  color: var(--brand-primary);
-  background: var(--brand-primary-soft);
-}
-
-.icon-btn:focus-visible {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: 2px;
 }
 
 /* ---------- Buscador ---------- */
@@ -323,7 +294,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .icon-btn,
   .search,
   .search__submit,
   .account,

@@ -71,14 +71,7 @@
         </svg>
       </button>
 
-      <button type="button" class="icon-btn" aria-label="Notificaciones">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2m6-6v-5a6 6 0 0 0-5-5.9V4a1 1 0 1 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1z"
-            fill="currentColor"
-          />
-        </svg>
-      </button>
+      <app-notifications />
 
       <div class="profile" #profile>
         <button
@@ -116,11 +109,16 @@
 
             <div class="account__group">
               <button type="button" class="account__item" role="menuitem" (click)="openSettings()">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8m0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4M10.6 2h2.8l.4 2.6q.9.3 1.6.8l2.4-1.1 1.4 2.4-2 1.7q.1.5.1 1t-.1 1l2 1.7-1.4 2.4-2.4-1.1q-.7.5-1.6.8L13.4 22h-2.8l-.4-2.6q-.9-.3-1.6-.8l-2.4 1.1-1.4-2.4 2-1.7q-.1-.5-.1-1t.1-1l-2-1.7 1.4-2.4 2.4 1.1q.7-.5 1.6-.8z"
-                    fill="currentColor"
-                  />
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M10.34 5.1L10.61 2.7L13.39 2.7L13.66 5.1A7.1 7.1 0 0 1 15.71 5.95L17.59 4.44L19.56 6.41L18.05 8.29A7.1 7.1 0 0 1 18.9 10.34L21.3 10.61L21.3 13.39L18.9 13.66A7.1 7.1 0 0 1 18.05 15.71L19.56 17.59L17.59 19.56L15.71 18.05A7.1 7.1 0 0 1 13.66 18.9L13.39 21.3L10.61 21.3L10.34 18.9A7.1 7.1 0 0 1 8.29 18.05L6.41 19.56L4.44 17.59L5.95 15.71A7.1 7.1 0 0 1 5.1 13.66L2.7 13.39L2.7 10.61L5.1 10.34A7.1 7.1 0 0 1 5.95 8.29L4.44 6.41L6.41 4.44L8.29 5.95A7.1 7.1 0 0 1 10.34 5.1Z" />
+                  <circle cx="12" cy="12" r="3" />
                 </svg>
                 Configuración
               </button>

@@ -1,6 +1,7 @@
 import { Component, type ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { AFFILIATION_LABELS, AuthService } from '../../core/services/auth.service';
+import { Notifications } from '../notifications/notifications';
 
 /**
  * Barra superior de los dashboards: buscador al centro, notificaciones y menú
@@ -8,7 +9,7 @@ import { AFFILIATION_LABELS, AuthService } from '../../core/services/auth.servic
  * (seguridad, administración) sin duplicar el marcado.
  */
 @Component({
-  imports: [],
+  imports: [Notifications],
   selector: 'app-header',
   styleUrl: './header.css',
   templateUrl: './header.html',
@@ -102,7 +103,9 @@ export class Header {
 
     const container = this.profileRef()?.nativeElement;
 
-    if (container && !container.contains(event.target as Node)) {
+    // composedPath se calcula al disparar el evento: sigue siendo fiable aunque
+    // el elemento pulsado desaparezca del DOM durante el clic.
+    if (container && !event.composedPath().includes(container)) {
       this.closeProfile();
     }
   }
