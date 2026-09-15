@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import type { VehicleRequirements } from '../../core/models/vehicle';
 import { VisitorPassService } from '../../core/services/visitor-pass.service';
 import { Visitor } from './visitor';
 
@@ -32,10 +33,12 @@ describe('Visitor', () => {
       form: any;
       pass: () => any;
       qrDataUrl: () => string | null;
-      requires: () => { brand: boolean; color: boolean; plate: boolean };
+      requires: () => VehicleRequirements;
       submit: () => Promise<void>;
+      regenerate: () => Promise<void>;
       normalizePlate: () => void;
       normalizeDocumentNumber: () => void;
+      normalizeSerial: () => void;
       registerAnother: () => void;
     };
 
@@ -62,6 +65,7 @@ describe('Visitor', () => {
       'vehicleBrand',
       'vehicleColor',
       'plate',
+      'frameSerial',
       'reason',
     ]);
     expect(api().form.invalid).toBe(true);
@@ -97,7 +101,7 @@ describe('Visitor', () => {
     }
   });
 
-  it('normaliza la placa y el número de documento mientras se escriben', () => {
+  it('normaliza la placa, el documento y el serial mientras se escriben', () => {
     api().form.controls.plate.setValue('abc-12d');
     api().normalizePlate();
     expect(api().form.controls.plate.value).toBe('ABC12D');
@@ -105,49 +109,77 @@ describe('Visitor', () => {
     api().form.controls.documentNumber.setValue('10.123.456');
     api().normalizeDocumentNumber();
     expect(api().form.controls.documentNumber.value).toBe('10123456');
+
+    api().form.controls.frameSerial.setValue('wbk 2291037');
+    api().normalizeSerial();
+    expect(api().form.controls.frameSerial.value).toBe('WBK2291037');
   });
 
   it('la moto pide marca, color y placa', () => {
     fillPersonalData();
     api().form.controls.vehicleType.setValue('moto');
 
-    expect(api().requires()).toEqual({ brand: true, color: true, plate: true });
+    expect(api().requires()).toEqual({ brand: 'required', color: 'required', plate: 'required', frameSerial: 'none' });
     expect(api().form.invalid).toBe(true);
 
     api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
     expect(api().form.valid).toBe(true);
   });
 
-  it('la bicicleta pide marca y color, pero no placa', () => {
+  it('la bicicleta pide marca y color, sin placa, y el serial es opcional', () => {
     fillPersonalData();
     api().form.controls.vehicleType.setValue('bicicleta');
 
-    expect(api().requires()).toEqual({ brand: true, color: true, plate: false });
+    expect(api().requires()).toEqual({ brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' });
 
     api().form.patchValue({ vehicleBrand: 'Bianchi', vehicleColor: 'Azul' });
     expect(api().form.valid).toBe(true);
-  });
 
-  it('el scooter no pide ningún dato adicional', () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('scooter');
+    // Opcional no quiere decir sin formato: si se escribe, tiene que ser un serial.
+    api().form.controls.frameSerial.setValue('A#1');
+    expect(api().form.valid).toBe(false);
 
-    expect(api().requires()).toEqual({ brand: false, color: false, plate: false });
+    api().form.controls.frameSerial.setValue('WBK2291037');
     expect(api().form.valid).toBe(true);
   });
 
-  it('al cambiar de vehículo no arrastra los datos del anterior', async () => {
+  it('el scooter pide el color y deja la marca opcional', () => {
     fillPersonalData();
-    api().form.controls.vehicleType.setValue('moto');
-    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
-
     api().form.controls.vehicleType.setValue('scooter');
 
+    expect(api().requires()).toEqual({ brand: 'optional', color: 'required', plate: 'none', frameSerial: 'none' });
+    expect(api().form.invalid).toBe(true);
+
+    api().form.patchValue({ vehicleColor: 'Gris' });
+    expect(api().form.valid).toBe(true);
+  });
+
+  it('al cambiar de vehículo vacía los campos que el nuevo no usa', async () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('bicicleta');
+    api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde', frameSerial: 'GWL458812' });
+
+    api().form.controls.vehicleType.setValue('moto');
+    expect(api().form.controls.frameSerial.value).toBe('');
+    api().form.controls.plate.setValue('ABC12D');
+
+    api().form.controls.vehicleType.setValue('scooter');
     expect(api().form.controls.plate.value).toBe('');
-    expect(api().form.controls.vehicleBrand.value).toBe('');
+    // Marca y color también sirven para el scooter: no se borra lo que la persona ya escribió.
+    expect(api().form.controls.vehicleColor.value).toBe('Verde');
 
     await api().submit();
-    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter' });
+    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter', brand: 'GW', color: 'Verde' });
+  });
+
+  it('los datos opcionales que quedan en blanco no llegan al pase', async () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('scooter');
+    api().form.patchValue({ vehicleBrand: '   ', vehicleColor: 'Gris' });
+
+    await api().submit();
+
+    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter', color: 'Gris' });
   });
 
   it('no emite ningún pase mientras el formulario esté incompleto', async () => {
@@ -175,17 +207,43 @@ describe('Visitor', () => {
     expect(api().qrDataUrl()).toContain('data:image');
   });
 
+  it('el pase queda guardado para que portería lo valide al escanearlo', async () => {
+    fillPersonalData();
+    api().form.controls.vehicleType.setValue('bicicleta');
+    api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde', frameSerial: 'GWL458812' });
+
+    await api().submit();
+    const stored = TestBed.inject(VisitorPassService).find(api().pass().token);
+
+    expect(stored?.status).toBe('pending');
+    expect(stored?.visitor.vehicle).toEqual({ type: 'bicicleta', brand: 'GW', color: 'Verde', frameSerial: 'GWL458812' });
+  });
+
   it('el token cambia en cada emisión, para que un pase no se reutilice', async () => {
     fillPersonalData();
-    api().form.controls.vehicleType.setValue('scooter');
+    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
     await api().submit();
     const first = api().pass().token;
 
     api().registerAnother();
     fillPersonalData();
-    api().form.controls.vehicleType.setValue('scooter');
+    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
     await api().submit();
 
     expect(api().pass().token).not.toBe(first);
+  });
+
+  it('generar un pase nuevo anula el anterior, para que solo sirva el más reciente', async () => {
+    const passes = TestBed.inject(VisitorPassService);
+    fillPersonalData();
+    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
+    await api().submit();
+    const first = api().pass().token;
+
+    await api().regenerate();
+
+    expect(passes.find(first)?.status).toBe('revoked');
+    expect(api().pass().token).not.toBe(first);
+    expect(passes.find(api().pass().token)?.status).toBe('pending');
   });
 });

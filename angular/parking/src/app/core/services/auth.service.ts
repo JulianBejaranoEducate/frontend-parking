@@ -1,34 +1,49 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { BRAND } from '../config/branding.config';
 import { isFirebaseConfigured } from '../config/firebase.config';
+import { PARKING } from '../config/parking.config';
 import { clearDemo, loadDemo, saveDemo } from '../demo/demo-storage';
 
-/** Roles del sistema. El rol determina a qué dashboard entra el usuario. */
-export type UserRole = 'admin' | 'user' | 'visitor';
+/**
+ * Roles del sistema. El rol decide qué grupo de rutas existe para la persona
+ * (ADR-010): cada rol ve solo su propio dashboard.
+ */
+export type UserRole = 'admin' | 'user' | 'visitor' | 'security';
+
+const USER_ROLES: readonly UserRole[] = ['admin', 'user', 'visitor', 'security'];
 
 /**
  * Vínculo de la persona con la universidad. Llega del directorio institucional
- * (Azure AD / Firestore), no lo elige el usuario.
+ * (Azure AD / Firestore), no lo elige el usuario. El personal de seguridad es de
+ * una empresa externa: su vínculo lo asigna la administración al crear la cuenta.
  */
-export type Affiliation = 'estudiante' | 'docente' | 'administrativo';
+export type Affiliation = 'estudiante' | 'docente' | 'administrativo' | 'seguridad';
 
 export const AFFILIATION_LABELS: Record<Affiliation, string> = {
   estudiante: 'Estudiante',
   docente: 'Docente',
   administrativo: 'Administrativo',
+  seguridad: 'Personal de seguridad',
 };
 
 export interface AuthUser {
   uid: string;
   displayName: string;
+  /** Vacío en las cuentas de guardias, que inician sesión con su documento (ADR-009). */
   email: string;
   photoUrl: string | null;
   role: UserRole;
   /** Null mientras el directorio no informe el vínculo. */
   affiliation: Affiliation | null;
-  /** Carrera del estudiante, o área en el caso de docentes y administrativos. */
+  /**
+   * Carrera del estudiante, área de docentes y administrativos, o portería
+   * del personal de seguridad.
+   */
   program: string | null;
 }
+
+/** Cuentas simuladas disponibles mientras Firebase no esté configurado. */
+export type DemoProfile = 'user' | 'admin' | 'security' | 'security-relief';
 
 /** Errores de Firebase traducidos a mensajes que sí puede leer el usuario final. */
 const ERROR_MESSAGES: Record<string, string> = {
@@ -42,8 +57,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   'auth/invalid-domain': `Debes ingresar con tu correo institucional @${BRAND.emailDomain}.`,
 };
 
-/** Cuentas del modo demostración: una por cada dashboard. */
-export const DEMO_ACCOUNTS: Record<'user' | 'admin', AuthUser> = {
+/**
+ * Cuentas del modo demostración: una por dashboard, y dos guardias para poder
+ * probar la entrega y la recepción del turno. Todas las personas son ficticias.
+ */
+export const DEMO_ACCOUNTS: Record<DemoProfile, AuthUser> = {
   user: {
     uid: 'demo-uid',
     displayName: 'Julian Bejarano',
@@ -62,6 +80,24 @@ export const DEMO_ACCOUNTS: Record<'user' | 'admin', AuthUser> = {
     affiliation: 'administrativo',
     program: 'Seguridad y parqueaderos',
   },
+  security: {
+    uid: 'demo-guard-carlos',
+    displayName: 'Carlos Ramírez',
+    email: '',
+    photoUrl: null,
+    role: 'security',
+    affiliation: 'seguridad',
+    program: PARKING.postName,
+  },
+  'security-relief': {
+    uid: 'demo-guard-diana',
+    displayName: 'Diana Morales',
+    email: '',
+    photoUrl: null,
+    role: 'security',
+    affiliation: 'seguridad',
+    program: PARKING.postName,
+  },
 };
 
 const DEMO_SESSION_KEY = 'session';
@@ -76,11 +112,15 @@ export class AuthService {
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
 
+  /** Cuenta con la sesión abierta; null si no hay sesión. */
   readonly user = this._user.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
   readonly isAuthenticated = computed(() => this._user() !== null);
+  /** Rol de la sesión actual; null si no hay sesión. */
+  readonly role = computed(() => this._user()?.role ?? null);
   readonly isAdmin = computed(() => this._user()?.role === 'admin');
+  readonly isSecurity = computed(() => this._user()?.role === 'security');
 
   /** Sin credenciales de Firebase la app funciona con cuentas simuladas. */
   readonly demoMode = !isFirebaseConfigured();
@@ -96,15 +136,20 @@ export class AuthService {
   }
 
   /**
-   * Solo existe en demostración, para poder probar el dashboard de
-   * administración sin un tenant real. Con Firebase, el rol viene del token.
+   * Entra con una cuenta simulada de administración o de seguridad.
+   *
+   * Solo existe en demostración, para recorrer esos dashboards sin un tenant
+   * real. Con Firebase, el rol llega en los claims del token.
+   *
+   * @param profile Cuenta a usar; el usuario institucional entra con `loginWithMicrosoft`.
+   * @returns La cuenta con la sesión abierta, o null fuera del modo demostración.
    */
-  async loginAsDemoAdmin(): Promise<AuthUser | null> {
+  async loginAsDemo(profile: Exclude<DemoProfile, 'user'>): Promise<AuthUser | null> {
     if (!this.demoMode) {
       return null;
     }
 
-    return this.runSignIn(() => this.signInSimulated('admin'));
+    return this.runSignIn(() => this.signInSimulated(profile));
   }
 
   /**
@@ -125,7 +170,7 @@ export class AuthService {
       }
 
       const user = await this.toAuthUser(account);
-      this.assertInstitutionalDomain(user.email);
+      this.assertAllowedAccount(user);
       this.setUser(user);
 
       return user;
@@ -140,6 +185,14 @@ export class AuthService {
     this._error.set(null);
   }
 
+  /**
+   * Cierra la sesión.
+   *
+   * No hace falta borrar datos a mano (ADR-010): las pantallas del rol se
+   * destruyen al salir de su grupo de rutas y los servicios calculan lo que
+   * muestran a partir de `user()`, así que en un celular compartido la
+   * siguiente persona no ve nada de la cuenta anterior.
+   */
   async logout(): Promise<void> {
     if (isFirebaseConfigured()) {
       const { signOutUser } = await import('./microsoft-auth');
@@ -166,7 +219,7 @@ export class AuthService {
         return null;
       }
 
-      this.assertInstitutionalDomain(user.email);
+      this.assertAllowedAccount(user);
       this.setUser(user);
 
       return user;
@@ -220,10 +273,15 @@ export class AuthService {
       displayName: account.displayName ?? 'Usuario',
       email: account.email ?? '',
       photoUrl: account.photoURL,
-      role: claimedRole === 'admin' || claimedRole === 'visitor' ? claimedRole : 'user',
+      role: this.toRole(claimedRole),
       affiliation: this.toAffiliation(claimedAffiliation),
       program: typeof claimedProgram === 'string' ? claimedProgram : null,
     };
+  }
+
+  /** Sin claim reconocible, la persona entra con los permisos básicos de usuario. */
+  private toRole(value: unknown): UserRole {
+    return USER_ROLES.includes(value as UserRole) ? (value as UserRole) : 'user';
   }
 
   private toAffiliation(value: unknown): Affiliation | null {
@@ -241,11 +299,22 @@ export class AuthService {
   }
 
   /**
-   * Solo se permiten cuentas del dominio institucional. La validación real vive
-   * en el backend / reglas de Firebase; aquí es una barrera temprana de UX.
+   * La comunidad institucional solo entra con cuentas del dominio de la
+   * universidad. El personal de seguridad es la excepción: sus cuentas las crea
+   * la administración y no tienen correo institucional (ADR-009).
+   *
+   * La validación real vive en el backend y en las reglas de Firebase, que leen
+   * el rol de los claims; aquí es solo una barrera temprana de experiencia de uso.
+   *
+   * @throws `{ code: 'auth/invalid-domain' }` si una cuenta que no es de seguridad
+   * no pertenece al dominio institucional.
    */
-  private assertInstitutionalDomain(email: string): void {
-    if (!email.toLowerCase().endsWith(`@${BRAND.emailDomain}`)) {
+  private assertAllowedAccount(user: AuthUser): void {
+    if (user.role === 'security') {
+      return;
+    }
+
+    if (!user.email.toLowerCase().endsWith(`@${BRAND.emailDomain}`)) {
       throw { code: 'auth/invalid-domain' };
     }
   }
@@ -256,7 +325,7 @@ export class AuthService {
   }
 
   /** Sustituto mientras firebase.config.ts no tenga credenciales reales. */
-  private signInSimulated(profile: 'user' | 'admin'): Promise<AuthUser> {
+  private signInSimulated(profile: DemoProfile): Promise<AuthUser> {
     console.warn('[AuthService] Firebase sin configurar: usando un inicio de sesión simulado.');
 
     return new Promise((resolve) => setTimeout(() => resolve(DEMO_ACCOUNTS[profile]), 1200));

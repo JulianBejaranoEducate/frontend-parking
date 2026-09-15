@@ -14,8 +14,8 @@
         type="search"
         name="q"
         autocomplete="off"
-        placeholder="Buscar"
-        aria-label="Buscar"
+        [placeholder]="searchPlaceholder()"
+        [attr.aria-label]="searchPlaceholder()"
       />
       <button type="submit" class="search__submit" aria-label="Buscar">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -47,8 +47,8 @@
           type="search"
           name="q"
           autocomplete="off"
-          placeholder="Buscar"
-          aria-label="Buscar"
+          [placeholder]="searchPlaceholder()"
+          [attr.aria-label]="searchPlaceholder()"
         />
         <button type="submit" class="search__submit" aria-label="Buscar">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -100,7 +100,10 @@
 
               <div class="account__identity">
                 <p class="account__name">{{ displayName() }}</p>
-                <p class="account__email">{{ email() }}</p>
+                <!-- Las cuentas de guardias no tienen correo: entran con su documento. -->
+                @if (email()) {
+                  <p class="account__email">{{ email() }}</p>
+                }
                 @if (affiliationLine(); as line) {
                   <p class="account__affiliation">{{ line }}</p>
                 }

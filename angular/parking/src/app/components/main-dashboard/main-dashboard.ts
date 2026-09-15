@@ -1,20 +1,13 @@
 import { Component, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import { createDrawerState } from '../../core/layout/drawer-state';
 import {
   HISTORY_RANGES,
   type HistoryRange,
   type ParkingStay,
-  type ParkingZone,
-  ZONE_STATUS_LABELS,
-  type ZoneStatus,
   formatDuration,
-  freeSpots,
-  occupancyRatio,
   stayDurationMs,
   staysWithinDays,
-  zoneStatus,
 } from '../../core/models/parking';
 import {
   APPROVAL_LABELS,
@@ -24,11 +17,17 @@ import {
 } from '../../core/models/vehicle';
 import { AuthService } from '../../core/services/auth.service';
 import { ParkingService } from '../../core/services/parking.service';
-import { Header } from '../header/header';
-import { Sidebar } from '../sidebar/sidebar';
+import { ZoneAvailability } from '../zone-availability/zone-availability';
 
+/**
+ * Inicio de los usuarios institucionales: estado de su vehículo, disponibilidad
+ * del parqueadero, "Mis vehículos" e historial de entradas y salidas.
+ *
+ * El header y el menú los pone `DashboardLayout`; este componente solo pinta el
+ * contenido de la página.
+ */
 @Component({
-  imports: [Header, RouterLink, Sidebar],
+  imports: [RouterLink, ZoneAvailability],
   selector: 'app-main-dashboard',
   styleUrl: './main-dashboard.css',
   templateUrl: './main-dashboard.html',
@@ -38,7 +37,6 @@ export class MainDashboard {
   private readonly parking = inject(ParkingService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
-  private readonly drawer = createDrawerState();
 
   protected readonly brand = BRAND;
   protected readonly vehicleTitle = vehicleTitle;
@@ -65,9 +63,6 @@ export class MainDashboard {
   /** Mensaje para lectores de pantalla tras una acción que cambia la lista. */
   protected readonly announcement = signal('');
 
-  /** En escritorio el menú arranca desplegado; en móvil, cerrado. */
-  protected readonly menuOpen = this.drawer.open;
-
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? 'Invitado');
 
   protected readonly firstName = computed(() => this.displayName().split(' ')[0]);
@@ -81,14 +76,6 @@ export class MainDashboard {
 
     return hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   });
-
-  protected toggleMenu(): void {
-    this.drawer.toggle();
-  }
-
-  protected closeMenu(): void {
-    this.drawer.closeOnMobile();
-  }
 
   // ---- Mis vehículos ---------------------------------------------------------
 
@@ -142,24 +129,6 @@ export class MainDashboard {
 
   protected stayDuration(stay: ParkingStay): string {
     return formatDuration(stayDurationMs(stay));
-  }
-
-  // ---- Disponibilidad ------------------------------------------------------------
-
-  protected freeSpots(zone: ParkingZone): number {
-    return freeSpots(zone);
-  }
-
-  protected occupancyPercent(zone: ParkingZone): number {
-    return Math.round(occupancyRatio(zone) * 100);
-  }
-
-  protected status(zone: ParkingZone): ZoneStatus {
-    return zoneStatus(zone);
-  }
-
-  protected statusLabel(zone: ParkingZone): string {
-    return ZONE_STATUS_LABELS[zoneStatus(zone)];
   }
 
   /** Ej. "1 h 36 min" — cuánto lleva el vehículo dentro del parqueadero. */

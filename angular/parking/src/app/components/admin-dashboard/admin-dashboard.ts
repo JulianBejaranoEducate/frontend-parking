@@ -1,7 +1,6 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { createDrawerState } from '../../core/layout/drawer-state';
 import {
   INCIDENT_SEVERITY_LABELS,
   INCIDENT_STATUS_LABELS,
@@ -32,20 +31,7 @@ import { IncidentService } from '../../core/services/incident.service';
 import { ParkingStatsService } from '../../core/services/parking-stats.service';
 import { ParkingService } from '../../core/services/parking.service';
 import { RegistrationError, VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
-import { Header } from '../header/header';
-import { Sidebar, type SidebarItem } from '../sidebar/sidebar';
-
-export const ADMIN_SECTIONS = [
-  'resumen',
-  'pendientes',
-  'aprobados',
-  'rechazados',
-  'actualizaciones',
-  'estadisticas',
-  'incidencias',
-] as const;
-
-export type AdminSection = (typeof ADMIN_SECTIONS)[number];
+import { ADMIN_SECTIONS, type AdminSection } from './admin-navigation';
 
 type ListSection = Extract<AdminSection, 'pendientes' | 'aprobados' | 'rechazados' | 'actualizaciones'>;
 
@@ -68,18 +54,6 @@ const SECTION_BY_STATUS: Record<RegistrationStatus, ListSection> = {
   rejected: 'rechazados',
   'needs-update': 'actualizaciones',
 };
-
-const ICONS = {
-  resumen: 'M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h8v8h-8zm2 2v4h4v-4z',
-  pendientes: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16m-1 3v6l5 3 1-1.7-4-2.3V7z',
-  aprobados: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m-1.4 14.6L6 12l1.4-1.4 3.2 3.2 6-6L18 9.2z',
-  rechazados:
-    'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m3.6 5L17 8.4 13.4 12l3.6 3.6-1.4 1.4-3.6-3.6L8.4 17 7 15.6 10.6 12 7 8.4 8.4 7l3.6 3.6z',
-  actualizaciones:
-    'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm4 18H6V4h7v5h5zm-7-7.2V18h2v-5.2l1.6 1.6L16 13l-4-4-4 4 1.4 1.4z',
-  estadisticas: 'M4 20h16v2H4a2 2 0 0 1-2-2V3h2zm3-2V9h3v9zm5 0V4h3v14zm5 0v-6h3v6z',
-  incidencias: 'M12 2 1 21h22zm0 4 7.5 13h-15zM11 10h2v5h-2zm0 6h2v2h-2z',
-} satisfies Record<AdminSection, string>;
 
 export interface ChecklistItem {
   id: string;
@@ -110,8 +84,15 @@ function niceMax(value: number): number {
   return step * magnitude;
 }
 
+/**
+ * Dashboard de administración: revisión de solicitudes de registro,
+ * estadísticas de uso e incidencias.
+ *
+ * El header y el menú (con sus contadores) los pone `DashboardLayout` a partir
+ * de `adminNavigation`; este componente solo pinta la sección activa.
+ */
 @Component({
-  imports: [Header, NgTemplateOutlet, RouterLink, Sidebar],
+  imports: [NgTemplateOutlet, RouterLink],
   selector: 'app-admin-dashboard',
   styleUrl: './admin-dashboard.css',
   templateUrl: './admin-dashboard.html',
@@ -127,9 +108,6 @@ export class AdminDashboard {
   private readonly incidents = inject(IncidentService);
   private readonly stats = inject(ParkingStatsService);
   private readonly parking = inject(ParkingService);
-  private readonly drawer = createDrawerState();
-
-  protected readonly menuOpen = this.drawer.open;
 
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
@@ -148,31 +126,6 @@ export class AdminDashboard {
   protected readonly pending = this.registrations.pending;
   protected readonly needsUpdate = this.registrations.needsUpdate;
   protected readonly unresolvedIncidents = this.incidents.unresolved;
-
-  protected readonly sidebarItems = computed<SidebarItem[]>(() => [
-    { id: 'resumen', label: 'Resumen', icon: ICONS.resumen, route: '/admin/resumen' },
-    {
-      id: 'pendientes',
-      label: 'Pendientes',
-      icon: ICONS.pendientes,
-      route: '/admin/pendientes',
-      badge: this.pending().length,
-      badgeLabel: 'por revisar',
-    },
-    { id: 'aprobados', label: 'Aprobados', icon: ICONS.aprobados, route: '/admin/aprobados' },
-    { id: 'rechazados', label: 'Rechazados', icon: ICONS.rechazados, route: '/admin/rechazados' },
-    // Sin contador: estas esperan a la persona, no a la administración.
-    { id: 'actualizaciones', label: 'Actualizaciones', icon: ICONS.actualizaciones, route: '/admin/actualizaciones' },
-    { id: 'estadisticas', label: 'Estadísticas', icon: ICONS.estadisticas, route: '/admin/estadisticas' },
-    {
-      id: 'incidencias',
-      label: 'Incidencias',
-      icon: ICONS.incidencias,
-      route: '/admin/incidencias',
-      badge: this.unresolvedIncidents().length,
-      badgeLabel: 'sin resolver',
-    },
-  ]);
 
   /** Mensaje tras resolver una solicitud; también lo anuncia el lector de pantalla. */
   protected readonly flash = signal<string | null>(null);
@@ -333,12 +286,18 @@ export class AdminDashboard {
         : [{ id: 'declared', label: 'Revisé la marca y el color declarados', value: vehicleDetails(vehicle) }];
     }
 
+    // Scooter: sin placa ni tarjeta; se revisa la factura, si la hay, y lo que verá portería.
+    const declared: ChecklistItem[] = vehicleDetails(vehicle)
+      ? [{ id: 'vehicle', label: 'Revisé el color y la marca declarados', value: vehicleDetails(vehicle) }]
+      : [];
+
     return has('purchase-proof')
       ? [
           { id: 'legible', label: 'La factura es legible' },
           { id: 'buyer', label: 'El comprador coincide con los datos declarados', value: declaredFullName(owner) },
+          ...declared,
         ]
-      : [{ id: 'declared', label: 'Revisé los datos declarados', value: declaredFullName(owner) }];
+      : [{ id: 'declared', label: 'Revisé los datos declarados', value: declaredFullName(owner) }, ...declared];
   });
 
   protected readonly checkedCount = computed(
@@ -379,14 +338,6 @@ export class AdminDashboard {
   });
 
   // ---- Acciones de navegación --------------------------------------------------------------------
-
-  protected toggleMenu(): void {
-    this.drawer.toggle();
-  }
-
-  protected closeMenu(): void {
-    this.drawer.closeOnMobile();
-  }
 
   protected openReview(registration: VehicleRegistration): void {
     this.flash.set(null);

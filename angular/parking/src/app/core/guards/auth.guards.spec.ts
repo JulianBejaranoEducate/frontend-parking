@@ -1,36 +1,62 @@
 import { TestBed } from '@angular/core/testing';
-import { type ActivatedRouteSnapshot, type RouterStateSnapshot, UrlTree, provideRouter } from '@angular/router';
+import { type CanMatchFn, provideRouter } from '@angular/router';
+import { DEMO_ACCOUNTS, type DemoProfile, type UserRole } from '../services/auth.service';
 import { signInForTest } from '../../testing/demo-session';
-import { adminGuard, authGuard } from './auth.guards';
+import { homeFor, redirectToHome, roleGuard } from './auth.guards';
 
-describe('guardas de navegación', () => {
-  const run = (guard: typeof authGuard) =>
-    TestBed.runInInjectionContext(() => guard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot));
-
-  const setup = (profile: 'user' | 'admin' | null) => {
+describe('barreras de navegación por rol', () => {
+  const setup = (profile: DemoProfile | null) => {
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     signInForTest(profile);
   };
 
-  const target = (result: unknown) => (result instanceof UrlTree ? result.toString() : result);
+  /** La barrera no mira la ruta ni los segmentos: solo el rol de la sesión. */
+  const canMatch = (...roles: UserRole[]) =>
+    TestBed.runInInjectionContext(() =>
+      roleGuard(...roles)(...([{}, [], {}] as unknown as Parameters<CanMatchFn>)),
+    );
 
-  it('sin sesión, todo vuelve al acceso', () => {
+  const redirect = () =>
+    TestBed.runInInjectionContext(() => String(redirectToHome({} as Parameters<typeof redirectToHome>[0])));
+
+  it('cada rol tiene su propio inicio', () => {
+    expect(homeFor(DEMO_ACCOUNTS.user)).toBe('/inicio');
+    expect(homeFor(DEMO_ACCOUNTS.admin)).toBe('/admin/resumen');
+    expect(homeFor(DEMO_ACCOUNTS.security)).toBe('/seguridad/resumen');
+    expect(homeFor(null)).toBe('/login');
+  });
+
+  it('sin sesión ningún grupo de rutas existe y todo lleva al acceso', () => {
     setup(null);
 
-    expect(target(run(authGuard))).toBe('/login');
-    expect(target(run(adminGuard))).toBe('/login');
+    expect(canMatch('user')).toBe(false);
+    expect(canMatch('admin')).toBe(false);
+    expect(canMatch('security')).toBe(false);
+    expect(redirect()).toBe('/login');
   });
 
-  it('un estudiante entra a registrar vehículos pero no a la administración', () => {
+  it('un estudiante solo ve el grupo de usuarios', () => {
     setup('user');
 
-    expect(run(authGuard)).toBe(true);
-    expect(target(run(adminGuard))).toBe('/inicio');
+    expect(canMatch('user')).toBe(true);
+    expect(canMatch('admin')).toBe(false);
+    expect(canMatch('security')).toBe(false);
+    expect(redirect()).toBe('/inicio');
   });
 
-  it('la administración entra a su dashboard', () => {
+  it('la administración solo ve su grupo', () => {
     setup('admin');
 
-    expect(run(adminGuard)).toBe(true);
+    expect(canMatch('admin')).toBe(true);
+    expect(canMatch('user')).toBe(false);
+    expect(redirect()).toBe('/admin/resumen');
+  });
+
+  it('el personal de seguridad solo ve su grupo', () => {
+    setup('security');
+
+    expect(canMatch('security')).toBe(true);
+    expect(canMatch('user', 'admin')).toBe(false);
+    expect(redirect()).toBe('/seguridad/resumen');
   });
 });

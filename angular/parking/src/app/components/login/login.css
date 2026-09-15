@@ -277,6 +277,10 @@
   border-radius: 999px;
 }
 
+.demo__label {
+  color: var(--brand-text-muted);
+}
+
 .demo__link {
   padding: 0.25rem;
   font: inherit;

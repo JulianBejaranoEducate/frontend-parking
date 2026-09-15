@@ -261,17 +261,21 @@
                 <ng-container [ngTemplateOutlet]="nameCheckNotice" />
               </fieldset>
 
-              @if (vehicleType() === 'scooter') {
-                <p class="info">
-                  Los scooters no tienen placa ni tarjeta de propiedad en Colombia, así que no hace falta nada más aquí.
-                </p>
-              } @else {
-                <fieldset class="block">
+              <fieldset class="block">
                   <legend class="block__legend">
-                    {{ vehicleType() === 'moto' ? 'Datos de la moto' : 'Datos de la bicicleta' }}
+                    @switch (vehicleType()) {
+                      @case ('moto') { Datos de la moto }
+                      @case ('scooter') { Datos del scooter }
+                      @default { Datos de la bicicleta }
+                    }
                   </legend>
                   @if (vehicleType() === 'moto') {
                     <p class="block__hint">Cópialos tal como aparecen en la tarjeta de propiedad.</p>
+                  } @else if (vehicleType() === 'scooter') {
+                    <p class="block__hint">
+                      Los scooters no tienen placa ni tarjeta de propiedad en Colombia: con el color, y la marca si la
+                      conoces, portería lo reconoce.
+                    </p>
                   }
 
                   <div class="grid">
@@ -300,14 +304,19 @@
                     }
 
                     <div class="field">
-                      <label class="field__label" for="brand">Marca</label>
+                      <label class="field__label" for="brand">
+                        Marca
+                        @if (isOptional('brand')) {
+                          <span class="field__optional">(opcional)</span>
+                        }
+                      </label>
                       <input
                         class="field__control"
                         id="brand"
                         type="text"
                         maxlength="30"
                         autocomplete="off"
-                        [placeholder]="vehicleType() === 'moto' ? 'Yamaha' : 'Trek'"
+                        [placeholder]="vehicleType() === 'moto' ? 'Yamaha' : vehicleType() === 'scooter' ? 'Xiaomi' : 'Trek'"
                         formControlName="brand"
                         [class.field__control--invalid]="isInvalid('brand')"
                         [attr.aria-invalid]="isInvalid('brand')"
@@ -411,8 +420,7 @@
                       </div>
                     }
                   </div>
-                </fieldset>
-              }
+              </fieldset>
 
               <div class="nav">
                 <button type="button" class="btn btn--ghost" (click)="back()">Atrás</button>

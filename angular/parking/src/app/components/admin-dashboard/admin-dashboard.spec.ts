@@ -57,12 +57,8 @@ describe('AdminDashboard', () => {
     expect(component).toBeTruthy();
   });
 
-  it('el menú lateral cuenta lo que espera a la administración', () => {
-    const badges = [...host().querySelectorAll('.menu__item')]
-      .filter((item) => item.querySelector('.menu__badge'))
-      .map((item) => `${item.querySelector('.menu__label')?.textContent?.trim()}:${item.querySelector('.menu__badge')?.textContent?.trim()}`);
-
-    expect(badges).toEqual(['Pendientes:5', 'Incidencias:3']);
+  it('solo pinta la sección: el menú con sus contadores lo pone el layout (ver admin-navigation.spec)', () => {
+    expect(host().querySelector('app-sidebar')).toBeNull();
   });
 
   it('el resumen muestra indicadores y la cola de revisión', () => {

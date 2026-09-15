@@ -6,11 +6,13 @@ import { BRAND } from '../../core/config/branding.config';
 import {
   DOCUMENT_TYPES,
   type DocumentType,
+  type FieldRequirement,
   VEHICLE_TYPES,
   type VehicleType,
   type VisitorPass,
   type VisitorRegistration,
   type VisitorVehicle,
+  isAsked,
   requirementsFor,
   vehicleLabel,
 } from '../../core/models/visitor-pass';
@@ -27,6 +29,9 @@ const PLATE_PATTERN = /^[A-Z]{3}\d{2}[A-Z]?$/;
 /** Cédulas y tarjetas de identidad colombianas: solo dígitos, de 6 a 11. */
 const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
 
+/** Serial del marco de una bicicleta: letras, números y guiones. */
+const SERIAL_PATTERN = /^[A-Z0-9-]{4,30}$/;
+
 type FieldName =
   | 'firstName'
   | 'lastName'
@@ -36,7 +41,11 @@ type FieldName =
   | 'vehicleBrand'
   | 'vehicleColor'
   | 'plate'
+  | 'frameSerial'
   | 'reason';
+
+/** Campos del vehículo que dependen del tipo elegido. */
+type VehicleField = 'vehicleBrand' | 'vehicleColor' | 'plate' | 'frameSerial';
 
 const REQUIRED_MESSAGES: Record<FieldName, string> = {
   firstName: 'Escribe tu nombre.',
@@ -47,12 +56,14 @@ const REQUIRED_MESSAGES: Record<FieldName, string> = {
   vehicleBrand: 'Escribe la marca del vehículo.',
   vehicleColor: 'Escribe el color del vehículo.',
   plate: 'Escribe la placa de la moto.',
+  frameSerial: '',
   reason: 'Cuéntanos el motivo de tu visita.',
 };
 
 const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
   documentNumber: 'Debe tener entre 6 y 11 dígitos, sin puntos ni espacios.',
   plate: 'Usa el formato de placa de moto: ABC12D.',
+  frameSerial: 'Usa solo letras, números y guiones (4 a 30 caracteres).',
 };
 
 @Component({
@@ -86,15 +97,10 @@ export class Visitor {
    */
   protected readonly qrConcealed = signal(false);
 
-  /** Tipo de vehículo elegido: decide qué campos se piden y cuáles se validan. */
+  /** Tipo de vehículo elegido: decide qué campos se piden y cuáles son obligatorios. */
   protected readonly vehicleType = signal<VehicleType | ''>('');
   protected readonly requires = computed(() => requirementsFor(this.vehicleType()));
-
-  /** Caso del scooter: ya eligió vehículo y no hay nada más que preguntarle. */
-  protected readonly vehicleNeedsNoExtras = computed(() => {
-    const requirements = this.requires();
-    return this.vehicleType() !== '' && !requirements.brand && !requirements.color && !requirements.plate;
-  });
+  protected readonly isAsked = isAsked;
 
   private readonly now = signal(Date.now());
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -117,11 +123,12 @@ export class Visitor {
     documentType: ['', Validators.required],
     documentNumber: ['', [Validators.required, Validators.pattern(DOCUMENT_NUMBER_PATTERN)]],
     vehicleType: ['', Validators.required],
-    // Marca, color y placa se validan según el vehículo: los validadores se
-    // montan y desmontan en applyVehicleRules().
+    // Marca, color, placa y serial se validan según el vehículo: los validadores
+    // se montan y desmontan en applyVehicleRules().
     vehicleBrand: [''],
     vehicleColor: [''],
     plate: [''],
+    frameSerial: [''],
     reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(160)]],
   });
 
@@ -154,6 +161,11 @@ export class Visitor {
     this.rewrite('documentNumber', (value) => value.replace(/\D/g, ''));
   }
 
+  /** El serial del marco se guarda en mayúsculas y sin espacios. */
+  protected normalizeSerial(): void {
+    this.rewrite('frameSerial', (value) => value.toUpperCase().replace(/\s/g, ''));
+  }
+
   protected async submit(): Promise<void> {
     this.submitAttempted.set(true);
 
@@ -166,17 +178,24 @@ export class Visitor {
     const requirements = this.requires();
     const vehicle: VisitorVehicle = { type: value.vehicleType as VehicleType };
 
-    // Solo se guarda lo que ese vehículo realmente pide, sin campos vacíos.
-    if (requirements.brand) {
-      vehicle.brand = value.vehicleBrand.trim();
+    // Solo se guarda lo que ese vehículo pide, y los opcionales solo si se escribieron.
+    const brand = value.vehicleBrand.trim();
+    const color = value.vehicleColor.trim();
+
+    if (isAsked(requirements.brand) && brand) {
+      vehicle.brand = brand;
     }
 
-    if (requirements.color) {
-      vehicle.color = value.vehicleColor.trim();
+    if (isAsked(requirements.color) && color) {
+      vehicle.color = color;
     }
 
-    if (requirements.plate) {
+    if (isAsked(requirements.plate)) {
       vehicle.plate = value.plate;
+    }
+
+    if (isAsked(requirements.frameSerial) && value.frameSerial) {
+      vehicle.frameSerial = value.frameSerial;
     }
 
     await this.issuePass({
@@ -191,12 +210,13 @@ export class Visitor {
 
   /**
    * Reemplaza un pase vencido. Es la salida de emergencia: el token anterior
-   * queda inservible y solo el nuevo sirve en portería.
+   * se anula y solo el nuevo sirve en portería.
    */
   protected async regenerate(): Promise<void> {
     const current = this.pass();
 
     if (current) {
+      this.passes.revoke(current.token, 'Reemplazado por un pase nuevo');
       await this.issuePass(current.visitor);
     }
   }
@@ -255,33 +275,25 @@ export class Visitor {
 
     const requirements = requirementsFor(type);
 
-    this.toggleControl('vehicleBrand', requirements.brand, [
-      Validators.required,
-      Validators.maxLength(30),
-    ]);
-    this.toggleControl('vehicleColor', requirements.color, [
-      Validators.required,
-      Validators.maxLength(20),
-    ]);
-    this.toggleControl('plate', requirements.plate, [
-      Validators.required,
-      Validators.pattern(PLATE_PATTERN),
-    ]);
+    this.toggleControl('vehicleBrand', requirements.brand, [Validators.maxLength(30)]);
+    this.toggleControl('vehicleColor', requirements.color, [Validators.maxLength(20)]);
+    this.toggleControl('plate', requirements.plate, [Validators.pattern(PLATE_PATTERN)]);
+    this.toggleControl('frameSerial', requirements.frameSerial, [Validators.pattern(SERIAL_PATTERN)]);
   }
 
-  private toggleControl(
-    name: 'vehicleBrand' | 'vehicleColor' | 'plate',
-    required: boolean,
-    validators: ValidatorFn[],
-  ): void {
+  /**
+   * Aplica el nivel de un campo: obligatorio suma `required` a sus validadores,
+   * opcional deja solo el formato y «no se pide» lo vacía.
+   */
+  private toggleControl(name: VehicleField, requirement: FieldRequirement, validators: ValidatorFn[]): void {
     const control = this.form.controls[name];
 
-    if (required) {
-      control.setValidators(validators);
-    } else {
+    if (requirement === 'none') {
       control.clearValidators();
       control.setValue('', { emitEvent: false });
       control.markAsUntouched();
+    } else {
+      control.setValidators(requirement === 'required' ? [Validators.required, ...validators] : validators);
     }
 
     control.updateValueAndValidity({ emitEvent: false });
@@ -315,7 +327,7 @@ export class Visitor {
     }
   }
 
-  private rewrite(name: 'plate' | 'documentNumber', transform: (value: string) => string): void {
+  private rewrite(name: 'plate' | 'documentNumber' | 'frameSerial', transform: (value: string) => string): void {
     const control = this.form.controls[name];
     const next = transform(control.value);
 

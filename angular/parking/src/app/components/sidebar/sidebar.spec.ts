@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { SIDEBAR_ITEMS, Sidebar } from './sidebar';
+import { USER_NAVIGATION_ITEMS } from '../main-dashboard/user-navigation';
+import { Sidebar } from './sidebar';
 
 describe('Sidebar', () => {
   let component: Sidebar;
@@ -15,6 +16,7 @@ describe('Sidebar', () => {
     fixture = TestBed.createComponent(Sidebar);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('items', USER_NAVIGATION_ITEMS);
     await fixture.whenStable();
   });
 
@@ -24,10 +26,17 @@ describe('Sidebar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('lista las opciones iniciales del menú', () => {
+  it('lista las opciones que recibe', () => {
     const labels = [...host().querySelectorAll('.menu__label')].map((item) => item.textContent?.trim());
 
     expect(labels).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
+  });
+
+  it('sin opciones no muestra ningún menú, ni siquiera el de otro rol', async () => {
+    fixture.componentRef.setInput('items', []);
+    await fixture.whenStable();
+
+    expect(host().querySelectorAll('.menu__item')).toHaveLength(0);
   });
 
   it('las opciones con ruta son enlaces reales', () => {
@@ -50,7 +59,7 @@ describe('Sidebar', () => {
     expect(closedCount).toBe(1);
   });
 
-  it('muestra contadores y un contexto cuando otra pantalla los pide', async () => {
+  it('muestra contadores y un contexto cuando el rol los aporta', async () => {
     fixture.componentRef.setInput('context', 'Administración');
     fixture.componentRef.setInput('items', [
       { id: 'pendientes', label: 'Pendientes', icon: 'M0 0h24v24H0z', route: '/admin/pendientes', badge: 4, badgeLabel: 'por revisar' },
@@ -74,13 +83,5 @@ describe('Sidebar', () => {
     const aside = host().querySelector('.sidebar');
     expect(aside?.getAttribute('aria-hidden')).toBe('true');
     expect(aside?.classList.contains('sidebar--open')).toBe(false);
-  });
-
-  it('expone las opciones como dato reutilizable por otras pantallas', () => {
-    expect(SIDEBAR_ITEMS.map((item) => item.id)).toEqual([
-      'registrar-vehiculo',
-      'parqueaderos',
-      'estadisticas',
-    ]);
   });
 });

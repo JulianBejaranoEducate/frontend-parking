@@ -1,381 +1,358 @@
-<div class="shell" [class.shell--menu-open]="menuOpen()">
-  <app-sidebar
-    [open]="menuOpen()"
-    [items]="sidebarItems()"
-    context="Administración"
-    (closed)="closeMenu()"
-  />
+<main class="page">
+  @if (selected(); as registration) {
+    <ng-container [ngTemplateOutlet]="review" [ngTemplateOutletContext]="{ $implicit: registration }" />
+  } @else {
+    <header class="page__head">
+      <h1 class="page__title">{{ copy().title }}</h1>
+      <p class="page__subtitle">{{ copy().subtitle }}</p>
+    </header>
 
-  <!-- Velo que oscurece el contenido mientras el cajón está abierto en móvil. -->
-  <button
-    type="button"
-    class="scrim"
-    [class.scrim--visible]="menuOpen()"
-    tabindex="-1"
-    aria-label="Cerrar menú"
-    (click)="closeMenu()"
-  ></button>
+    <p class="sr-only" aria-live="polite">{{ flash() }}</p>
+    @if (flash(); as message) {
+      <div class="flash">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+        </svg>
+        <span>{{ message }}</span>
+        <button type="button" class="flash__close" aria-label="Cerrar aviso" (click)="flash.set(null)">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+    }
 
-  <div class="content">
-    <app-header [menuOpen]="menuOpen()" (menuToggled)="toggleMenu()" />
+    @switch (activeSection()) {
+      <!-- ================================ Resumen ================================ -->
+      @case ('resumen') {
+        <section class="tiles tiles--4" aria-label="Indicadores de hoy">
+          <article class="tile">
+            <p class="tile__label">Por revisar</p>
+            <p class="tile__value">{{ pending().length }}</p>
+            <p class="tile__note">
+              @if (oldestPending(); as oldest) {
+                La más antigua llegó {{ timeAgo(oldest.updatedAt) }}.
+              } @else {
+                No hay solicitudes esperando.
+              }
+            </p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Esperando documentos</p>
+            <p class="tile__value">{{ needsUpdate().length }}</p>
+            <p class="tile__note">Devueltas a la persona para actualizar.</p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Incidencias sin resolver</p>
+            <p class="tile__value">{{ unresolvedIncidents().length }}</p>
+            <p class="tile__note">Abiertas o en revisión.</p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Ocupación ahora</p>
+            <p class="tile__value">{{ occupancyPercent() }} %</p>
+            <p class="tile__note">{{ totalOccupied() }} de {{ totalCapacity() }} cupos ocupados.</p>
+          </article>
+        </section>
 
-    <main class="page">
-      @if (selected(); as registration) {
-        <ng-container [ngTemplateOutlet]="review" [ngTemplateOutletContext]="{ $implicit: registration }" />
-      } @else {
-        <header class="page__head">
-          <h1 class="page__title">{{ copy().title }}</h1>
-          <p class="page__subtitle">{{ copy().subtitle }}</p>
-        </header>
+        <div class="split">
+          <section class="card card--flush" aria-labelledby="summary-pending">
+            <div class="card__head card__head--padded">
+              <h2 class="card__title" id="summary-pending">Por revisar</h2>
+              <a class="link-btn" routerLink="/admin/pendientes">Ver todas</a>
+            </div>
+            @if (pending().length) {
+              <ul class="requests">
+                @for (registration of pending().slice(0, 5); track registration.id) {
+                  <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
+                }
+              </ul>
+            } @else {
+              <p class="empty empty--padded">No hay solicitudes pendientes.</p>
+            }
+          </section>
 
-        <p class="sr-only" aria-live="polite">{{ flash() }}</p>
-        @if (flash(); as message) {
-          <div class="flash">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
-            </svg>
-            <span>{{ message }}</span>
-            <button type="button" class="flash__close" aria-label="Cerrar aviso" (click)="flash.set(null)">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-              </svg>
-            </button>
+          <section class="card card--flush" aria-labelledby="summary-incidents">
+            <div class="card__head card__head--padded">
+              <h2 class="card__title" id="summary-incidents">Incidencias sin resolver</h2>
+              <a class="link-btn" routerLink="/admin/incidencias">Ver todas</a>
+            </div>
+            @if (unresolvedIncidents().length) {
+              <ul class="incidents">
+                @for (incident of unresolvedIncidents().slice(0, 3); track incident.id) {
+                  <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: true }" />
+                }
+              </ul>
+            } @else {
+              <p class="empty empty--padded">No hay incidencias abiertas.</p>
+            }
+          </section>
+        </div>
+      }
+
+      <!-- ============================== Estadísticas ============================== -->
+      @case ('estadisticas') {
+        <!-- El periodo filtra todo lo que hay debajo: indicadores, gráficas y tablas. -->
+        <div class="toolbar">
+          <div class="range" role="radiogroup" aria-label="Periodo de las estadísticas">
+            @for (option of statsRanges; track option.days) {
+              <label class="range__option">
+                <input
+                  class="range__input"
+                  type="radio"
+                  name="stats-range"
+                  [checked]="statsDays() === option.days"
+                  (change)="statsDays.set(option.days)"
+                />
+                <span class="range__label">Últimos {{ option.label }}</span>
+              </label>
+            }
           </div>
-        }
+        </div>
 
-        @switch (activeSection()) {
-          <!-- ================================ Resumen ================================ -->
-          @case ('resumen') {
-            <section class="tiles tiles--4" aria-label="Indicadores de hoy">
-              <article class="tile">
-                <p class="tile__label">Por revisar</p>
-                <p class="tile__value">{{ pending().length }}</p>
-                <p class="tile__note">
-                  @if (oldestPending(); as oldest) {
-                    La más antigua llegó {{ timeAgo(oldest.updatedAt) }}.
-                  } @else {
-                    No hay solicitudes esperando.
-                  }
-                </p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Esperando documentos</p>
-                <p class="tile__value">{{ needsUpdate().length }}</p>
-                <p class="tile__note">Devueltas a la persona para actualizar.</p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Incidencias sin resolver</p>
-                <p class="tile__value">{{ unresolvedIncidents().length }}</p>
-                <p class="tile__note">Abiertas o en revisión.</p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Ocupación ahora</p>
-                <p class="tile__value">{{ occupancyPercent() }} %</p>
-                <p class="tile__note">{{ totalOccupied() }} de {{ totalCapacity() }} cupos ocupados.</p>
-              </article>
-            </section>
+        <section class="tiles tiles--4" aria-label="Indicadores del periodo">
+          <article class="tile">
+            <p class="tile__label">Ingresos</p>
+            <p class="tile__value">{{ summary().totalEntries.toLocaleString('es-CO') }}</p>
+            <p class="tile__note">En los últimos {{ statsDays() }} días.</p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Promedio diario</p>
+            <p class="tile__value">{{ summary().dailyAverage.toLocaleString('es-CO') }}</p>
+            <p class="tile__note">Ingresos por día.</p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Hora pico</p>
+            <p class="tile__value">{{ hourLabel(summary().peakHour) }}</p>
+            <p class="tile__note">La franja con más ocupación.</p>
+          </article>
+          <article class="tile">
+            <p class="tile__label">Permanencia promedio</p>
+            <p class="tile__value">{{ durationLabel(summary().averageStayMinutes) }}</p>
+            <p class="tile__note">De la entrada a la salida.</p>
+          </article>
+        </section>
 
-            <div class="split">
-              <section class="card card--flush" aria-labelledby="summary-pending">
-                <div class="card__head card__head--padded">
-                  <h2 class="card__title" id="summary-pending">Por revisar</h2>
-                  <a class="link-btn" routerLink="/admin/pendientes">Ver todas</a>
-                </div>
-                @if (pending().length) {
-                  <ul class="requests">
-                    @for (registration of pending().slice(0, 5); track registration.id) {
-                      <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
-                    }
-                  </ul>
-                } @else {
-                  <p class="empty empty--padded">No hay solicitudes pendientes.</p>
-                }
-              </section>
+        <!-- Ingresos por día: magnitud por categoría → columnas de un solo tono. -->
+        <section class="card" aria-labelledby="chart-daily">
+          <h2 class="card__title" id="chart-daily">Ingresos por día</h2>
+          <p class="chart-caption">Vehículos que entraron cada día, de todos los tipos.</p>
 
-              <section class="card card--flush" aria-labelledby="summary-incidents">
-                <div class="card__head card__head--padded">
-                  <h2 class="card__title" id="summary-incidents">Incidencias sin resolver</h2>
-                  <a class="link-btn" routerLink="/admin/incidencias">Ver todas</a>
-                </div>
-                @if (unresolvedIncidents().length) {
-                  <ul class="incidents">
-                    @for (incident of unresolvedIncidents().slice(0, 3); track incident.id) {
-                      <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: true }" />
-                    }
-                  </ul>
-                } @else {
-                  <p class="empty empty--padded">No hay incidencias abiertas.</p>
-                }
-              </section>
-            </div>
-          }
-
-          <!-- ============================== Estadísticas ============================== -->
-          @case ('estadisticas') {
-            <!-- El periodo filtra todo lo que hay debajo: indicadores, gráficas y tablas. -->
-            <div class="toolbar">
-              <div class="range" role="radiogroup" aria-label="Periodo de las estadísticas">
-                @for (option of statsRanges; track option.days) {
-                  <label class="range__option">
-                    <input
-                      class="range__input"
-                      type="radio"
-                      name="stats-range"
-                      [checked]="statsDays() === option.days"
-                      (change)="statsDays.set(option.days)"
-                    />
-                    <span class="range__label">Últimos {{ option.label }}</span>
-                  </label>
+          <div class="chart" [style.--columns]="daily().length">
+            <div class="chart__plot">
+              <div class="chart__grid" aria-hidden="true">
+                @for (tick of dailyTicks(); track $index) {
+                  <span class="chart__tick" [style.bottom.%]="barHeight(tick, dailyMax())">
+                    <span class="chart__tick-label">{{ tick }}</span>
+                  </span>
                 }
               </div>
+              <ul class="chart__bars" aria-label="Ingresos por día">
+                @for (day of daily(); track day.date.getTime(); let index = $index, count = $count) {
+                  <li
+                    class="chart__column"
+                    [class.chart__column--start]="index < count / 3"
+                    [class.chart__column--end]="index >= (count * 2) / 3"
+                    tabindex="0"
+                    [attr.aria-label]="fullDayLabel(day.date) + ': ' + day.entries + ' ingresos'"
+                  >
+                    <span class="chart__bar" [style.height.%]="barHeight(day.entries, dailyMax())">
+                      <span class="chart__tip" aria-hidden="true">
+                        <strong>{{ day.entries }}</strong>
+                        <span>{{ fullDayLabel(day.date) }}</span>
+                      </span>
+                    </span>
+                  </li>
+                }
+              </ul>
             </div>
+            <div class="chart__labels" aria-hidden="true">
+              @for (day of daily(); track day.date.getTime(); let index = $index) {
+                <span>{{ index % dailyLabelEvery() === (daily().length - 1) % dailyLabelEvery() ? dayLabel(day.date) : '' }}</span>
+              }
+            </div>
+          </div>
 
-            <section class="tiles tiles--4" aria-label="Indicadores del periodo">
-              <article class="tile">
-                <p class="tile__label">Ingresos</p>
-                <p class="tile__value">{{ summary().totalEntries.toLocaleString('es-CO') }}</p>
-                <p class="tile__note">En los últimos {{ statsDays() }} días.</p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Promedio diario</p>
-                <p class="tile__value">{{ summary().dailyAverage.toLocaleString('es-CO') }}</p>
-                <p class="tile__note">Ingresos por día.</p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Hora pico</p>
-                <p class="tile__value">{{ hourLabel(summary().peakHour) }}</p>
-                <p class="tile__note">La franja con más ocupación.</p>
-              </article>
-              <article class="tile">
-                <p class="tile__label">Permanencia promedio</p>
-                <p class="tile__value">{{ durationLabel(summary().averageStayMinutes) }}</p>
-                <p class="tile__note">De la entrada a la salida.</p>
-              </article>
-            </section>
-
-            <!-- Ingresos por día: magnitud por categoría → columnas de un solo tono. -->
-            <section class="card" aria-labelledby="chart-daily">
-              <h2 class="card__title" id="chart-daily">Ingresos por día</h2>
-              <p class="chart-caption">Vehículos que entraron cada día, de todos los tipos.</p>
-
-              <div class="chart" [style.--columns]="daily().length">
-                <div class="chart__plot">
-                  <div class="chart__grid" aria-hidden="true">
-                    @for (tick of dailyTicks(); track $index) {
-                      <span class="chart__tick" [style.bottom.%]="barHeight(tick, dailyMax())">
-                        <span class="chart__tick-label">{{ tick }}</span>
-                      </span>
-                    }
-                  </div>
-                  <ul class="chart__bars" aria-label="Ingresos por día">
-                    @for (day of daily(); track day.date.getTime(); let index = $index, count = $count) {
-                      <li
-                        class="chart__column"
-                        [class.chart__column--start]="index < count / 3"
-                        [class.chart__column--end]="index >= (count * 2) / 3"
-                        tabindex="0"
-                        [attr.aria-label]="fullDayLabel(day.date) + ': ' + day.entries + ' ingresos'"
-                      >
-                        <span class="chart__bar" [style.height.%]="barHeight(day.entries, dailyMax())">
-                          <span class="chart__tip" aria-hidden="true">
-                            <strong>{{ day.entries }}</strong>
-                            <span>{{ fullDayLabel(day.date) }}</span>
-                          </span>
-                        </span>
-                      </li>
-                    }
-                  </ul>
-                </div>
-                <div class="chart__labels" aria-hidden="true">
-                  @for (day of daily(); track day.date.getTime(); let index = $index) {
-                    <span>{{ index % dailyLabelEvery() === (daily().length - 1) % dailyLabelEvery() ? dayLabel(day.date) : '' }}</span>
+          <details class="chart-table">
+            <summary>Ver los datos en tabla</summary>
+            <div class="chart-table__scroll">
+              <table class="data-table data-table--numeric">
+                <thead><tr><th scope="col">Día</th><th scope="col">Ingresos</th></tr></thead>
+                <tbody>
+                  @for (day of daily(); track day.date.getTime()) {
+                    <tr><td>{{ fullDayLabel(day.date) }}</td><td>{{ day.entries }}</td></tr>
                   }
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </section>
+
+        <div class="split">
+          <!-- Ocupación por hora, con la línea de "casi lleno" como referencia. -->
+          <section class="card" aria-labelledby="chart-hourly">
+            <h2 class="card__title" id="chart-hourly">Ocupación promedio por hora</h2>
+            <p class="chart-caption">Porcentaje de cupos ocupados en cada franja.</p>
+
+            <div class="chart" [style.--columns]="hourly().length">
+              <div class="chart__plot">
+                <div class="chart__grid" aria-hidden="true">
+                  @for (tick of [0, 50, 100]; track tick) {
+                    <span class="chart__tick" [style.bottom.%]="tick">
+                      <span class="chart__tick-label">{{ tick }} %</span>
+                    </span>
+                  }
+                  <span class="chart__threshold" [style.bottom.%]="fillingThreshold">
+                    <span class="chart__threshold-label">Casi lleno</span>
+                  </span>
                 </div>
-              </div>
-
-              <details class="chart-table">
-                <summary>Ver los datos en tabla</summary>
-                <div class="chart-table__scroll">
-                  <table class="data-table data-table--numeric">
-                    <thead><tr><th scope="col">Día</th><th scope="col">Ingresos</th></tr></thead>
-                    <tbody>
-                      @for (day of daily(); track day.date.getTime()) {
-                        <tr><td>{{ fullDayLabel(day.date) }}</td><td>{{ day.entries }}</td></tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </details>
-            </section>
-
-            <div class="split">
-              <!-- Ocupación por hora, con la línea de "casi lleno" como referencia. -->
-              <section class="card" aria-labelledby="chart-hourly">
-                <h2 class="card__title" id="chart-hourly">Ocupación promedio por hora</h2>
-                <p class="chart-caption">Porcentaje de cupos ocupados en cada franja.</p>
-
-                <div class="chart" [style.--columns]="hourly().length">
-                  <div class="chart__plot">
-                    <div class="chart__grid" aria-hidden="true">
-                      @for (tick of [0, 50, 100]; track tick) {
-                        <span class="chart__tick" [style.bottom.%]="tick">
-                          <span class="chart__tick-label">{{ tick }} %</span>
+                <ul class="chart__bars" aria-label="Ocupación promedio por hora">
+                  @for (slot of hourly(); track slot.hour; let index = $index, count = $count) {
+                    <li
+                      class="chart__column"
+                      [class.chart__column--start]="index < count / 3"
+                      [class.chart__column--end]="index >= (count * 2) / 3"
+                      tabindex="0"
+                      [attr.aria-label]="hourLabel(slot.hour) + ': ' + percent(slot.ratio) + ' % de ocupación'"
+                    >
+                      <span class="chart__bar" [style.height.%]="barHeight(slot.ratio, 1)">
+                        <span class="chart__tip" aria-hidden="true">
+                          <strong>{{ percent(slot.ratio) }} %</strong>
+                          <span>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</span>
                         </span>
-                      }
-                      <span class="chart__threshold" [style.bottom.%]="fillingThreshold">
-                        <span class="chart__threshold-label">Casi lleno</span>
-                      </span>
-                    </div>
-                    <ul class="chart__bars" aria-label="Ocupación promedio por hora">
-                      @for (slot of hourly(); track slot.hour; let index = $index, count = $count) {
-                        <li
-                          class="chart__column"
-                          [class.chart__column--start]="index < count / 3"
-                          [class.chart__column--end]="index >= (count * 2) / 3"
-                          tabindex="0"
-                          [attr.aria-label]="hourLabel(slot.hour) + ': ' + percent(slot.ratio) + ' % de ocupación'"
-                        >
-                          <span class="chart__bar" [style.height.%]="barHeight(slot.ratio, 1)">
-                            <span class="chart__tip" aria-hidden="true">
-                              <strong>{{ percent(slot.ratio) }} %</strong>
-                              <span>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</span>
-                            </span>
-                          </span>
-                        </li>
-                      }
-                    </ul>
-                  </div>
-                  <div class="chart__labels" aria-hidden="true">
-                    @for (slot of hourly(); track slot.hour; let index = $index) {
-                      <span>{{ index % 3 === 0 ? slot.hour + 'h' : '' }}</span>
-                    }
-                  </div>
-                </div>
-
-                <details class="chart-table">
-                  <summary>Ver los datos en tabla</summary>
-                  <div class="chart-table__scroll">
-                    <table class="data-table data-table--numeric">
-                      <thead><tr><th scope="col">Franja</th><th scope="col">Ocupación</th></tr></thead>
-                      <tbody>
-                        @for (slot of hourly(); track slot.hour) {
-                          <tr><td>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</td><td>{{ percent(slot.ratio) }} %</td></tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </details>
-              </section>
-
-              <!-- Uso por tipo: tres barras horizontales con el valor en la punta. -->
-              <section class="card" aria-labelledby="chart-types">
-                <h2 class="card__title" id="chart-types">Ingresos por tipo de vehículo</h2>
-                <p class="chart-caption">Total del periodo.</p>
-
-                <ul class="hbars">
-                  @for (item of typeUsage(); track item.type) {
-                    <li class="hbar">
-                      <span class="hbar__label">{{ vehicleLabel(item.type) }}</span>
-                      <span class="hbar__track">
-                        <span class="hbar__fill" [style.--ratio]="item.entries / typeMax()"></span>
-                        <span class="hbar__value">{{ item.entries.toLocaleString('es-CO') }}</span>
                       </span>
                     </li>
                   }
                 </ul>
-              </section>
-            </div>
-          }
-
-          <!-- =============================== Incidencias =============================== -->
-          @case ('incidencias') {
-            <div class="toolbar">
-              <div class="range" role="radiogroup" aria-label="Estado de las incidencias">
-                @for (option of [
-                  { value: 'unresolved', label: 'Sin resolver' },
-                  { value: 'resolved', label: 'Resueltas' },
-                  { value: 'all', label: 'Todas' }
-                ]; track option.value) {
-                  <label class="range__option">
-                    <input
-                      class="range__input"
-                      type="radio"
-                      name="incident-filter"
-                      [checked]="incidentFilter() === option.value"
-                      (change)="setIncidentFilter($any(option.value))"
-                    />
-                    <span class="range__label">{{ option.label }}</span>
-                  </label>
+              </div>
+              <div class="chart__labels" aria-hidden="true">
+                @for (slot of hourly(); track slot.hour; let index = $index) {
+                  <span>{{ index % 3 === 0 ? slot.hour + 'h' : '' }}</span>
                 }
               </div>
             </div>
 
-            <section class="card card--flush" aria-label="Listado de incidencias">
-              @if (filteredIncidents().length) {
-                <ul class="incidents">
-                  @for (incident of filteredIncidents(); track incident.id) {
-                    <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: false }" />
-                  }
-                </ul>
-              } @else {
-                <p class="empty empty--padded">No hay incidencias en esta vista.</p>
-              }
-            </section>
-          }
-
-          <!-- ================== Pendientes · Aprobados · Rechazados · Actualizaciones ================== -->
-          @default {
-            <div class="toolbar">
-              <label class="search-field">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
-                    fill="currentColor"
-                  />
-                </svg>
-                <span class="sr-only">Buscar solicitudes</span>
-                <input
-                  class="search-field__input"
-                  type="search"
-                  placeholder="Buscar por nombre, placa o documento"
-                  [value]="query()"
-                  (input)="setQuery($event)"
-                />
-              </label>
-
-              <div class="range" role="radiogroup" aria-label="Tipo de vehículo">
-                <label class="range__option">
-                  <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === 'all'" (change)="setTypeFilter('all')" />
-                  <span class="range__label">Todos</span>
-                </label>
-                @for (type of vehicleTypes; track type) {
-                  <label class="range__option">
-                    <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === type" (change)="setTypeFilter(type)" />
-                    <span class="range__label">{{ vehicleLabel(type) }}</span>
-                  </label>
-                }
+            <details class="chart-table">
+              <summary>Ver los datos en tabla</summary>
+              <div class="chart-table__scroll">
+                <table class="data-table data-table--numeric">
+                  <thead><tr><th scope="col">Franja</th><th scope="col">Ocupación</th></tr></thead>
+                  <tbody>
+                    @for (slot of hourly(); track slot.hour) {
+                      <tr><td>{{ hourLabel(slot.hour) }} a {{ hourLabel(slot.hour + 1) }}</td><td>{{ percent(slot.ratio) }} %</td></tr>
+                    }
+                  </tbody>
+                </table>
               </div>
-            </div>
+            </details>
+          </section>
 
-            <section class="card card--flush" [attr.aria-label]="copy().title">
-              @if (listItems().length) {
-                <ul class="requests">
-                  @for (registration of listItems(); track registration.id) {
-                    <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
-                  }
-                </ul>
-              } @else if (query() || typeFilter() !== 'all') {
-                <p class="empty empty--padded">Ninguna solicitud coincide con la búsqueda.</p>
-              } @else {
-                <p class="empty empty--padded">No hay solicitudes en esta vista.</p>
+          <!-- Uso por tipo: tres barras horizontales con el valor en la punta. -->
+          <section class="card" aria-labelledby="chart-types">
+            <h2 class="card__title" id="chart-types">Ingresos por tipo de vehículo</h2>
+            <p class="chart-caption">Total del periodo.</p>
+
+            <ul class="hbars">
+              @for (item of typeUsage(); track item.type) {
+                <li class="hbar">
+                  <span class="hbar__label">{{ vehicleLabel(item.type) }}</span>
+                  <span class="hbar__track">
+                    <span class="hbar__fill" [style.--ratio]="item.entries / typeMax()"></span>
+                    <span class="hbar__value">{{ item.entries.toLocaleString('es-CO') }}</span>
+                  </span>
+                </li>
               }
-            </section>
-          }
-        }
+            </ul>
+          </section>
+        </div>
       }
-    </main>
-  </div>
-</div>
+
+      <!-- =============================== Incidencias =============================== -->
+      @case ('incidencias') {
+        <div class="toolbar">
+          <div class="range" role="radiogroup" aria-label="Estado de las incidencias">
+            @for (option of [
+              { value: 'unresolved', label: 'Sin resolver' },
+              { value: 'resolved', label: 'Resueltas' },
+              { value: 'all', label: 'Todas' }
+            ]; track option.value) {
+              <label class="range__option">
+                <input
+                  class="range__input"
+                  type="radio"
+                  name="incident-filter"
+                  [checked]="incidentFilter() === option.value"
+                  (change)="setIncidentFilter($any(option.value))"
+                />
+                <span class="range__label">{{ option.label }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <section class="card card--flush" aria-label="Listado de incidencias">
+          @if (filteredIncidents().length) {
+            <ul class="incidents">
+              @for (incident of filteredIncidents(); track incident.id) {
+                <ng-container [ngTemplateOutlet]="incidentRow" [ngTemplateOutletContext]="{ $implicit: incident, compact: false }" />
+              }
+            </ul>
+          } @else {
+            <p class="empty empty--padded">No hay incidencias en esta vista.</p>
+          }
+        </section>
+      }
+
+      <!-- ================== Pendientes · Aprobados · Rechazados · Actualizaciones ================== -->
+      @default {
+        <div class="toolbar">
+          <label class="search-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+                fill="currentColor"
+              />
+            </svg>
+            <span class="sr-only">Buscar solicitudes</span>
+            <input
+              class="search-field__input"
+              type="search"
+              placeholder="Buscar por nombre, placa o documento"
+              [value]="query()"
+              (input)="setQuery($event)"
+            />
+          </label>
+
+          <div class="range" role="radiogroup" aria-label="Tipo de vehículo">
+            <label class="range__option">
+              <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === 'all'" (change)="setTypeFilter('all')" />
+              <span class="range__label">Todos</span>
+            </label>
+            @for (type of vehicleTypes; track type) {
+              <label class="range__option">
+                <input class="range__input" type="radio" name="type-filter" [checked]="typeFilter() === type" (change)="setTypeFilter(type)" />
+                <span class="range__label">{{ vehicleLabel(type) }}</span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <section class="card card--flush" [attr.aria-label]="copy().title">
+          @if (listItems().length) {
+            <ul class="requests">
+              @for (registration of listItems(); track registration.id) {
+                <ng-container [ngTemplateOutlet]="requestRow" [ngTemplateOutletContext]="{ $implicit: registration }" />
+              }
+            </ul>
+          } @else if (query() || typeFilter() !== 'all') {
+            <p class="empty empty--padded">Ninguna solicitud coincide con la búsqueda.</p>
+          } @else {
+            <p class="empty empty--padded">No hay solicitudes en esta vista.</p>
+          }
+        </section>
+      }
+    }
+  }
+</main>
 
 <!-- ============================ Fila de una solicitud ============================ -->
 <ng-template #requestRow let-registration>
