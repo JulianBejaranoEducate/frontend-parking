@@ -1,0 +1,46 @@
+<ul class="zones">
+  @for (zone of zones(); track zone.id) {
+    <li class="zone">
+      <div class="zone__head">
+        <span class="zone__name">{{ zone.name }}</span>
+        <span class="chip" [class]="'chip chip--' + status(zone)">
+          <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
+            @switch (status(zone)) {
+              @case ('available') {
+                <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+              }
+              @case ('filling') {
+                <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+              }
+              @default {
+                <path
+                  d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M4 12a8 8 0 0 1 12.9-6.3L5.7 16.9A8 8 0 0 1 4 12m8 8a8 8 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20"
+                  fill="currentColor"
+                />
+              }
+            }
+          </svg>
+          {{ statusLabel(zone) }}
+        </span>
+      </div>
+
+      <div
+        class="meter"
+        role="meter"
+        [attr.aria-valuenow]="zone.occupied"
+        aria-valuemin="0"
+        [attr.aria-valuemax]="zone.capacity"
+        [attr.aria-label]="'Ocupación de ' + zone.name"
+      >
+        <span class="meter__fill" [style.width.%]="occupancyPercent(zone)"></span>
+      </div>
+
+      <p class="zone__count">
+        <strong>{{ freeSpots(zone) }}</strong> libres de {{ zone.capacity }}
+        @if (showOccupied()) {
+          <span class="zone__occupied">· {{ zone.occupied }} en uso</span>
+        }
+      </p>
+    </li>
+  }
+</ul>

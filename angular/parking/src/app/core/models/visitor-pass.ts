@@ -14,10 +14,11 @@ export {
   NO_VEHICLE_REQUIREMENTS,
   VEHICLE_REQUIREMENTS,
   VEHICLE_TYPES,
+  isAsked,
   requirementsFor,
   vehicleLabel,
 } from './vehicle';
-export type { Vehicle, VehicleRequirements, VehicleType } from './vehicle';
+export type { FieldRequirement, Vehicle, VehicleRequirements, VehicleType } from './vehicle';
 
 /** Un visitante declara el mismo vehículo que cualquier otro usuario. */
 export type VisitorVehicle = Vehicle;
@@ -39,10 +40,20 @@ export interface VisitorRegistration {
 }
 
 /**
- * pending: emitido y sin usar. used: ya validado en portería, no sirve otra vez.
- * expired: se venció sin usarse. revoked: anulado a mano por seguridad.
+ * - pending: emitido y sin usar.
+ * - used: ya validado en portería; no sirve para otro ingreso.
+ * - expired: se venció sin usarse. No se guarda: se calcula con la hora
+ *   (ver `VisitorPassService.statusOf`).
+ * - revoked: anulado, p. ej. porque el visitante generó uno nuevo.
  */
 export type PassStatus = 'pending' | 'used' | 'expired' | 'revoked';
+
+export const PASS_STATUS_LABELS: Record<PassStatus, string> = {
+  pending: 'Vigente',
+  used: 'Usado',
+  expired: 'Vencido',
+  revoked: 'Anulado',
+};
 
 export interface VisitorPass {
   /** Lo único que viaja dentro del código QR. */
@@ -50,7 +61,21 @@ export interface VisitorPass {
   visitor: VisitorRegistration;
   issuedAt: Date;
   expiresAt: Date;
+  /** Estado guardado; el vencimiento se calcula aparte con la hora actual. */
   status: PassStatus;
+  /** Cuándo se validó en portería. */
+  usedAt?: Date;
+  /** Estancia que abrió el ingreso con este pase. */
+  stayId?: string;
+  /** Guardia que lo validó. */
+  usedBy?: string;
+  /** Por qué se anuló. */
+  revokedReason?: string;
+}
+
+/** Nombres y apellidos del visitante, tal como los escribió. */
+export function visitorFullName(visitor: VisitorRegistration): string {
+  return `${visitor.firstName} ${visitor.lastName}`.trim();
 }
 
 export function documentLabel(value: DocumentType): string {

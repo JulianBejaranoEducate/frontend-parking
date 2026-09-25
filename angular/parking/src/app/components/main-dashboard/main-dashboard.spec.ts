@@ -28,13 +28,8 @@ describe('MainDashboard', () => {
 
   const api = () =>
     component as unknown as {
-      menuOpen: () => boolean;
-      toggleMenu: () => void;
       greeting: () => string;
       elapsedSince: (date: Date) => string;
-      status: (zone: any) => string;
-      freeSpots: (zone: any) => number;
-      occupancyPercent: (zone: any) => number;
       historyRange: () => number;
       setHistoryRange: (days: number) => void;
       filteredStays: () => unknown[];
@@ -53,11 +48,9 @@ describe('MainDashboard', () => {
     ).toEqual(['Disponibilidad', 'Mis vehículos', 'Historial de entradas y salidas']);
   });
 
-  it('la hamburguesa abre y cierra el menú', () => {
-    const before = api().menuOpen();
-    api().toggleMenu();
-
-    expect(api().menuOpen()).toBe(!before);
+  it('solo pinta el contenido: el header y el menú los pone el layout del rol', () => {
+    expect(host().querySelector('app-header')).toBeNull();
+    expect(host().querySelector('app-sidebar')).toBeNull();
   });
 
   // ---- Mis vehículos -------------------------------------------------------------
@@ -165,17 +158,15 @@ describe('MainDashboard', () => {
 
   // ---- Disponibilidad y utilidades ---------------------------------------------------
 
-  it('clasifica cada zona por ocupación', () => {
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 3 })).toBe('available');
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 9 })).toBe('filling');
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 10 })).toBe('full');
+  it('la disponibilidad es la misma que ve portería: una fila por tipo de vehículo', () => {
+    expect(host().querySelectorAll('app-zone-availability .zone')).toHaveLength(3);
   });
 
-  it('calcula cupos libres y porcentaje de ocupación', () => {
-    const zone = { id: 'z', name: 'z', accepts: 'moto' as const, capacity: 60, occupied: 45 };
+  it('el historial solo trae las estancias de quien tiene la sesión', () => {
+    const stays = parking.stays();
 
-    expect(api().freeSpots(zone)).toBe(15);
-    expect(api().occupancyPercent(zone)).toBe(75);
+    expect(stays.length).toBeGreaterThan(0);
+    expect(stays.every((stay) => stay.subject.kind === 'institutional' && stay.subject.uid === 'demo-uid')).toBe(true);
   });
 
   it('resume el tiempo transcurrido en horas y minutos', () => {

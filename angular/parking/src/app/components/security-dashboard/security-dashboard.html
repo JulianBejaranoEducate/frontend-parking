@@ -1,1 +1,756 @@
-<p>security-dashboard works!</p>
+<main class="page">
+  <header class="page__head">
+    <h1 class="page__title">{{ copy().title }}</h1>
+    <p class="page__subtitle">{{ copy().subtitle }}</p>
+  </header>
+
+  <p class="sr-only" aria-live="polite">{{ flash() }}</p>
+  @if (flash(); as message) {
+    <div class="flash">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+      </svg>
+      <span>{{ message }}</span>
+      <button type="button" class="flash__close" aria-label="Cerrar aviso" (click)="flash.set(null)">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+  }
+
+  @switch (activeSection()) {
+    <!-- =========================== Control de acceso =========================== -->
+    @case ('control') {
+      @if (!myShift()) {
+        <p class="notice notice--warning">
+          <strong>No tienes un turno activo.</strong>&nbsp;Puedes consultar, pero para registrar movimientos a tu nombre
+          primero&nbsp;<a routerLink="/seguridad/turno">toma el turno</a>.
+        </p>
+      }
+
+      @if (lastRecord(); as record) {
+        <div class="record" role="status">
+          <svg class="record__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+          </svg>
+          <!-- Angular borra los espacios sueltos entre etiquetas: &ngsp; conserva el que separa la etiqueta de la placa. -->
+          <p class="record__text">
+            <strong>{{ recordLabel(record) }}:</strong>&ngsp;<span [class.plate]="!!record.stay.vehicle.plate">{{ vehicleTitle(record.stay.vehicle) }}</span>
+            · {{ record.stay.subject.fullName }} · {{ clockTime(record.at) }}
+          </p>
+          @if (undoSecondsLeft() > 0) {
+            <button type="button" class="small-btn small-btn--ghost" (click)="undoLast()">
+              Deshacer ({{ undoSecondsLeft() }} s)
+            </button>
+          } @else {
+            <button type="button" class="small-btn small-btn--ghost" (click)="dismissRecord()">Listo</button>
+          }
+        </div>
+      }
+
+      @if (decision(); as current) {
+        <app-access-result
+          [decision]="current"
+          [error]="registerError()"
+          (registered)="onRegister($event)"
+          (cancelled)="cancelSelection()"
+        />
+      } @else {
+        <div class="range range--modes" role="radiogroup" aria-label="Cómo identificar el vehículo">
+          <label class="range__option">
+            <input
+              class="range__input"
+              type="radio"
+              name="control-mode"
+              [checked]="mode() === 'buscar'"
+              (change)="setMode('buscar')"
+            />
+            <span class="range__label">Buscar</span>
+          </label>
+          <label class="range__option">
+            <input
+              class="range__input"
+              type="radio"
+              name="control-mode"
+              [checked]="mode() === 'qr'"
+              (change)="setMode('qr')"
+            />
+            <span class="range__label">Pase de visitante (QR)</span>
+          </label>
+        </div>
+
+        @if (mode() === 'qr') {
+          <section class="card" aria-labelledby="qr-title">
+            <h2 class="card__title" id="qr-title">Escanear el pase del visitante</h2>
+            <p class="card__lead">
+              El QR solo trae un código: al leerlo verás los datos que el visitante escribió en el formulario para
+              compararlos con su documento.
+            </p>
+            <app-lector-codigo-qr (read)="onQrRead($event)" />
+            @if (qrError(); as message) {
+              <p class="notice notice--critical" role="alert">{{ message }}</p>
+            }
+          </section>
+        } @else {
+          <section class="card" aria-labelledby="search-title">
+            <h2 class="card__title" id="search-title">Buscar vehículo</h2>
+            <div class="field">
+              <label class="field__label" for="access-search">Placa, número de documento o nombre</label>
+              <input
+                id="access-search"
+                class="field__control"
+                type="search"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="KZT45F, 1012345678 o Julian Bejarano"
+                [value]="query()"
+                (input)="setQuery($event)"
+              />
+              <p class="field__hint">Escribe al menos 3 caracteres. Las bicicletas y los scooters se buscan por documento.</p>
+            </div>
+
+            @if (query().trim().length >= 3) {
+              <p class="sr-only" aria-live="polite">{{ results().length }} resultados</p>
+              @if (results().length) {
+                <ul class="candidates">
+                  @for (candidate of results(); track candidate.key) {
+                    <li class="candidate">
+                      <div class="candidate__main">
+                        <p class="candidate__title">
+                          <span [class.plate]="!!candidate.vehicle.plate">{{ vehicleTitle(candidate.vehicle) }}</span>
+                          @if (candidate.subject.kind === 'visitor') {
+                            <span class="chip chip--neutral">Visitante</span>
+                          }
+                        </p>
+                        <p class="candidate__meta">{{ vehicleDetails(candidate.vehicle) || vehicleLabel(candidate.vehicle.type) }}</p>
+                        <p class="candidate__meta">
+                          {{ candidate.subject.fullName }}
+                          @if (candidate.subject.documentNumber) {
+                            · {{ candidate.subject.documentNumber }}
+                          }
+                        </p>
+                        <p
+                          class="candidate__status"
+                          [class.candidate__status--inside]="!!candidate.openStay"
+                          [class.candidate__status--blocked]="!candidate.openStay && candidate.registration && candidate.registration.status !== 'approved'"
+                        >
+                          {{ candidateStatus(candidate) }}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        class="small-btn small-btn--primary"
+                        [attr.aria-label]="'Ver ' + vehicleTitle(candidate.vehicle) + ' de ' + candidate.subject.fullName"
+                        (click)="choose(candidate)"
+                      >
+                        Ver
+                      </button>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="empty">
+                  No encontramos vehículos con «{{ query().trim() }}». Si es un visitante, debe llenar el formulario de
+                  visitantes y presentar su QR.
+                </p>
+              }
+            }
+          </section>
+        }
+      }
+    }
+
+    <!-- ============================ Vehículos dentro ============================ -->
+    @case ('dentro') {
+      <section class="card" aria-labelledby="inside-title">
+        <div class="card__head">
+          <h2 class="card__title" id="inside-title">
+            Dentro ahora
+            <span class="card__count">{{ insideFiltered().length }} de {{ inside().length }}</span>
+          </h2>
+        </div>
+
+        <div class="filters">
+          <div class="field">
+            <label class="field__label" for="inside-search">Filtrar</label>
+            <input
+              id="inside-search"
+              class="field__control"
+              type="search"
+              autocomplete="off"
+              placeholder="Placa, documento o nombre"
+              [value]="insideQuery()"
+              (input)="setInsideQuery($event)"
+            />
+          </div>
+          <div class="field">
+            <label class="field__label" for="inside-type">Tipo</label>
+            <select id="inside-type" class="field__control" (change)="setInsideType($event)">
+              <option value="all" [selected]="insideType() === 'all'">Todos</option>
+              @for (type of vehicleTypes; track type) {
+                <option [value]="type" [selected]="insideType() === type">{{ pluralLabel(type) }}</option>
+              }
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="inside-kind">Persona</label>
+            <select id="inside-kind" class="field__control" (change)="setInsideKind($event)">
+              <option value="all" [selected]="insideKind() === 'all'">Todas</option>
+              <option value="institutional" [selected]="insideKind() === 'institutional'">Comunidad</option>
+              <option value="visitor" [selected]="insideKind() === 'visitor'">Visitantes</option>
+            </select>
+          </div>
+        </div>
+
+        @if (insideFiltered().length) {
+          <ul class="stays">
+            @for (stay of insideFiltered(); track stay.id) {
+              <li class="stay">
+                <div class="stay__main">
+                  <p class="movement__title">
+                    <span [class.plate]="!!stay.vehicle.plate">{{ vehicleTitle(stay.vehicle) }}</span>
+                    @if (stay.subject.kind === 'visitor') {
+                      <span class="chip chip--neutral">Visitante</span>
+                    }
+                    @if (isLong(stay)) {
+                      <span class="chip chip--warning">
+                        <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+                        </svg>
+                        Estancia larga
+                      </span>
+                    }
+                  </p>
+                  <p class="movement__meta">{{ vehicleDetails(stay.vehicle) || vehicleLabel(stay.vehicle.type) }}</p>
+                  <p class="movement__meta">
+                    {{ stay.subject.fullName }}
+                    @if (stay.subject.documentNumber) {
+                      · {{ stay.subject.documentNumber }}
+                    }
+                  </p>
+                  <p class="movement__meta movement__meta--muted">
+                    Entró {{ dayAndTime(stay.enteredAt) }} · lleva {{ durationSince(stay.enteredAt) }}
+                  </p>
+                </div>
+                <a
+                  class="small-btn small-btn--ghost"
+                  routerLink="/seguridad/control"
+                  [queryParams]="{ estancia: stay.id }"
+                  [attr.aria-label]="'Registrar salida de ' + vehicleTitle(stay.vehicle) + ' de ' + stay.subject.fullName"
+                >
+                  Registrar salida
+                </a>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty">No hay vehículos dentro con esos filtros.</p>
+        }
+      </section>
+    }
+
+    <!-- =============================== Movimientos =============================== -->
+    @case ('movimientos') {
+      <div class="range range--modes" role="radiogroup" aria-label="Qué movimientos ver">
+        <label class="range__option">
+          <input
+            class="range__input"
+            type="radio"
+            name="movement-scope"
+            [checked]="movementScope() === 'turno'"
+            (change)="movementScope.set('turno')"
+          />
+          <span class="range__label">Mi turno</span>
+        </label>
+        <label class="range__option">
+          <input
+            class="range__input"
+            type="radio"
+            name="movement-scope"
+            [checked]="movementScope() === 'hoy'"
+            (change)="movementScope.set('hoy')"
+          />
+          <span class="range__label">Todo el día</span>
+        </label>
+      </div>
+
+      <section class="card" aria-labelledby="log-title">
+        <h2 class="card__title" id="log-title">
+          {{ movementScope() === 'turno' ? 'Movimientos de tu turno' : 'Movimientos de hoy' }}
+          <span class="card__count">{{ scopedMovements().length }}</span>
+        </h2>
+
+        @if (movementScope() === 'turno' && !myShift()) {
+          <p class="empty">No tienes un turno activo. Mira «Todo el día» o toma el turno.</p>
+        } @else if (scopedMovements().length) {
+          <p class="card__lead">
+            Puedes anular los movimientos de tu turno con un motivo; quedan en la lista marcados como anulados.
+          </p>
+          <ul class="movements">
+            @for (movement of scopedMovements(); track movement.id) {
+              <li class="movement" [class.movement--annulled]="!!movement.annulment">
+                <ng-container *ngTemplateOutlet="movementIcon; context: { $implicit: movement }" />
+
+                <div class="movement__main">
+                  <p class="movement__title">
+                    <span [class.plate]="!!movement.stay.vehicle.plate">{{ vehicleTitle(movement.stay.vehicle) }}</span>
+                    @if (movement.stay.subject.kind === 'visitor') {
+                      <span class="chip chip--neutral">Visitante</span>
+                    }
+                    @if (movement.annulment) {
+                      <span class="chip chip--critical">Anulado</span>
+                    }
+                    @for (flag of movementFlags(movement); track flag) {
+                      <span class="chip chip--warning">{{ flag }}</span>
+                    }
+                  </p>
+                  <p class="movement__meta">{{ movementLabel(movement) }} · {{ movement.stay.subject.fullName }}</p>
+                  <p class="movement__meta movement__meta--muted">
+                    {{ methodLabel(movement) }} · {{ movement.audit.guardName }}
+                  </p>
+                  @if (movement.audit.note) {
+                    <p class="movement__meta">Nota: {{ movement.audit.note }}</p>
+                  }
+                  @if (movement.annulment; as annulment) {
+                    <p class="movement__meta">Anulado por {{ annulment.guardName }} {{ dayAndTime(annulment.at) }}</p>
+                    <p class="movement__meta">Motivo: {{ annulment.reason }}</p>
+                  }
+                </div>
+
+                <div class="movement__side">
+                  <time class="movement__time" [attr.datetime]="movement.at.toISOString()">{{ momentLabel(movement.at) }}</time>
+                  @if (canAnnul(movement) && annulTargetId() !== movement.id) {
+                    <button
+                      type="button"
+                      class="link-btn movement__annul"
+                      [attr.aria-label]="'Anular ' + movementLabel(movement).toLowerCase() + ' de ' + vehicleTitle(movement.stay.vehicle)"
+                      (click)="startAnnul(movement)"
+                    >
+                      Anular
+                    </button>
+                  }
+                </div>
+
+                <!-- Ocupa todo el ancho de la fila: en 320 px el motivo necesita espacio para escribirse. -->
+                @if (annulTargetId() === movement.id) {
+                  <div class="annul">
+                    <label class="field__label" [for]="'annul-reason-' + movement.id">Motivo de la anulación</label>
+                    <textarea
+                      class="field__control"
+                      rows="2"
+                      maxlength="200"
+                      [id]="'annul-reason-' + movement.id"
+                      [attr.aria-invalid]="!!annulError()"
+                      [attr.aria-describedby]="annulError() ? 'annul-error' : null"
+                      [value]="annulReason()"
+                      (input)="setAnnulReason($event)"
+                    ></textarea>
+                    @if (annulError(); as message) {
+                      <p class="field__error" id="annul-error">{{ message }}</p>
+                    }
+                    <div class="annul__actions">
+                      <button type="button" class="small-btn small-btn--danger" (click)="confirmAnnul(movement)">
+                        Anular
+                      </button>
+                      <button type="button" class="small-btn small-btn--ghost" (click)="cancelAnnul()">Cancelar</button>
+                    </div>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="empty">Todavía no hay movimientos en esta vista.</p>
+        }
+      </section>
+    }
+
+    <!-- ================================= Turno ================================= -->
+    @case ('turno') {
+      @if (actionError(); as message) {
+        <p class="notice notice--critical" role="alert">{{ message }}</p>
+      }
+
+      @if (myShift(); as shift) {
+        <section class="card" aria-labelledby="my-shift-title">
+          <div class="card__head">
+            <h2 class="card__title" id="my-shift-title">Tu turno</h2>
+            <span class="chip chip--success">
+              <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+              </svg>
+              En curso
+            </span>
+          </div>
+
+          <dl class="facts">
+            <div>
+              <dt>Portería</dt>
+              <dd>{{ shift.post }}</dd>
+            </div>
+            <div>
+              <dt>Inicio</dt>
+              <dd>{{ dayAndTime(shift.startedAt) }}</dd>
+            </div>
+            <div>
+              <dt>Duración</dt>
+              <dd>{{ durationSince(shift.startedAt) }}</dd>
+            </div>
+            @if (receivedFrom(shift); as previous) {
+              <div>
+                <dt>Lo recibiste de</dt>
+                <dd>{{ previous.guardName }}</dd>
+              </div>
+            }
+          </dl>
+
+          @if (liveSummary(); as summary) {
+            <h3 class="subhead">Así queda el parqueadero si entregas ahora</h3>
+            <ul class="summary">
+              @for (type of vehicleTypes; track type) {
+                <li class="summary__item">
+                  <span class="summary__value">{{ summary.insideByType[type] }}</span>
+                  <span class="summary__label">{{ pluralLabel(type) }} dentro</span>
+                </li>
+              }
+              <li class="summary__item">
+                <span class="summary__value">{{ summary.entries }}</span>
+                <span class="summary__label">Ingresos del turno</span>
+              </li>
+              <li class="summary__item">
+                <span class="summary__value">{{ summary.exits }}</span>
+                <span class="summary__label">Salidas del turno</span>
+              </li>
+              <li class="summary__item">
+                <span class="summary__value">{{ summary.openIncidents }}</span>
+                <span class="summary__label">Incidencias abiertas</span>
+              </li>
+            </ul>
+          }
+
+          <form class="form" (submit)="handOver($event)">
+            <fieldset class="choice">
+              <legend class="field__label">¿Quién recibe el turno?</legend>
+              <label class="choice__option">
+                <input
+                  type="radio"
+                  name="handover-mode"
+                  [checked]="!closesDay()"
+                  (change)="closesDay.set(false)"
+                />
+                <span>
+                  <strong>Mi relevo</strong>
+                  <span class="choice__hint">Otro guardia lo recibe y confirma el conteo.</span>
+                </span>
+              </label>
+              <label class="choice__option">
+                <input
+                  type="radio"
+                  name="handover-mode"
+                  [checked]="closesDay()"
+                  (change)="closesDay.set(true)"
+                />
+                <span>
+                  <strong>Nadie: cierro la jornada</strong>
+                  <span class="choice__hint">Queda constancia de los vehículos que siguen dentro.</span>
+                </span>
+              </label>
+            </fieldset>
+
+            <div class="field">
+              <label class="field__label" for="handover-notes">
+                Observaciones <span class="field__optional">(opcional)</span>
+              </label>
+              <textarea
+                id="handover-notes"
+                class="field__control"
+                rows="3"
+                placeholder="Novedades para quien recibe: vehículos que se quedan, llaves, incidencias…"
+                [value]="handoverNotes()"
+                (input)="setHandoverNotes($event)"
+              ></textarea>
+            </div>
+
+            <button type="submit" class="small-btn small-btn--primary">
+              {{ closesDay() ? 'Cerrar la jornada' : 'Entregar turno' }}
+            </button>
+          </form>
+        </section>
+      } @else if (toReceive(); as shift) {
+        <section class="card" aria-labelledby="receive-title">
+          <h2 class="card__title" id="receive-title">Recibir el turno de {{ shift.guardName }}</h2>
+          <p class="card__lead">
+            Cuenta los vehículos antes de confirmar. Lo entregó {{ dayAndTime(shift.handover!.at) }}
+          </p>
+
+          <ul class="summary">
+            @for (type of vehicleTypes; track type) {
+              <li class="summary__item">
+                <span class="summary__value">{{ shift.handover!.insideByType[type] }}</span>
+                <span class="summary__label">{{ pluralLabel(type) }} dentro</span>
+              </li>
+            }
+          </ul>
+
+          @if (shift.handover!.notes; as notes) {
+            <figure class="quote">
+              <blockquote>{{ notes }}</blockquote>
+              <figcaption>{{ shift.guardName }}</figcaption>
+            </figure>
+          }
+
+          <form class="form" novalidate (submit)="receive($event)">
+            <fieldset class="choice" [attr.aria-describedby]="countError() ? 'count-error' : null">
+              <legend class="field__label">
+                ¿Tu conteo coincide con {{ totalInside(shift.handover!.insideByType) }} vehículos dentro?
+              </legend>
+              <label class="choice__option">
+                <input type="radio" name="count" [checked]="countMatches() === true" (change)="countMatches.set(true)" />
+                <span><strong>Sí, coincide</strong></span>
+              </label>
+              <label class="choice__option">
+                <input type="radio" name="count" [checked]="countMatches() === false" (change)="countMatches.set(false)" />
+                <span>
+                  <strong>No, hay diferencias</strong>
+                  <span class="choice__hint">Se reporta como incidencia a la administración.</span>
+                </span>
+              </label>
+            </fieldset>
+            @if (countError()) {
+              <p class="field__error" id="count-error">Indica si tu conteo coincide.</p>
+            }
+
+            <div class="field">
+              <label class="field__label" for="reception-notes">
+                Observaciones
+                @if (countMatches() !== false) {
+                  <span class="field__optional">(opcional)</span>
+                }
+              </label>
+              <textarea
+                id="reception-notes"
+                class="field__control"
+                rows="3"
+                [class.field__control--invalid]="notesError()"
+                [attr.aria-invalid]="notesError()"
+                [attr.aria-describedby]="notesError() ? 'reception-notes-error' : null"
+                [value]="receptionNotes()"
+                (input)="setReceptionNotes($event)"
+              ></textarea>
+              @if (notesError()) {
+                <p class="field__error" id="reception-notes-error">Explica qué diferencia encontraste.</p>
+              }
+            </div>
+
+            <button type="submit" class="small-btn small-btn--primary">Recibo el turno</button>
+          </form>
+        </section>
+      } @else if (activeShift(); as shift) {
+        <section class="card" aria-labelledby="busy-title">
+          <h2 class="card__title" id="busy-title">Turno en curso</h2>
+          <!-- La hora en español ya termina en "a. m.": no se le pone otro punto detrás. -->
+          <p class="card__lead">
+            Podrás tomarlo cuando lo entregue <strong>{{ shift.guardName }}</strong>, que lo tiene desde
+            {{ dayAndTime(shift.startedAt) }}
+          </p>
+        </section>
+      } @else if (awaitingReception(); as shift) {
+        <section class="card" aria-labelledby="handed-title">
+          <h2 class="card__title" id="handed-title">Turno entregado</h2>
+          <p class="card__lead">
+            Entregaste el turno {{ dayAndTime(shift.handover!.at) }} y queda pendiente de que tu relevo lo reciba.
+          </p>
+        </section>
+      } @else {
+        <section class="card" aria-labelledby="start-title">
+          <h2 class="card__title" id="start-title">No hay un turno activo</h2>
+          @if (lastClosedDay(); as closed) {
+            <p class="card__lead">
+              {{ closed.guardName }} cerró la jornada {{ dayAndTime(closed.handover!.at) }} con
+              {{ totalInside(closed.handover!.insideByType) }} vehículos dentro.
+            </p>
+          } @else {
+            <p class="card__lead">Toma el turno para registrar ingresos y salidas a tu nombre.</p>
+          }
+          <button type="button" class="small-btn small-btn--primary" (click)="takeShift()">Tomar turno</button>
+        </section>
+      }
+
+      <section class="card" aria-labelledby="shift-history-title">
+        <h2 class="card__title" id="shift-history-title">Turnos recientes</h2>
+        <ul class="shift-list">
+          @for (shift of shiftHistory(); track shift.id) {
+            <li class="shift-list__item">
+              <div>
+                <p class="shift-list__guard">{{ shift.guardName }}</p>
+                <p class="shift-list__meta">
+                  {{ dayAndTime(shift.startedAt) }}
+                  @if (shift.handover; as handover) {
+                    · entregado {{ dayAndTime(handover.at) }}
+                  }
+                </p>
+                @if (shift.reception; as reception) {
+                  <p class="shift-list__meta">
+                    Lo recibió {{ reception.guardName }} ·
+                    {{ reception.countMatches ? 'el conteo coincidió' : 'con diferencias en el conteo' }}
+                  </p>
+                }
+              </div>
+              <span class="chip" [class]="'chip ' + shiftChipClass(shift)">{{ shiftLabel(shift) }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ================================ Resumen ================================ -->
+    @default {
+      <!-- Sin turno activo no se registran movimientos (ADR-009): el estado va primero. -->
+      <section class="shift-banner" [class.shift-banner--ok]="!!myShift()" aria-label="Estado del turno">
+        <svg class="shift-banner__icon" viewBox="0 0 24 24" aria-hidden="true">
+          @if (myShift()) {
+            <path d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5zm-1.4 14.6L7 13l1.4-1.4 2.2 2.2 5-5L17 10.2z" fill="currentColor" />
+          } @else {
+            <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m1 15h-2v-6h2zm0-8h-2V7h2z" fill="currentColor" />
+          }
+        </svg>
+
+        <!-- La hora en español ya termina en "a. m.": ninguna frase le pone otro punto detrás. -->
+        @if (myShift(); as shift) {
+          <p class="shift-banner__text"><strong>Tu turno está activo</strong> desde {{ atClock(shift.startedAt) }}</p>
+          <a class="small-btn small-btn--primary" routerLink="/seguridad/control">Registrar ingreso o salida</a>
+        } @else if (toReceive(); as shift) {
+          <p class="shift-banner__text">
+            <strong>Turno por recibir:</strong> para registrar movimientos, recibe el turno que
+            {{ shift.guardName }} entregó {{ dayAndTime(shift.handover!.at) }}
+          </p>
+          <a class="small-btn small-btn--primary" routerLink="/seguridad/turno">Recibir turno</a>
+        } @else if (activeShift(); as shift) {
+          <p class="shift-banner__text">
+            <strong>{{ shift.guardName }}</strong> tiene el turno desde {{ dayAndTime(shift.startedAt) }}
+          </p>
+        } @else if (awaitingReception(); as shift) {
+          <p class="shift-banner__text">
+            <strong>Entregaste el turno</strong> {{ dayAndTime(shift.handover!.at) }} y falta que tu relevo lo reciba.
+          </p>
+        } @else {
+          <p class="shift-banner__text">
+            <strong>No hay un turno activo.</strong> Tómalo para registrar ingresos y salidas.
+          </p>
+          <a class="small-btn small-btn--primary" routerLink="/seguridad/turno">Tomar turno</a>
+        }
+      </section>
+
+      <section class="tiles" aria-label="Estado del parqueadero">
+        <article class="tile">
+          <p class="tile__label">Vehículos dentro</p>
+          <p class="tile__value">{{ inside().length }}</p>
+          <p class="tile__note">
+            {{ institutionalInside() }} de la comunidad · {{ visitorsInside() }}
+            {{ visitorsInside() === 1 ? 'visitante' : 'visitantes' }}
+          </p>
+        </article>
+        <article class="tile">
+          <p class="tile__label">Puestos disponibles</p>
+          <p class="tile__value">{{ available() }}</p>
+          <p class="tile__note">de {{ capacity() }} · {{ occupied() }} en uso</p>
+        </article>
+        <article class="tile">
+          <p class="tile__label">Movimientos de hoy</p>
+          <p class="tile__value">{{ todayMovements().length }}</p>
+          <p class="tile__note">{{ todayEntries() }} ingresos · {{ todayExits() }} salidas</p>
+        </article>
+      </section>
+
+      <section class="card" aria-labelledby="occupancy-title">
+        <div class="card__head">
+          <h2 class="card__title" id="occupancy-title">Ocupación por tipo de vehículo</h2>
+          <a class="link-btn" routerLink="/seguridad/dentro">Ver vehículos dentro</a>
+        </div>
+        <app-zone-availability [zones]="zones()" [showOccupied]="true" />
+      </section>
+
+      <div class="split">
+        <section class="card" aria-labelledby="alerts-title">
+          <h2 class="card__title" id="alerts-title">
+            Alertas
+            <span class="card__count">{{ alerts().length }}</span>
+          </h2>
+
+          @if (alerts().length) {
+            <ul class="alerts">
+              @for (alert of alerts(); track alert.id) {
+                <li class="alert-item" [class.alert-item--critical]="alert.tone === 'critical'">
+                  <svg class="alert-item__icon" viewBox="0 0 24 24" aria-hidden="true">
+                    @if (alert.tone === 'critical') {
+                      <path
+                        d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M4 12a8 8 0 0 1 12.9-6.3L5.7 16.9A8 8 0 0 1 4 12m8 8a8 8 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20"
+                        fill="currentColor"
+                      />
+                    } @else {
+                      <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+                    }
+                  </svg>
+                  <div>
+                    <p class="alert-item__title">{{ alert.title }}</p>
+                    <p class="alert-item__detail">{{ alert.detail }}</p>
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty">Sin alertas: todo en orden.</p>
+          }
+        </section>
+
+        <section class="card" aria-labelledby="movements-title">
+          <div class="card__head">
+            <h2 class="card__title" id="movements-title">Últimos movimientos</h2>
+            <a class="link-btn" routerLink="/seguridad/movimientos">Ver todos</a>
+          </div>
+
+          @if (latestMovements().length) {
+            <ul class="movements">
+              @for (movement of latestMovements(); track movement.id) {
+                <li class="movement">
+                  <ng-container *ngTemplateOutlet="movementIcon; context: { $implicit: movement }" />
+
+                  <div class="movement__main">
+                    <p class="movement__title">
+                      <span [class.plate]="!!movement.stay.vehicle.plate">{{ vehicleTitle(movement.stay.vehicle) }}</span>
+                      @if (movement.stay.subject.kind === 'visitor') {
+                        <span class="chip chip--neutral">Visitante</span>
+                      }
+                    </p>
+                    <p class="movement__meta">{{ movementLabel(movement) }} · {{ movement.stay.subject.fullName }}</p>
+                    <p class="movement__meta movement__meta--muted">
+                      {{ methodLabel(movement) }} · {{ movement.audit.guardName }}
+                    </p>
+                  </div>
+
+                  <time class="movement__time" [attr.datetime]="movement.at.toISOString()">{{ momentLabel(movement.at) }}</time>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="empty">Todavía no hay movimientos registrados.</p>
+          }
+        </section>
+      </div>
+    }
+  }
+</main>
+
+<!-- Icono de ingreso o salida: acompaña a la etiqueta de texto, nunca la reemplaza. -->
+<ng-template #movementIcon let-movement>
+  <span class="movement__icon" [class.movement__icon--exit]="movement.kind === 'exit'" aria-hidden="true">
+    <svg viewBox="0 0 24 24">
+      @if (movement.kind === 'entry') {
+        <path d="M10 17l5-5-5-5v3H3v4h7zm9 4h-6v-2h6V5h-6V3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2" fill="currentColor" />
+      } @else {
+        <path d="M14 17l5-5-5-5v3H7v4h7zM5 3h6v2H5v14h6v2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" fill="currentColor" />
+      }
+    </svg>
+  </span>
+</ng-template>

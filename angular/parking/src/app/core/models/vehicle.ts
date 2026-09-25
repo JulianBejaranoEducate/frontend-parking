@@ -12,32 +12,55 @@ export const VEHICLE_TYPES = [
 
 export type VehicleType = (typeof VEHICLE_TYPES)[number]['value'];
 
+/**
+ * Si un dato del vehículo se pide y si es obligatorio:
+ * - required: se pide y no se puede dejar vacío.
+ * - optional: se pide, pero se puede dejar vacío.
+ * - none: no se pide para ese tipo de vehículo.
+ */
+export type FieldRequirement = 'required' | 'optional' | 'none';
+
+/** Datos del vehículo que pide cada tipo, con su nivel de obligatoriedad. */
 export interface VehicleRequirements {
-  brand: boolean;
-  color: boolean;
-  plate: boolean;
+  brand: FieldRequirement;
+  color: FieldRequirement;
+  plate: FieldRequirement;
+  frameSerial: FieldRequirement;
 }
 
 /**
  * Qué datos pide cada tipo de vehículo. Es la única fuente de verdad: de aquí
- * salen tanto los campos que se muestran como los validadores del formulario.
+ * salen tanto los campos que se muestran como los validadores del formulario
+ * de visitantes y del registro de vehículos.
+ *
+ * - Scooter: color obligatorio y marca opcional, porque no todos la conocen.
+ * - Bicicleta: serial del marco opcional, porque no todas lo tienen a la vista.
  */
 export const VEHICLE_REQUIREMENTS: Record<VehicleType, VehicleRequirements> = {
-  moto: { brand: true, color: true, plate: true },
-  scooter: { brand: false, color: false, plate: false },
-  bicicleta: { brand: true, color: true, plate: false },
+  moto: { brand: 'required', color: 'required', plate: 'required', frameSerial: 'none' },
+  scooter: { brand: 'optional', color: 'required', plate: 'none', frameSerial: 'none' },
+  bicicleta: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' },
 };
 
+/** Requisitos mientras todavía no se elige el tipo de vehículo: no se pide nada. */
 export const NO_VEHICLE_REQUIREMENTS: VehicleRequirements = {
-  brand: false,
-  color: false,
-  plate: false,
+  brand: 'none',
+  color: 'none',
+  plate: 'none',
+  frameSerial: 'none',
 };
 
+/** true si el dato se pide, sea obligatorio u opcional. */
+export function isAsked(requirement: FieldRequirement): boolean {
+  return requirement !== 'none';
+}
+
+/** Datos de un vehículo; cuáles lleva según su tipo lo decide `VEHICLE_REQUIREMENTS`. */
 export interface Vehicle {
   type: VehicleType;
-  /** Solo para moto y bicicleta. */
+  /** Moto y bicicleta; en el scooter es opcional. */
   brand?: string;
+  /** Obligatorio en los tres tipos (en registros anteriores a la Fase 2 puede faltar en scooters). */
   color?: string;
   /** Solo para moto: scooter y bicicleta no llevan placa. */
   plate?: string;
@@ -53,6 +76,11 @@ export function vehicleLabel(value: VehicleType): string {
   return VEHICLE_TYPES.find((type) => type.value === value)?.label ?? value;
 }
 
+/**
+ * Requisitos del tipo elegido.
+ *
+ * @param type Tipo de vehículo, o cadena vacía si todavía no se eligió.
+ */
 export function requirementsFor(type: VehicleType | ''): VehicleRequirements {
   return type ? VEHICLE_REQUIREMENTS[type] : NO_VEHICLE_REQUIREMENTS;
 }

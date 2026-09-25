@@ -98,23 +98,34 @@ describe('RegisterVehicle', () => {
       expect(host().querySelector('#frameSerial')).toBeNull();
     });
 
-    it('la bicicleta pide marca, color y serial opcional, sin placa ni documento', async () => {
+    it('la bicicleta pide documento, marca, color y serial opcional, sin placa', async () => {
       api().chooseType('bicicleta');
       api().continueFromType();
       await render();
 
-      expect(host().querySelector('#frameSerial')).toBeTruthy();
+      // Portería busca las bicicletas por documento (PEN-009).
+      for (const id of ['documentNumber', 'brand', 'color', 'frameSerial']) {
+        expect(host().querySelector(`#${id}`), id).toBeTruthy();
+      }
       expect(host().querySelector('#plate')).toBeNull();
-      expect(host().querySelector('#documentNumber')).toBeNull();
     });
 
-    it('el scooter pide nombres y documento, nada del vehículo', async () => {
+    it('el scooter pide documento y color; la marca es opcional', async () => {
       api().chooseType('scooter');
       api().continueFromType();
       await render();
 
       expect(host().querySelector('#documentNumber')).toBeTruthy();
-      expect(host().querySelector('#brand')).toBeNull();
+      expect(host().querySelector('#color')).toBeTruthy();
+      expect(host().querySelector('label[for="brand"]')?.textContent).toContain('(opcional)');
+      expect(host().querySelector('#plate')).toBeNull();
+      expect(host().querySelector('#frameSerial')).toBeNull();
+
+      api().form.patchValue({ firstName: 'Julian', lastName: 'Bejarano', documentNumber: '1012345678' });
+      expect(api().form.valid).toBe(false);
+
+      api().form.patchValue({ color: 'Negro' });
+      expect(api().form.valid).toBe(true);
     });
 
     it('no avanza con datos incompletos y señala los errores', async () => {
@@ -196,7 +207,7 @@ describe('RegisterVehicle', () => {
       expect(created?.documents.map((document) => document.kind)).toEqual(['property-card-front']);
     });
 
-    it('la bicicleta se envía sin documentos y conserva el serial', async () => {
+    it('la bicicleta se envía sin fotos, con el documento del dueño y el serial', async () => {
       api().chooseType('bicicleta');
       api().continueFromType();
       api().form.patchValue({
@@ -206,6 +217,12 @@ describe('RegisterVehicle', () => {
         color: 'Verde',
         frameSerial: 'WTU123456',
       });
+
+      // Sin documento no avanza: es lo que busca el guardia en portería.
+      api().continueFromDetails();
+      expect(api().step()).toBe('details');
+
+      api().form.patchValue({ documentNumber: '1012345678' });
       api().continueFromDetails();
       api().continueFromDocuments();
       acceptDeclaration();
@@ -213,7 +230,27 @@ describe('RegisterVehicle', () => {
 
       const created = registrations.find(api().submitted()?.id);
       expect(created?.vehicle).toEqual({ type: 'bicicleta', brand: 'Trek', color: 'Verde', frameSerial: 'WTU123456' });
-      expect(created?.owner.documentNumber).toBeUndefined();
+      expect(created?.owner).toMatchObject({ documentType: 'CC', documentNumber: '1012345678' });
+      expect(created?.documents).toEqual([]);
+    });
+
+    it('el scooter sin marca avanza y se describe solo con su color', async () => {
+      api().chooseType('scooter');
+      api().continueFromType();
+      api().form.patchValue({
+        firstName: 'Julian',
+        lastName: 'Bejarano',
+        documentNumber: '1012345678',
+        brand: '  ',
+        color: 'Negro',
+      });
+      api().continueFromDetails();
+
+      expect(api().step()).toBe('documents');
+      expect((component as unknown as { summaryVehicle: () => unknown }).summaryVehicle()).toEqual({
+        type: 'scooter',
+        color: 'Negro',
+      });
     });
   });
 

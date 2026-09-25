@@ -20,7 +20,14 @@ import {
 import { RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { BRAND } from '../../core/config/branding.config';
-import { type Vehicle, type VehicleType, vehicleDetails, vehicleLabel, vehicleTitle } from '../../core/models/vehicle';
+import {
+  VEHICLE_REQUIREMENTS,
+  type Vehicle,
+  type VehicleType,
+  vehicleDetails,
+  vehicleLabel,
+  vehicleTitle,
+} from '../../core/models/vehicle';
 import {
   DOCUMENT_LABELS,
   DOCUMENT_REQUIREMENTS,
@@ -49,8 +56,8 @@ const STEPS: readonly { id: Exclude<Step, 'done'>; label: string }[] = [
 
 const TYPE_OPTIONS: readonly { value: VehicleType; description: string }[] = [
   { value: 'moto', description: 'Datos del vehículo y foto de la tarjeta de propiedad.' },
-  { value: 'bicicleta', description: 'Marca, color y, si lo tiene, el serial del marco.' },
-  { value: 'scooter', description: 'Tu documento y, si la tienes, la factura de compra.' },
+  { value: 'bicicleta', description: 'Tu documento, marca, color y, si lo tiene, el serial del marco.' },
+  { value: 'scooter', description: 'Tu documento, el color y, si la tienes, la factura de compra.' },
 ];
 
 type FieldName =
@@ -65,11 +72,16 @@ type FieldName =
   | 'color'
   | 'frameSerial';
 
-/** Qué campos pide cada vehículo. Los demás se deshabilitan y no cuentan. */
+/**
+ * Qué campos pide cada vehículo. Los demás se deshabilitan y no cuentan.
+ *
+ * Todos piden documento: portería busca bicicletas y scooters por documento
+ * (ADR-007). Qué es opcional lo decide `VEHICLE_REQUIREMENTS`.
+ */
 const FIELDS_BY_TYPE: Record<VehicleType, readonly FieldName[]> = {
   moto: ['firstName', 'lastName', 'documentType', 'documentNumber', 'plate', 'brand', 'line', 'modelYear', 'color'],
-  bicicleta: ['firstName', 'lastName', 'brand', 'color', 'frameSerial'],
-  scooter: ['firstName', 'lastName', 'documentType', 'documentNumber'],
+  bicicleta: ['firstName', 'lastName', 'documentType', 'documentNumber', 'brand', 'color', 'frameSerial'],
+  scooter: ['firstName', 'lastName', 'documentType', 'documentNumber', 'brand', 'color'],
 };
 
 const ALL_FIELDS: readonly FieldName[] = [
@@ -436,6 +448,12 @@ export class RegisterVehicle {
     return type ? FIELDS_BY_TYPE[type].includes(field) : false;
   }
 
+  /** true si el campo se puede dejar vacío para el tipo elegido (p. ej. la marca del scooter). */
+  protected isOptional(field: 'brand' | 'color' | 'frameSerial'): boolean {
+    const type = this.vehicleType();
+    return type ? VEHICLE_REQUIREMENTS[type][field] === 'optional' : false;
+  }
+
   protected isInvalid(field: FieldName): boolean {
     const control = this.form.controls[field];
     return control.enabled && control.invalid && (control.touched || this.detailsAttempted());
@@ -521,7 +539,7 @@ export class RegisterVehicle {
       vehicle.plate = value.plate;
     }
 
-    if (this.shows('brand')) {
+    if (this.shows('brand') && value.brand.trim()) {
       vehicle.brand = value.brand.trim();
     }
 
@@ -544,6 +562,10 @@ export class RegisterVehicle {
     return vehicle;
   }
 
+  /**
+   * Habilita solo los campos del tipo elegido y ajusta los que cambian de nivel
+   * según el tipo: la marca es obligatoria salvo en el scooter.
+   */
   private syncEnabledFields(type: VehicleType | null): void {
     const enabled = new Set(type ? FIELDS_BY_TYPE[type] : []);
 
@@ -556,6 +578,14 @@ export class RegisterVehicle {
         control.disable({ emitEvent: false });
       }
     }
+
+    const brand = this.form.controls.brand;
+    brand.setValidators(
+      type && VEHICLE_REQUIREMENTS[type].brand === 'optional'
+        ? [Validators.maxLength(30)]
+        : [Validators.required, Validators.maxLength(30)],
+    );
+    brand.updateValueAndValidity({ emitEvent: false });
 
     this.form.updateValueAndValidity();
   }

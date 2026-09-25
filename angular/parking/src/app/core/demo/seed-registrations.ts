@@ -9,8 +9,19 @@
  * - Formulario con el nombre del familiar: la app avisa sola de la
  *   coincidencia parcial con la cuenta.
  * - Una solicitud reenviada después de pedir actualizar un documento.
+ *
+ * Al final hay vehículos ya aprobados que usan el parqueadero a diario: son los
+ * que aparecen dentro en el dashboard de seguridad (ver seed-stays.ts).
  */
-import type { RegistrationDocument, VehicleRegistration } from '../models/vehicle-registration';
+import { BRAND } from '../config/branding.config';
+import type { Vehicle } from '../models/vehicle';
+import type {
+  Applicant,
+  DeclaredOwner,
+  RegistrationDocument,
+  VehicleRegistration,
+} from '../models/vehicle-registration';
+import type { Affiliation } from '../services/auth.service';
 import {
   mockFrameSerial,
   mockPropertyCardBack,
@@ -31,6 +42,80 @@ const doc = (
   dataUrl: string,
   uploadedAt: Date,
 ): RegistrationDocument => ({ kind, fileName, mimeType: 'image/svg+xml', dataUrl, uploadedAt });
+
+/** "Suárez Mejía" → "SUAREZ MEJIA", como lo imprimen los documentos. */
+const printed = (text: string): string =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase();
+
+/** Cuenta institucional ficticia, con correo del dominio de la marca activa. */
+function member(uid: string, displayName: string, affiliation: Affiliation, program: string): Applicant {
+  const emailName = printed(displayName).toLowerCase().split(' ').join('.');
+  return { uid, displayName, email: `${emailName}@${BRAND.emailDomain}`, affiliation, program };
+}
+
+interface ApprovedSeed {
+  id: string;
+  applicant: Applicant;
+  owner: DeclaredOwner;
+  vehicle: Vehicle;
+  documents?: RegistrationDocument[];
+  /** Hace cuántos días la aprobó la administración. */
+  approvedDaysAgo: number;
+}
+
+/** Solicitud aprobada por la administración de la demostración. */
+function approved({ id, applicant, owner, vehicle, documents = [], approvedDaysAgo }: ApprovedSeed): VehicleRegistration {
+  return {
+    id,
+    applicant,
+    owner,
+    vehicle,
+    documents,
+    status: 'approved',
+    submittedAt: daysAgo(approvedDaysAgo + 1),
+    updatedAt: daysAgo(approvedDaysAgo),
+    reviews: [{ outcome: 'approved', reviewer: DEMO_REVIEWER, decidedAt: daysAgo(approvedDaysAgo) }],
+  };
+}
+
+/** Frente de tarjeta de propiedad ficticia que coincide con lo declarado. */
+function propertyCard(
+  owner: DeclaredOwner,
+  vehicle: Vehicle,
+  licenseNumber: string,
+  displacement: number,
+  uploadedDaysAgo: number,
+): RegistrationDocument {
+  return doc(
+    'property-card-front',
+    'tarjeta.jpg',
+    mockPropertyCardFront({
+      licenseNumber,
+      plate: vehicle.plate ?? '',
+      brand: printed(vehicle.brand ?? ''),
+      line: printed(vehicle.line ?? ''),
+      modelYear: vehicle.modelYear ?? 0,
+      displacement,
+      color: printed(vehicle.color ?? ''),
+      ownerName: printed(`${owner.lastName} ${owner.firstName}`),
+      ownerId: owner.documentNumber ?? '',
+    }),
+    daysAgo(uploadedDaysAgo),
+  );
+}
+
+/** Moto aprobada, con su tarjeta de propiedad ficticia. */
+function approvedMoto(
+  seed: Omit<ApprovedSeed, 'documents'> & { licenseNumber: string; displacement: number },
+): VehicleRegistration {
+  return approved({
+    ...seed,
+    documents: [propertyCard(seed.owner, seed.vehicle, seed.licenseNumber, seed.displacement, seed.approvedDaysAgo + 1)],
+  });
+}
 
 export function seedRegistrations(): VehicleRegistration[] {
   return [
@@ -83,7 +168,7 @@ export function seedRegistrations(): VehicleRegistration[] {
         affiliation: 'estudiante',
         program: 'Administración de Empresas',
       },
-      owner: { firstName: 'Julian Andrés', lastName: 'Bejarano Rojas' },
+      owner: { firstName: 'Julian Andrés', lastName: 'Bejarano Rojas', documentType: 'CC', documentNumber: '1012345678' },
       vehicle: { type: 'bicicleta', brand: 'Bianchi', color: 'Azul', frameSerial: 'WBK2291037' },
       documents: [doc('frame-serial', 'serial-marco.jpg', mockFrameSerial('WBK2291037'), daysAgo(5))],
       status: 'pending',
@@ -106,7 +191,7 @@ export function seedRegistrations(): VehicleRegistration[] {
         documentType: 'CC',
         documentNumber: '1012345678',
       },
-      vehicle: { type: 'scooter' },
+      vehicle: { type: 'scooter', color: 'Negro' },
       documents: [
         doc(
           'purchase-proof',
@@ -312,7 +397,7 @@ export function seedRegistrations(): VehicleRegistration[] {
         documentType: 'CC',
         documentNumber: '52345678',
       },
-      vehicle: { type: 'scooter' },
+      vehicle: { type: 'scooter', color: 'Blanco' },
       documents: [
         doc(
           'purchase-proof',
@@ -343,7 +428,7 @@ export function seedRegistrations(): VehicleRegistration[] {
         affiliation: 'estudiante',
         program: 'Finanzas y Comercio Exterior',
       },
-      owner: { firstName: 'Sebastián', lastName: 'Gómez Arias' },
+      owner: { firstName: 'Sebastián', lastName: 'Gómez Arias', documentType: 'CC', documentNumber: '1015432198' },
       vehicle: { type: 'bicicleta', brand: 'Trek', color: 'Negro' },
       documents: [],
       status: 'approved',
@@ -383,5 +468,99 @@ export function seedRegistrations(): VehicleRegistration[] {
         },
       ],
     },
+
+    // ---- Vehículos aprobados que usan el parqueadero a diario ------------------------------
+    approvedMoto({
+      id: 'reg-hgt52b',
+      applicant: member('u-natalia', 'Natalia Suárez', 'docente', 'Contaduría Pública'),
+      owner: { firstName: 'Natalia', lastName: 'Suárez Mejía', documentType: 'CC', documentNumber: '52876543' },
+      vehicle: { type: 'moto', plate: 'HGT52B', brand: 'Honda', line: 'XR 150L', modelYear: 2023, color: 'Blanco' },
+      licenseNumber: '10000000007',
+      displacement: 149,
+      approvedDaysAgo: 60,
+    }),
+    approvedMoto({
+      id: 'reg-lmn38e',
+      applicant: member('u-felipe', 'Felipe Ortiz', 'estudiante', 'Ingeniería Industrial'),
+      owner: { firstName: 'Felipe', lastName: 'Ortiz Cano', documentType: 'CC', documentNumber: '1019876543' },
+      vehicle: { type: 'moto', plate: 'LMN38E', brand: 'AKT', line: 'NKD 125', modelYear: 2022, color: 'Rojo' },
+      licenseNumber: '10000000008',
+      displacement: 124,
+      approvedDaysAgo: 45,
+    }),
+    approvedMoto({
+      id: 'reg-pqr71c',
+      applicant: member('u-juliana', 'Juliana Castro', 'administrativo', 'Biblioteca'),
+      owner: { firstName: 'Juliana', lastName: 'Castro Vélez', documentType: 'CC', documentNumber: '1032456789' },
+      vehicle: { type: 'moto', plate: 'PQR71C', brand: 'Yamaha', line: 'XTZ 125', modelYear: 2021, color: 'Negro' },
+      licenseNumber: '10000000009',
+      displacement: 124,
+      approvedDaysAgo: 80,
+    }),
+    approvedMoto({
+      id: 'reg-stv64k',
+      applicant: member('u-diego', 'Diego Salazar', 'estudiante', 'Finanzas y Comercio Exterior'),
+      owner: { firstName: 'Diego', lastName: 'Salazar Mora', documentType: 'CC', documentNumber: '1001987654' },
+      vehicle: { type: 'moto', plate: 'STV64K', brand: 'Suzuki', line: 'Gixxer 150', modelYear: 2024, color: 'Azul' },
+      licenseNumber: '10000000010',
+      displacement: 155,
+      approvedDaysAgo: 20,
+    }),
+    approvedMoto({
+      id: 'reg-wxy19h',
+      applicant: member('u-paula', 'Paula Moreno', 'docente', 'Marketing y Negocios Digitales'),
+      owner: { firstName: 'Paula', lastName: 'Moreno Pardo', documentType: 'CC', documentNumber: '52198765' },
+      vehicle: { type: 'moto', plate: 'WXY19H', brand: 'Bajaj', line: 'Boxer CT 100', modelYear: 2020, color: 'Gris' },
+      licenseNumber: '10000000011',
+      displacement: 99,
+      approvedDaysAgo: 120,
+    }),
+    approvedMoto({
+      id: 'reg-bcd82m',
+      applicant: member('u-esteban', 'Esteban Ruiz', 'estudiante', 'Administración de Empresas'),
+      owner: { firstName: 'Esteban', lastName: 'Ruiz Galindo', documentType: 'CC', documentNumber: '1027654321' },
+      vehicle: { type: 'moto', plate: 'BCD82M', brand: 'TVS', line: 'Apache RTR 160', modelYear: 2023, color: 'Negro' },
+      licenseNumber: '10000000012',
+      displacement: 159,
+      approvedDaysAgo: 30,
+    }),
+    approved({
+      id: 'reg-gw-lynx',
+      applicant: member('u-mariana', 'Mariana López', 'estudiante', 'Contaduría Pública'),
+      owner: { firstName: 'Mariana', lastName: 'López Vera', documentType: 'CC', documentNumber: '1034567890' },
+      vehicle: { type: 'bicicleta', brand: 'GW', color: 'Verde', frameSerial: 'GWL458812' },
+      documents: [doc('frame-serial', 'serial.jpg', mockFrameSerial('GWL458812'), daysAgo(16))],
+      approvedDaysAgo: 15,
+    }),
+    approved({
+      id: 'reg-rockhopper',
+      applicant: member('u-andrea', 'Andrea Pineda', 'docente', 'Ingeniería Industrial'),
+      owner: { firstName: 'Andrea', lastName: 'Pineda Soto', documentType: 'CC', documentNumber: '39876543' },
+      vehicle: { type: 'bicicleta', brand: 'Specialized', color: 'Rojo' },
+      approvedDaysAgo: 25,
+    }),
+    approved({
+      id: 'reg-scooter-tomas',
+      applicant: member('u-tomas', 'Tomás Rincón', 'estudiante', 'Marketing y Negocios Digitales'),
+      owner: { firstName: 'Tomás', lastName: 'Rincón Arango', documentType: 'CC', documentNumber: '1098123456' },
+      vehicle: { type: 'scooter', brand: 'Xiaomi', color: 'Negro' },
+      documents: [
+        doc(
+          'purchase-proof',
+          'factura.jpg',
+          mockPurchaseInvoice('TOMAS RINCON ARANGO', '1098123456', 'SCOOTER ELÉCTRICO URBANO'),
+          daysAgo(11),
+        ),
+      ],
+      approvedDaysAgo: 10,
+    }),
+    approved({
+      id: 'reg-scooter-sara',
+      applicant: member('u-sara', 'Sara Quintero', 'administrativo', 'Bienestar Universitario'),
+      // Sin marca: el formulario la deja opcional porque no todos la conocen.
+      owner: { firstName: 'Sara', lastName: 'Quintero Mesa', documentType: 'CC', documentNumber: '1020345678' },
+      vehicle: { type: 'scooter', color: 'Gris' },
+      approvedDaysAgo: 35,
+    }),
   ];
 }

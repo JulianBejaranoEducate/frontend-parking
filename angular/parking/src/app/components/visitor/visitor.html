@@ -118,7 +118,8 @@
       </div>
     } @else {
       <p class="intro">
-        Completa tus datos para registrar el ingreso del vehículo. Todos los campos son obligatorios.
+        Completa tus datos para registrar el ingreso del vehículo. Los campos marcados como opcionales puedes dejarlos
+        en blanco.
       </p>
 
       <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
@@ -239,13 +240,14 @@
               }
             </div>
 
-            @if (vehicleNeedsNoExtras()) {
-              <p class="grid__note">Un scooter no necesita datos adicionales.</p>
-            }
-
-            @if (requires().brand) {
+            @if (isAsked(requires().brand)) {
               <div class="field">
-                <label class="field__label" for="vehicleBrand">Marca</label>
+                <label class="field__label" for="vehicleBrand">
+                  Marca
+                  @if (requires().brand === 'optional') {
+                    <span class="field__optional">(opcional)</span>
+                  }
+                </label>
                 <input
                   class="field__control"
                   id="vehicleBrand"
@@ -264,7 +266,7 @@
               </div>
             }
 
-            @if (requires().color) {
+            @if (isAsked(requires().color)) {
               <div class="field">
                 <label class="field__label" for="vehicleColor">Color</label>
                 <input
@@ -285,7 +287,7 @@
               </div>
             }
 
-            @if (requires().plate) {
+            @if (isAsked(requires().plate)) {
               <div class="field">
                 <label class="field__label" for="plate">Placa</label>
                 <input
@@ -307,6 +309,33 @@
                   <p class="field__error" id="plate-error">{{ message }}</p>
                 } @else {
                   <p class="field__hint" id="plate-hint">Placa de moto. Ej. ABC12D</p>
+                }
+              </div>
+            }
+
+            @if (isAsked(requires().frameSerial)) {
+              <div class="field">
+                <label class="field__label" for="frameSerial">
+                  Serial del marco <span class="field__optional">(opcional)</span>
+                </label>
+                <input
+                  class="field__control field__control--plate"
+                  id="frameSerial"
+                  type="text"
+                  formControlName="frameSerial"
+                  autocapitalize="characters"
+                  autocomplete="off"
+                  spellcheck="false"
+                  maxlength="30"
+                  (input)="normalizeSerial()"
+                  [class.field__control--invalid]="isInvalid('frameSerial')"
+                  [attr.aria-invalid]="isInvalid('frameSerial')"
+                  [attr.aria-describedby]="isInvalid('frameSerial') ? 'frameSerial-error' : 'frameSerial-hint'"
+                />
+                @if (errorFor('frameSerial'); as message) {
+                  <p class="field__error" id="frameSerial-error">{{ message }}</p>
+                } @else {
+                  <p class="field__hint" id="frameSerial-hint">Suele estar grabado debajo del pedalier.</p>
                 }
               </div>
             }

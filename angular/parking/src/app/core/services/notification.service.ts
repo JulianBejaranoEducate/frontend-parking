@@ -3,14 +3,14 @@ import { loadDemo, saveDemo } from '../demo/demo-storage';
 import { DEMO_STUDENT_UID } from '../demo/seed-registrations';
 import type { AppNotification } from '../models/notification';
 import { createId } from '../utils/id';
-import { AuthService } from './auth.service';
+import { AuthService, type AuthUser } from './auth.service';
 
 /**
- * Avisos de la aplicación. Cada uno va dirigido a una persona (su uid) o a
- * todo el equipo de administración, y cada quien ve solo los suyos.
+ * Avisos de la aplicación. Cada uno va dirigido a una persona (su uid) o a un
+ * equipo completo (administración o seguridad), y cada quien ve solo los suyos.
  *
  * TODO: datos de demostración. Llegarán de Firestore (o de Firebase Cloud
- * Messaging en la app híbrida) cuando exista el panel de notificaciones.
+ * Messaging en la app instalada) cuando exista el backend.
  */
 
 const STORAGE_KEY = 'notifications';
@@ -70,7 +70,25 @@ function seedNotifications(): AppNotification[] {
       createdAt: minutesAgo(300),
       link: '/admin/pendientes?solicitud=reg-qwe28f',
     },
+    {
+      id: 'n-security-1',
+      kind: 'access',
+      audience: 'security',
+      title: 'Vehículo con ingreso de ayer',
+      message: 'La moto PQR71C ingresó ayer a las 6:40 p. m. y sigue dentro.',
+      createdAt: minutesAgo(290),
+      link: '/seguridad/resumen',
+    },
   ];
+}
+
+/** Indica si un aviso le corresponde a la cuenta con la sesión abierta. */
+function isFor(item: AppNotification, user: AuthUser): boolean {
+  return (
+    item.audience === user.uid ||
+    (item.audience === 'admins' && user.role === 'admin') ||
+    (item.audience === 'security' && user.role === 'security')
+  );
 }
 
 @Injectable({ providedIn: 'root' })
@@ -89,7 +107,7 @@ export class NotificationService {
     }
 
     return this._items()
-      .filter((item) => item.audience === user.uid || (item.audience === 'admins' && user.role === 'admin'))
+      .filter((item) => isFor(item, user))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   });
 
@@ -99,6 +117,11 @@ export class NotificationService {
     effect(() => saveDemo(STORAGE_KEY, this._items()));
   }
 
+  /**
+   * Publica un aviso.
+   *
+   * @param notification Contenido y destinatario: un uid, `'admins'` o `'security'`.
+   */
   notify(notification: Omit<AppNotification, 'id' | 'createdAt'>): void {
     this._items.update((items) => [
       { ...notification, id: createId('n'), createdAt: new Date() },

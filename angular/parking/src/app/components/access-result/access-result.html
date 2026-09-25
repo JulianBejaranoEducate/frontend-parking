@@ -1,0 +1,151 @@
+<article class="result" [class.result--exit]="isExit()" aria-labelledby="access-result-title">
+  <header class="result__head">
+    <span class="result__direction">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        @if (isExit()) {
+          <path d="M14 17l5-5-5-5v3H7v4h7zM5 3h6v2H5v14h6v2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" fill="currentColor" />
+        } @else {
+          <path d="M10 17l5-5-5-5v3H3v4h7zm9 4h-6v-2h6V5h-6V3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2" fill="currentColor" />
+        }
+      </svg>
+      {{ isExit() ? 'Salida' : 'Ingreso' }}
+    </span>
+
+    <h2 class="result__title" id="access-result-title" tabindex="-1">
+      <span [class.plate]="!!candidate().vehicle.plate">{{ title() }}</span>
+      @if (candidate().subject.kind === 'visitor') {
+        <span class="chip chip--neutral">Visitante</span>
+      } @else if (registrationStatus(); as status) {
+        <span class="chip" [class]="'chip chip--' + candidate().registration!.status">{{ status }}</span>
+      }
+    </h2>
+    <p class="result__whereabouts">{{ whereabouts() }}</p>
+  </header>
+
+  <div class="result__facts">
+    <section aria-label="Persona">
+      <h3 class="result__subhead">Persona</h3>
+      <dl class="facts">
+        @for (fact of personFacts(); track fact.label) {
+          <div>
+            <dt>{{ fact.label }}</dt>
+            <dd>{{ fact.value }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+
+    <section aria-label="Vehículo">
+      <h3 class="result__subhead">Vehículo</h3>
+      <dl class="facts">
+        @for (fact of vehicleFacts(); track fact.label) {
+          <div>
+            <dt>{{ fact.label }}</dt>
+            <dd [class.plate]="fact.mono">{{ fact.value }}</dd>
+          </div>
+        }
+      </dl>
+    </section>
+  </div>
+
+  @for (blocker of decision().blockers; track blocker.code) {
+    <p class="notice notice--critical" role="alert">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20M4 12a8 8 0 0 1 12.9-6.3L5.7 16.9A8 8 0 0 1 4 12m8 8a8 8 0 0 1-4.9-1.7L18.3 7.1A8 8 0 0 1 12 20"
+          fill="currentColor"
+        />
+      </svg>
+      <span>{{ blocker.message }}</span>
+    </p>
+  }
+
+  @if (!noShift()) {
+    @for (warning of decision().warnings; track warning.code) {
+      <p class="notice notice--warning">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 2 1 21h22zm0 5 7.5 12h-15zM11 10h2v5h-2zm0 6h2v2h-2z" fill="currentColor" />
+        </svg>
+        <span>{{ warning.message }}</span>
+      </p>
+    }
+
+    @if (decision().warnings.length) {
+      <label class="confirm">
+        <input type="checkbox" [checked]="warningsConfirmed()" (change)="setWarningsConfirmed($event)" />
+        <span>Revisé {{ decision().warnings.length === 1 ? 'el aviso' : 'los avisos' }} y quiero continuar</span>
+      </label>
+    }
+
+    <div class="field">
+      <label class="field__label" for="access-note">
+        Nota <span class="field__optional">(opcional salvo en salidas sin ingreso)</span>
+      </label>
+      <textarea
+        id="access-note"
+        class="field__control"
+        rows="2"
+        maxlength="200"
+        [class.field__control--invalid]="noteMissing()"
+        [attr.aria-invalid]="noteMissing()"
+        [attr.aria-describedby]="noteMissing() ? 'access-note-error' : null"
+        [value]="note()"
+        (input)="setNote($event)"
+      ></textarea>
+      @if (noteMissing()) {
+        <p class="field__error" id="access-note-error">Explica por qué sale sin un ingreso registrado.</p>
+      }
+    </div>
+  }
+
+  @if (error(); as message) {
+    <p class="notice notice--critical" role="alert">{{ message }}</p>
+  }
+
+  <div class="result__actions">
+    @if (!blocked()) {
+      <button
+        type="button"
+        class="small-btn small-btn--primary result__primary"
+        [disabled]="decision().warnings.length > 0 && !warningsConfirmed()"
+        (click)="confirm('default')"
+      >
+        {{ isExit() ? 'Registrar salida' : 'Registrar ingreso' }}
+      </button>
+    }
+    <button type="button" class="small-btn small-btn--ghost" (click)="cancelled.emit()">
+      {{ blocked() ? 'Cerrar' : 'Cancelar' }}
+    </button>
+  </div>
+
+  @if (!noShift() && (decision().canCloseStaleEntry || decision().canExitWithoutEntry)) {
+    <details class="result__more">
+      <summary>Otras acciones</summary>
+
+      @if (decision().canCloseStaleEntry) {
+        <p class="result__more-text">
+          Si el vehículo está <strong>entrando</strong>, salió sin registrarse: se cierra el ingreso anterior y queda
+          marcado para revisión.
+        </p>
+        <button
+          type="button"
+          class="small-btn small-btn--ghost"
+          [disabled]="!warningsConfirmed()"
+          (click)="confirm('close-stale-and-enter')"
+        >
+          Cerrar el ingreso anterior y registrar uno nuevo
+        </button>
+      }
+
+      @if (decision().canExitWithoutEntry) {
+        <p class="result__more-text">
+          Si el vehículo está <strong>saliendo</strong> y no tiene ingreso en el sistema, registra la salida con una
+          nota que lo explique. Queda marcada para revisión.
+        </p>
+        <button type="button" class="small-btn small-btn--ghost" (click)="confirm('exit-without-entry')">
+          Registrar salida sin ingreso
+        </button>
+      }
+    </details>
+  }
+</article>
