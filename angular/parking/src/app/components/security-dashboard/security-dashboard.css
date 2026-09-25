@@ -275,6 +275,14 @@
   color: var(--brand-text);
 }
 
+/* Fila de botones de una tarjeta, p. ej. la del visitante conectado al backend real. */
+.card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-top: 1rem;
+}
+
 /* ---------- Resumen de entrega ---------- */
 
 .summary {

@@ -122,6 +122,10 @@
         en blanco.
       </p>
 
+      @if (submitError(); as message) {
+        <p class="field__error" role="alert">{{ message }}</p>
+      }
+
       <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <fieldset class="block">
           <legend class="block__legend">Datos personales</legend>

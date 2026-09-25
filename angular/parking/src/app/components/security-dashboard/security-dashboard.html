@@ -49,7 +49,79 @@
         </div>
       }
 
-      @if (decision(); as current) {
+      @if (backendVisitorLoading()) {
+        <p class="card">Buscando el visitante…</p>
+      } @else if (backendVisitor(); as bv) {
+        <!--
+          Tarjeta aparte para el visitante que ya vive en el backend real (fase de
+          conexión, ver planeacion-desarrollo.md). No usa <app-access-result> porque
+          ese componente asume las reglas locales de demostración (cupos, turno,
+          deshacer) que el backend todavía no tiene: aquí solo se confirma quién es
+          y se ofrecen las dos acciones que el backend sí soporta hoy.
+        -->
+        <section class="card" aria-labelledby="backend-visitor-title">
+          <div class="card__head">
+            <h2 class="card__title" id="backend-visitor-title" tabindex="-1">
+              {{ bv.first_name }} {{ bv.last_name }}
+              @if (bv.exited_at) {
+                <span class="chip chip--neutral">Ya salió</span>
+              } @else if (bv.is_authorized) {
+                <span class="chip chip--success">Dentro</span>
+              } @else {
+                <span class="chip chip--warning">Por autorizar</span>
+              }
+            </h2>
+          </div>
+
+          <dl class="facts">
+            <div>
+              <dt>Documento</dt>
+              <dd>{{ bv.document_type }} {{ bv.document_number }}</dd>
+            </div>
+            <div>
+              <dt>Visita</dt>
+              <dd>{{ bv.reason }}</dd>
+            </div>
+            <div>
+              <dt>Vehículo</dt>
+              <dd>{{ backendVehicleLabel(bv.vehicle.type) }}</dd>
+            </div>
+            @if (bv.vehicle.plate) {
+              <div>
+                <dt>Placa</dt>
+                <dd class="plate">{{ bv.vehicle.plate }}</dd>
+              </div>
+            }
+            @if (bv.vehicle.brand) {
+              <div>
+                <dt>Marca</dt>
+                <dd>{{ bv.vehicle.brand }}</dd>
+              </div>
+            }
+            <div>
+              <dt>Color</dt>
+              <dd>{{ bv.vehicle.color }}</dd>
+            </div>
+          </dl>
+
+          @if (backendVisitorActionError(); as message) {
+            <p class="notice notice--critical" role="alert">{{ message }}</p>
+          }
+
+          <div class="card__actions">
+            @if (!bv.is_authorized) {
+              <button type="button" class="small-btn small-btn--primary" (click)="authorizeBackendVisitor()">
+                Autorizar ingreso
+              </button>
+            } @else if (!bv.exited_at) {
+              <button type="button" class="small-btn small-btn--primary" (click)="registerBackendVisitorExit()">
+                Registrar salida
+              </button>
+            }
+            <button type="button" class="small-btn small-btn--ghost" (click)="closeBackendVisitor()">Cerrar</button>
+          </div>
+        </section>
+      } @else if (decision(); as current) {
         <app-access-result
           [decision]="current"
           [error]="registerError()"

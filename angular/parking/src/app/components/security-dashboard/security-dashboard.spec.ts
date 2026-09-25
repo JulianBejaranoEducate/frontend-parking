@@ -5,19 +5,51 @@ import type { DemoProfile } from '../../core/services/auth.service';
 import { IncidentService } from '../../core/services/incident.service';
 import { ShiftService } from '../../core/services/shift.service';
 import { StayService } from '../../core/services/stay.service';
+import { type BackendVisitor, VisitorApiService } from '../../core/services/visitor-api.service';
 import { VisitorPassService } from '../../core/services/visitor-pass.service';
 import { signInForTest } from '../../testing/demo-session';
 import { LectorCodigoQr } from '../lector-codigo-qr/lector-codigo-qr';
 import { SecurityDashboard } from './security-dashboard';
 import { securityNavigation } from './security-navigation';
 
+/** Visitante de ejemplo tal como lo devolvería el backend real. */
+function backendVisitorFixture(overrides: Partial<BackendVisitor> = {}): BackendVisitor {
+  return {
+    id: 'backend-visitor-1',
+    first_name: 'Ana María',
+    last_name: 'Rodríguez Prueba',
+    document_type: 'CC',
+    document_number: '1000000001',
+    reason: 'Entrega de documentos',
+    is_authorized: false,
+    vehicle: {
+      id: 'backend-vehicle-1',
+      plate: null,
+      brand: null,
+      model: null,
+      color: 'Gris',
+      type: 'scooter',
+      is_authorized: false,
+      id_owner: null,
+      frame_serial: null,
+    },
+    created_at: '2026-09-15T09:00:00.000Z',
+    exited_at: null,
+    ...overrides,
+  };
+}
+
 describe('SecurityDashboard', () => {
   let fixture: ComponentFixture<SecurityDashboard>;
+  // No extiende VisitorApiService (que inyecta HttpClient) para no tener que
+  // proveerlo en cada prueba; por defecto no encuentra nada, como el backend
+  // real ante un código que no existe.
+  let visitorApi: Pick<VisitorApiService, 'findById' | 'authorize' | 'registerExit' | 'create'>;
 
   const create = async (profile: DemoProfile, section = 'resumen') => {
     await TestBed.configureTestingModule({
       imports: [SecurityDashboard],
-      providers: [provideRouter([])],
+      providers: [provideRouter([]), { provide: VisitorApiService, useValue: visitorApi }],
     }).compileComponents();
 
     signInForTest(profile);
@@ -91,10 +123,24 @@ describe('SecurityDashboard', () => {
 
   const reader = () => fixture.debugElement.query(By.directive(LectorCodigoQr)).componentInstance as LectorCodigoQr;
 
+  /**
+   * Dos vueltas de tarea: alcanza para que una llamada async "en segundo plano"
+   * (como `onQrRead`, que no se espera desde la plantilla) termine antes de
+   * revisar el DOM. `setTimeout` no está entre lo que fake timers reemplaza
+   * (solo `Date`), así que esta espera sí avanza de verdad.
+   */
+  const flushAsync = () => new Promise((resolve) => setTimeout(resolve, 0));
+
   // Hora fija: las alertas por estancia larga dependen de la hora del día.
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-09-15T10:00:00'));
+    visitorApi = {
+      findById: () => Promise.reject(new Error('no encontrado')),
+      authorize: () => Promise.reject(new Error('no implementado en la prueba')),
+      registerExit: () => Promise.reject(new Error('no implementado en la prueba')),
+      create: () => Promise.reject(new Error('no implementado en la prueba')),
+    };
   });
 
   afterEach(() => vi.useRealTimers());
@@ -229,13 +275,85 @@ describe('SecurityDashboard', () => {
       expect(passes.find(pass.token)?.status).toBe('used');
     });
 
-    it('un código que no es de ningún pase muestra el error y no abre la tarjeta', async () => {
+    it('un código que no es de ningún pase local ni del backend muestra el error y no abre la tarjeta', async () => {
       await pickRange('Pase de visitante (QR)');
       reader().read.emit('codigo-cualquiera');
+      await flushAsync();
       await fixture.whenStable();
 
       expect(text('.card .notice--critical')).toContain('no corresponde a ningún pase');
       expect(host().querySelector('app-access-result')).toBeNull();
+      expect(host().querySelector('#backend-visitor-title')).toBeNull();
+    });
+
+    describe('visitante conectado al backend real (fase de conexión)', () => {
+      it('lo muestra en una tarjeta aparte y permite autorizar su ingreso', async () => {
+        visitorApi.findById = (id) => Promise.resolve(backendVisitorFixture({ id }));
+        let authorizeCalledWith: string | null = null;
+        visitorApi.authorize = (id) => {
+          authorizeCalledWith = id;
+          return Promise.resolve(backendVisitorFixture({ id, is_authorized: true }));
+        };
+
+        await pickRange('Pase de visitante (QR)');
+        reader().read.emit('backend-visitor-1');
+        await flushAsync();
+        await fixture.whenStable();
+
+        expect(text('#backend-visitor-title')).toContain('Ana María Rodríguez Prueba');
+        expect(text('#backend-visitor-title')).toContain('Por autorizar');
+        expect(host().querySelector('app-access-result')).toBeNull();
+
+        await click('Autorizar ingreso');
+
+        expect(authorizeCalledWith).toBe('backend-visitor-1');
+        expect(text('#backend-visitor-title')).toContain('Dentro');
+        expect(text('.flash')).toContain('Ingreso autorizado');
+        expect(host().querySelector('button')?.textContent).not.toContain('Autorizar ingreso');
+      });
+
+      it('ya autorizado, ofrece registrar la salida', async () => {
+        visitorApi.findById = (id) => Promise.resolve(backendVisitorFixture({ id, is_authorized: true }));
+        visitorApi.registerExit = (id) =>
+          Promise.resolve(backendVisitorFixture({ id, is_authorized: true, exited_at: '2026-09-15T10:05:00.000Z' }));
+
+        await pickRange('Pase de visitante (QR)');
+        reader().read.emit('backend-visitor-2');
+        await flushAsync();
+        await fixture.whenStable();
+
+        await click('Registrar salida');
+
+        expect(text('#backend-visitor-title')).toContain('Ya salió');
+        expect(text('.flash')).toContain('Salida registrada');
+      });
+
+      it('si el backend falla al autorizar, muestra el error sin perder la tarjeta', async () => {
+        visitorApi.findById = (id) => Promise.resolve(backendVisitorFixture({ id }));
+        visitorApi.authorize = () => Promise.reject(new Error('sin conexión'));
+
+        await pickRange('Pase de visitante (QR)');
+        reader().read.emit('backend-visitor-3');
+        await flushAsync();
+        await fixture.whenStable();
+
+        await click('Autorizar ingreso');
+
+        expect(text('.notice--critical')).toContain('No pudimos autorizar el ingreso');
+        expect(host().querySelector('#backend-visitor-title')).toBeTruthy();
+      });
+
+      it('«Cerrar» descarta la tarjeta', async () => {
+        visitorApi.findById = (id) => Promise.resolve(backendVisitorFixture({ id }));
+
+        await pickRange('Pase de visitante (QR)');
+        reader().read.emit('backend-visitor-4');
+        await flushAsync();
+        await fixture.whenStable();
+        await click('Cerrar');
+
+        expect(host().querySelector('#backend-visitor-title')).toBeNull();
+      });
     });
 
     it('un ingreso de otro día se cierra para registrar uno nuevo, tras confirmar el aviso', async () => {

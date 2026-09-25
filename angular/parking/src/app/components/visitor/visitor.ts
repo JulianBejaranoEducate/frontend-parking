@@ -17,6 +17,7 @@ import {
   vehicleLabel,
 } from '../../core/models/visitor-pass';
 import { PASS_TTL_MINUTES, VisitorPassService } from '../../core/services/visitor-pass.service';
+import { VisitorApiService } from '../../core/services/visitor-api.service';
 
 /**
  * Placa de moto colombiana: tres letras, dos dígitos y una letra final.
@@ -75,6 +76,7 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
 export class Visitor {
   private readonly fb = inject(FormBuilder);
   private readonly passes = inject(VisitorPassService);
+  private readonly visitorApi = inject(VisitorApiService);
 
   protected readonly brand = BRAND;
   protected readonly documentTypes = DOCUMENT_TYPES;
@@ -85,6 +87,8 @@ export class Visitor {
   /** Se activa al primer intento de envío para revelar todos los errores. */
   protected readonly submitAttempted = signal(false);
   protected readonly submitting = signal(false);
+  /** Error de red o del backend al registrar la visita (fase de conexión). */
+  protected readonly submitError = signal<string | null>(null);
 
   /** Cuando existe un pase, la pantalla muestra el QR en vez del formulario. */
   protected readonly pass = signal<VisitorPass | null>(null);
@@ -299,16 +303,37 @@ export class Visitor {
     control.updateValueAndValidity({ emitEvent: false });
   }
 
+  /**
+   * Registra la visita en el backend real y arma el pase local a partir de la
+   * respuesta (fase de conexión, resuelve COR-002 contra Postgres en vez del
+   * navegador). El QR lleva el `id` que el backend le asignó al visitante: es
+   * lo mismo que espera `GET /visitors/:id` cuando portería lo escanea.
+   */
   private async issuePass(visitor: VisitorRegistration): Promise<void> {
     this.submitting.set(true);
+    this.submitError.set(null);
 
     try {
-      const pass = this.passes.issue(visitor);
+      const backendVisitor = await this.visitorApi.create(visitor);
+      const issuedAt = new Date(backendVisitor.created_at);
+
+      const pass: VisitorPass = {
+        token: backendVisitor.id,
+        visitor,
+        issuedAt,
+        // El backend no vence el pase: esto es solo un recordatorio para que
+        // se muestre pronto, no algo que portería vaya a exigir.
+        expiresAt: new Date(issuedAt.getTime() + PASS_TTL_MINUTES * 60_000),
+        status: 'pending',
+      };
 
       this.qrDataUrl.set(await this.passes.renderQrCode(pass.token));
       this.qrConcealed.set(false);
       this.pass.set(pass);
       this.startTimer();
+    } catch (error) {
+      console.error('No se pudo registrar la visita en el backend:', error);
+      this.submitError.set('No pudimos registrar tu visita. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       this.submitting.set(false);
     }

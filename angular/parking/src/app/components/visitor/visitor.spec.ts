@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { VehicleRequirements } from '../../core/models/vehicle';
+import type { VisitorRegistration } from '../../core/models/visitor-pass';
+import { type BackendVisitor, VisitorApiService } from '../../core/services/visitor-api.service';
 import { VisitorPassService } from '../../core/services/visitor-pass.service';
 import { Visitor } from './visitor';
 
@@ -11,14 +13,59 @@ class VisitorPassServiceStub extends VisitorPassService {
   }
 }
 
+/**
+ * Backend simulado: no extiende VisitorApiService (que inyecta HttpClient) para
+ * no necesitar proveerlo en las pruebas. Cada llamada a `create` guarda lo que
+ * recibió y devuelve un id distinto, como haría el backend real.
+ */
+class VisitorApiServiceStub {
+  calls: VisitorRegistration[] = [];
+  private nextId = 1;
+
+  create(visitor: VisitorRegistration): Promise<BackendVisitor> {
+    this.calls.push(visitor);
+    const id = `backend-visitor-${this.nextId++}`;
+
+    return Promise.resolve({
+      id,
+      first_name: visitor.firstName,
+      last_name: visitor.lastName,
+      document_type: visitor.documentType,
+      document_number: visitor.documentNumber,
+      reason: visitor.reason,
+      is_authorized: false,
+      vehicle: {
+        id: `${id}-vehicle`,
+        plate: visitor.vehicle.plate ?? null,
+        brand: visitor.vehicle.brand ?? null,
+        model: null,
+        color: visitor.vehicle.color ?? '',
+        type: visitor.vehicle.type,
+        is_authorized: false,
+        id_owner: null,
+        frame_serial: visitor.vehicle.frameSerial ?? null,
+      },
+      created_at: new Date().toISOString(),
+      exited_at: null,
+    });
+  }
+}
+
 describe('Visitor', () => {
   let component: Visitor;
   let fixture: ComponentFixture<Visitor>;
+  let backend: VisitorApiServiceStub;
 
   beforeEach(async () => {
+    backend = new VisitorApiServiceStub();
+
     await TestBed.configureTestingModule({
       imports: [Visitor],
-      providers: [provideRouter([]), { provide: VisitorPassService, useClass: VisitorPassServiceStub }],
+      providers: [
+        provideRouter([]),
+        { provide: VisitorPassService, useClass: VisitorPassServiceStub },
+        { provide: VisitorApiService, useValue: backend },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Visitor);
@@ -33,6 +80,7 @@ describe('Visitor', () => {
       form: any;
       pass: () => any;
       qrDataUrl: () => string | null;
+      submitError: () => string | null;
       requires: () => VehicleRequirements;
       submit: () => Promise<void>;
       regenerate: () => Promise<void>;
@@ -186,6 +234,7 @@ describe('Visitor', () => {
     await api().submit();
 
     expect(api().pass()).toBeNull();
+    expect(backend.calls).toHaveLength(0);
   });
 
   it('guarda en el pase el vehículo completo junto al motivo de la visita', async () => {
@@ -207,16 +256,34 @@ describe('Visitor', () => {
     expect(api().qrDataUrl()).toContain('data:image');
   });
 
-  it('el pase queda guardado para que portería lo valide al escanearlo', async () => {
+  it('registra la visita en el backend real y el QR lleva el id que este asignó', async () => {
     fillPersonalData();
     api().form.controls.vehicleType.setValue('bicicleta');
     api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde', frameSerial: 'GWL458812' });
 
     await api().submit();
-    const stored = TestBed.inject(VisitorPassService).find(api().pass().token);
 
-    expect(stored?.status).toBe('pending');
-    expect(stored?.visitor.vehicle).toEqual({ type: 'bicicleta', brand: 'GW', color: 'Verde', frameSerial: 'GWL458812' });
+    expect(backend.calls).toHaveLength(1);
+    expect(backend.calls[0]).toMatchObject({
+      firstName: 'Ana María',
+      lastName: 'Rodríguez',
+      documentType: 'CC',
+      documentNumber: '1012345678',
+      vehicle: { type: 'bicicleta', brand: 'GW', color: 'Verde', frameSerial: 'GWL458812' },
+    });
+    // El id que "asignó" el backend (backend-visitor-1) es lo que codifica el QR.
+    expect(api().pass().token).toBe('backend-visitor-1');
+  });
+
+  it('si el backend falla, avisa y no muestra ningún pase', async () => {
+    fillPersonalData();
+    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
+    backend.create = () => Promise.reject(new Error('sin conexión'));
+
+    await api().submit();
+
+    expect(api().pass()).toBeNull();
+    expect(api().submitError()).toContain('No pudimos registrar tu visita');
   });
 
   it('el token cambia en cada emisión, para que un pase no se reutilice', async () => {
@@ -233,8 +300,7 @@ describe('Visitor', () => {
     expect(api().pass().token).not.toBe(first);
   });
 
-  it('generar un pase nuevo anula el anterior, para que solo sirva el más reciente', async () => {
-    const passes = TestBed.inject(VisitorPassService);
+  it('generar un pase nuevo registra otra visita en el backend, con un id distinto', async () => {
     fillPersonalData();
     api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
     await api().submit();
@@ -242,8 +308,7 @@ describe('Visitor', () => {
 
     await api().regenerate();
 
-    expect(passes.find(first)?.status).toBe('revoked');
+    expect(backend.calls).toHaveLength(2);
     expect(api().pass().token).not.toBe(first);
-    expect(passes.find(api().pass().token)?.status).toBe('pending');
   });
 });

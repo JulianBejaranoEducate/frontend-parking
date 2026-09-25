@@ -38,6 +38,7 @@ import { REGISTRATION_STATUS_LABELS, nameTokens } from '../../core/models/vehicl
 import { AccessControlService, AccessError, normalizePlateQuery } from '../../core/services/access-control.service';
 import { ShiftError, ShiftService } from '../../core/services/shift.service';
 import { StayError, StayService } from '../../core/services/stay.service';
+import { type BackendVisitor, VisitorApiService } from '../../core/services/visitor-api.service';
 import { PassError } from '../../core/services/visitor-pass.service';
 import { atClock, clockTime, dayAndTime, momentLabel } from '../../core/utils/dates';
 import { AccessResult } from '../access-result/access-result';
@@ -106,6 +107,7 @@ export class SecurityDashboard {
   private readonly staysStore = inject(StayService);
   private readonly shifts = inject(ShiftService);
   private readonly access = inject(AccessControlService);
+  private readonly visitorApi = inject(VisitorApiService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
 
@@ -268,18 +270,97 @@ export class SecurityDashboard {
     this.clearParams('estancia');
   }
 
-  /** Recibe el token leído del QR del visitante (Fase 3). */
+  /**
+   * Recibe el token leído del QR del visitante (Fase 3). Primero prueba con los
+   * pases locales de demostración; si no aparece, puede ser un visitante real
+   * ya guardado en el backend (fase de conexión), y se resuelve aparte porque
+   * ese flujo todavía no tiene cupos, turno ni «deshacer» (ver `backendVisitor`).
+   */
   protected onQrRead(token: string): void {
     const candidate = this.access.candidateForPass(token);
 
-    if (!candidate) {
-      this.selected.set(null);
-      this.qrError.set('El código leído no corresponde a ningún pase de visitante. Pide al visitante que lo genere desde el formulario.');
+    if (candidate) {
+      this.qrError.set(null);
+      this.choose(candidate);
       return;
     }
 
+    void this.loadBackendVisitor(token);
+  }
+
+  // ---- Visitante conectado al backend real (fase de conexión) --------------------------------
+
+  protected readonly backendVisitor = signal<BackendVisitor | null>(null);
+  protected readonly backendVisitorLoading = signal(false);
+  protected readonly backendVisitorActionError = signal<string | null>(null);
+
+  /** Busca el visitante por el id leído del QR. Si no existe en ningún lado, avisa. */
+  private async loadBackendVisitor(id: string): Promise<void> {
     this.qrError.set(null);
-    this.choose(candidate);
+    this.backendVisitorActionError.set(null);
+    this.backendVisitor.set(null);
+    this.backendVisitorLoading.set(true);
+
+    try {
+      this.backendVisitor.set(await this.visitorApi.findById(id));
+    } catch {
+      this.qrError.set(
+        'El código leído no corresponde a ningún pase de visitante. Pide al visitante que lo genere desde el formulario.',
+      );
+    } finally {
+      this.backendVisitorLoading.set(false);
+    }
+  }
+
+  /** El guardia confirma el ingreso del visitante conectado al backend real. */
+  protected async authorizeBackendVisitor(): Promise<void> {
+    const visitor = this.backendVisitor();
+
+    if (!visitor) {
+      return;
+    }
+
+    this.backendVisitorActionError.set(null);
+
+    try {
+      this.backendVisitor.set(await this.visitorApi.authorize(visitor.id));
+      this.flash.set(`Ingreso autorizado: ${visitor.first_name} ${visitor.last_name}.`);
+    } catch {
+      this.backendVisitorActionError.set('No pudimos autorizar el ingreso. Revisa la conexión con el backend.');
+    }
+  }
+
+  /** El guardia registra la salida del visitante conectado al backend real. */
+  protected async registerBackendVisitorExit(): Promise<void> {
+    const visitor = this.backendVisitor();
+
+    if (!visitor) {
+      return;
+    }
+
+    this.backendVisitorActionError.set(null);
+
+    try {
+      this.backendVisitor.set(await this.visitorApi.registerExit(visitor.id));
+      this.flash.set(`Salida registrada: ${visitor.first_name} ${visitor.last_name}.`);
+    } catch {
+      this.backendVisitorActionError.set('No pudimos registrar la salida. Revisa la conexión con el backend.');
+    }
+  }
+
+  /** Cierra la tarjeta del visitante conectado al backend real. */
+  protected closeBackendVisitor(): void {
+    this.backendVisitor.set(null);
+    this.backendVisitorActionError.set(null);
+  }
+
+  /**
+   * El backend guarda el tipo de vehículo como texto suelto (lo valida Joi,
+   * no TypeScript): aquí se confía en esa validación para reusar la etiqueta
+   * ya traducida.
+   */
+  protected backendVehicleLabel(type: string): string {
+    return vehicleLabel(type as VehicleType);
   }
 
   /** Registra lo que confirmó el guardia en la tarjeta de resultado. */
