@@ -1,5 +1,5 @@
 import { Component, ElementRef, type OnDestroy, inject, input, output, signal, viewChild } from '@angular/core';
-import { ScannerService } from '../../core/services/scanner.service';
+import { ScannerService } from '../../core/services/modules/security-dashboard/scanner.service';
 
 /**
  * Lector de códigos QR reutilizable (Fase 3, ADR-012).

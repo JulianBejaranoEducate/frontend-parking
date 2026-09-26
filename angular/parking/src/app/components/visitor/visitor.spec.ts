@@ -1,30 +1,24 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { VehicleRequirements } from '../../core/models/vehicle';
 import type { VisitorRegistration } from '../../core/models/visitor-pass';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/visitor-api.service';
-import { VisitorPassService } from '../../core/services/visitor-pass.service';
+import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
 import { Visitor } from './visitor';
 
-/** Evita cargar la librería de QR (usa canvas) dentro de las pruebas. */
-class VisitorPassServiceStub extends VisitorPassService {
-  override renderQrCode(): Promise<string> {
-    return Promise.resolve('data:image/png;base64,stub');
-  }
-}
-
-/**
- * Backend simulado: no extiende VisitorApiService (que inyecta HttpClient) para
- * no necesitar proveerlo en las pruebas. Cada llamada a `create` guarda lo que
- * recibió y devuelve un id distinto, como haría el backend real.
- */
+/** No extiende VisitorApiService (que inyecta HttpClient) para no tener que proveerlo. */
 class VisitorApiServiceStub {
   calls: VisitorRegistration[] = [];
   private nextId = 1;
+  failNext = false;
 
   create(visitor: VisitorRegistration): Promise<BackendVisitor> {
     this.calls.push(visitor);
-    const id = `backend-visitor-${this.nextId++}`;
+
+    if (this.failNext) {
+      this.failNext = false;
+      return Promise.reject(new Error('sin conexión'));
+    }
+
+    const id = this.nextId++;
 
     return Promise.resolve({
       id,
@@ -33,21 +27,18 @@ class VisitorApiServiceStub {
       document_type: visitor.documentType,
       document_number: visitor.documentNumber,
       reason: visitor.reason,
-      is_authorized: false,
-      vehicle: {
-        id: `${id}-vehicle`,
-        plate: visitor.vehicle.plate ?? null,
-        brand: visitor.vehicle.brand ?? null,
-        model: null,
-        color: visitor.vehicle.color ?? '',
-        type: visitor.vehicle.type,
-        is_authorized: false,
-        id_owner: null,
-        frame_serial: visitor.vehicle.frameSerial ?? null,
-      },
+      plate_vehicle_visitor: visitor.vehicle.plate ?? null,
+      brand_vehicle: visitor.vehicle.brand ?? '',
+      color_vehicle: visitor.vehicle.color ?? '',
+      type_vehicle: visitor.vehicle.type,
+      model_vehicle: visitor.vehicle.modelYear ?? new Date().getFullYear(),
       created_at: new Date().toISOString(),
       exited_at: null,
     });
+  }
+
+  renderQrCode(): Promise<string> {
+    return Promise.resolve('data:image/png;base64,stub');
   }
 }
 
@@ -61,11 +52,7 @@ describe('Visitor', () => {
 
     await TestBed.configureTestingModule({
       imports: [Visitor],
-      providers: [
-        provideRouter([]),
-        { provide: VisitorPassService, useClass: VisitorPassServiceStub },
-        { provide: VisitorApiService, useValue: backend },
-      ],
+      providers: [provideRouter([]), { provide: VisitorApiService, useValue: backend }],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Visitor);
@@ -78,15 +65,13 @@ describe('Visitor', () => {
   const api = () =>
     component as unknown as {
       form: any;
-      pass: () => any;
+      visitor: () => any;
       qrDataUrl: () => string | null;
       submitError: () => string | null;
-      requires: () => VehicleRequirements;
       submit: () => Promise<void>;
-      regenerate: () => Promise<void>;
+      onVehicleTypeChange: () => void;
       normalizePlate: () => void;
       normalizeDocumentNumber: () => void;
-      normalizeSerial: () => void;
       registerAnother: () => void;
     };
 
@@ -98,6 +83,11 @@ describe('Visitor', () => {
       documentNumber: '1012345678',
       reason: 'Reunión con admisiones',
     });
+
+  const chooseType = (type: string) => {
+    api().form.controls.vehicleType.setValue(type);
+    api().onVehicleTypeChange();
+  };
 
   it('should create', () => {
     expect(component).toBeTruthy();
@@ -113,7 +103,6 @@ describe('Visitor', () => {
       'vehicleBrand',
       'vehicleColor',
       'plate',
-      'frameSerial',
       'reason',
     ]);
     expect(api().form.invalid).toBe(true);
@@ -133,133 +122,53 @@ describe('Visitor', () => {
     }
   });
 
-  it('solo acepta placas de moto: el formato de automóvil queda rechazado', () => {
-    api().form.controls.vehicleType.setValue('moto');
-    const plate = api().form.controls.plate;
+  it('la placa solo se pide para moto, con el formato que exige hoy el backend (ABC123)', () => {
+    fillPersonalData();
+    api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde' });
 
-    for (const valid of ['ABC12D', 'ABC12']) {
+    chooseType('bicicleta');
+    expect(api().form.controls.plate.valid).toBe(true);
+    expect(api().form.valid).toBe(true);
+
+    chooseType('moto');
+    expect(api().form.valid).toBe(false);
+
+    const plate = api().form.controls.plate;
+    for (const valid of ['ABC123', 'XYZ987']) {
       plate.setValue(valid);
       expect(plate.valid).toBe(true);
     }
-
-    // ABC123 es placa de automóvil y ya no se admite.
-    for (const invalid of ['ABC123', 'AB12D', '12ABCD', 'ABCD12']) {
+    // El formato antiguo (3 letras, 2 números, 1 letra) ya no lo acepta el backend.
+    for (const invalid of ['ABC12D', 'AB123', '123ABC']) {
       plate.setValue(invalid);
       expect(plate.valid).toBe(false);
     }
   });
 
-  it('normaliza la placa, el documento y el serial mientras se escriben', () => {
-    api().form.controls.plate.setValue('abc-12d');
+  it('marca, color y motivo se piden siempre, sin importar el tipo de vehículo', () => {
+    fillPersonalData();
+    chooseType('scooter');
+
+    expect(api().form.invalid).toBe(true);
+    api().form.patchValue({ vehicleBrand: 'Xiaomi', vehicleColor: 'Gris' });
+    expect(api().form.valid).toBe(true);
+  });
+
+  it('normaliza la placa y el documento mientras se escriben', () => {
+    chooseType('moto');
+    api().form.controls.plate.setValue('abc-123');
     api().normalizePlate();
-    expect(api().form.controls.plate.value).toBe('ABC12D');
+    expect(api().form.controls.plate.value).toBe('ABC123');
 
     api().form.controls.documentNumber.setValue('10.123.456');
     api().normalizeDocumentNumber();
     expect(api().form.controls.documentNumber.value).toBe('10123456');
-
-    api().form.controls.frameSerial.setValue('wbk 2291037');
-    api().normalizeSerial();
-    expect(api().form.controls.frameSerial.value).toBe('WBK2291037');
   });
 
-  it('la moto pide marca, color y placa', () => {
+  it('registrar la visita la envía al backend real: eso ya es el ingreso', async () => {
     fillPersonalData();
-    api().form.controls.vehicleType.setValue('moto');
-
-    expect(api().requires()).toEqual({ brand: 'required', color: 'required', plate: 'required', frameSerial: 'none' });
-    expect(api().form.invalid).toBe(true);
-
-    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
-    expect(api().form.valid).toBe(true);
-  });
-
-  it('la bicicleta pide marca y color, sin placa, y el serial es opcional', () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('bicicleta');
-
-    expect(api().requires()).toEqual({ brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' });
-
-    api().form.patchValue({ vehicleBrand: 'Bianchi', vehicleColor: 'Azul' });
-    expect(api().form.valid).toBe(true);
-
-    // Opcional no quiere decir sin formato: si se escribe, tiene que ser un serial.
-    api().form.controls.frameSerial.setValue('A#1');
-    expect(api().form.valid).toBe(false);
-
-    api().form.controls.frameSerial.setValue('WBK2291037');
-    expect(api().form.valid).toBe(true);
-  });
-
-  it('el scooter pide el color y deja la marca opcional', () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('scooter');
-
-    expect(api().requires()).toEqual({ brand: 'optional', color: 'required', plate: 'none', frameSerial: 'none' });
-    expect(api().form.invalid).toBe(true);
-
-    api().form.patchValue({ vehicleColor: 'Gris' });
-    expect(api().form.valid).toBe(true);
-  });
-
-  it('al cambiar de vehículo vacía los campos que el nuevo no usa', async () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('bicicleta');
-    api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde', frameSerial: 'GWL458812' });
-
-    api().form.controls.vehicleType.setValue('moto');
-    expect(api().form.controls.frameSerial.value).toBe('');
-    api().form.controls.plate.setValue('ABC12D');
-
-    api().form.controls.vehicleType.setValue('scooter');
-    expect(api().form.controls.plate.value).toBe('');
-    // Marca y color también sirven para el scooter: no se borra lo que la persona ya escribió.
-    expect(api().form.controls.vehicleColor.value).toBe('Verde');
-
-    await api().submit();
-    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter', brand: 'GW', color: 'Verde' });
-  });
-
-  it('los datos opcionales que quedan en blanco no llegan al pase', async () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('scooter');
-    api().form.patchValue({ vehicleBrand: '   ', vehicleColor: 'Gris' });
-
-    await api().submit();
-
-    expect(api().pass().visitor.vehicle).toEqual({ type: 'scooter', color: 'Gris' });
-  });
-
-  it('no emite ningún pase mientras el formulario esté incompleto', async () => {
-    await api().submit();
-
-    expect(api().pass()).toBeNull();
-    expect(backend.calls).toHaveLength(0);
-  });
-
-  it('guarda en el pase el vehículo completo junto al motivo de la visita', async () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('moto');
-    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
-
-    await api().submit();
-    const pass = api().pass();
-
-    expect(pass.visitor.vehicle).toEqual({
-      type: 'moto',
-      brand: 'Yamaha',
-      color: 'Negro',
-      plate: 'ABC12D',
-    });
-    expect(pass.visitor.reason).toBe('Reunión con admisiones');
-    expect(pass.status).toBe('pending');
-    expect(api().qrDataUrl()).toContain('data:image');
-  });
-
-  it('registra la visita en el backend real y el QR lleva el id que este asignó', async () => {
-    fillPersonalData();
-    api().form.controls.vehicleType.setValue('bicicleta');
-    api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde', frameSerial: 'GWL458812' });
+    chooseType('moto');
+    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC123' });
 
     await api().submit();
 
@@ -269,46 +178,44 @@ describe('Visitor', () => {
       lastName: 'Rodríguez',
       documentType: 'CC',
       documentNumber: '1012345678',
-      vehicle: { type: 'bicicleta', brand: 'GW', color: 'Verde', frameSerial: 'GWL458812' },
+      vehicle: { type: 'moto', brand: 'Yamaha', color: 'Negro', plate: 'ABC123' },
     });
-    // El id que "asignó" el backend (backend-visitor-1) es lo que codifica el QR.
-    expect(api().pass().token).toBe('backend-visitor-1');
+
+    const visitor = api().visitor();
+    expect(visitor.id).toBe(1);
+    expect(visitor.exited_at).toBeNull();
+    expect(api().qrDataUrl()).toContain('data:image');
   });
 
-  it('si el backend falla, avisa y no muestra ningún pase', async () => {
+  it('no envía nada al backend mientras el formulario esté incompleto', async () => {
+    await api().submit();
+
+    expect(backend.calls).toHaveLength(0);
+    expect(api().visitor()).toBeNull();
+  });
+
+  it('si el backend falla, avisa y no muestra ningún código', async () => {
     fillPersonalData();
-    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
-    backend.create = () => Promise.reject(new Error('sin conexión'));
+    chooseType('scooter');
+    api().form.patchValue({ vehicleBrand: 'Xiaomi', vehicleColor: 'Gris' });
+    backend.failNext = true;
 
     await api().submit();
 
-    expect(api().pass()).toBeNull();
+    expect(api().visitor()).toBeNull();
     expect(api().submitError()).toContain('No pudimos registrar tu visita');
   });
 
-  it('el token cambia en cada emisión, para que un pase no se reutilice', async () => {
+  it('«Registrar otro visitante» limpia el formulario para la siguiente visita', async () => {
     fillPersonalData();
-    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
+    chooseType('scooter');
+    api().form.patchValue({ vehicleBrand: 'Xiaomi', vehicleColor: 'Gris' });
     await api().submit();
-    const first = api().pass().token;
 
     api().registerAnother();
-    fillPersonalData();
-    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
-    await api().submit();
 
-    expect(api().pass().token).not.toBe(first);
-  });
-
-  it('generar un pase nuevo registra otra visita en el backend, con un id distinto', async () => {
-    fillPersonalData();
-    api().form.patchValue({ vehicleType: 'scooter', vehicleColor: 'Gris' });
-    await api().submit();
-    const first = api().pass().token;
-
-    await api().regenerate();
-
-    expect(backend.calls).toHaveLength(2);
-    expect(api().pass().token).not.toBe(first);
+    expect(api().visitor()).toBeNull();
+    expect(api().qrDataUrl()).toBeNull();
+    expect(api().form.controls.firstName.value).toBe('');
   });
 });

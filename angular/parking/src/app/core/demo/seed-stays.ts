@@ -8,8 +8,10 @@
  * - Una moto que entró ayer y sigue dentro, para la alerta de estancia larga.
  * - Dos visitantes que entraron con su pase QR.
  *
- * Los ingresos de hoy los registró Carlos en su turno; los de ayer, Diana
- * (ver seed-shifts.ts).
+ * Los ingresos de hoy los registró Carlos; los de ayer, Diana. El dashboard de
+ * seguridad ya no maneja turnos (se simplificó a confirmar visitantes reales,
+ * ver security-dashboard.ts): estos ids solo quedan como una etiqueta más del
+ * movimiento para main-dashboard y admin-dashboard.
  */
 import { zoneFor } from '../config/parking.config';
 import type { IdentificationMethod, MovementAudit, ParkingStay, StaySubject } from '../models/parking';
@@ -17,8 +19,9 @@ import type { Vehicle } from '../models/vehicle';
 import { declaredFullName, type VehicleRegistration } from '../models/vehicle-registration';
 import { DEMO_ACCOUNTS } from '../services/auth.service';
 import { daysAgoAt, minutesAgo } from './demo-time';
-import { DEMO_SHIFT_IDS } from './seed-shifts';
 import { DEMO_STUDENT_UID, seedRegistrations } from './seed-registrations';
+
+const DEMO_SHIFT_IDS = { yesterday: 'shift-diana-ayer', today: 'shift-carlos-hoy' } as const;
 
 const CARLOS = DEMO_ACCOUNTS.security;
 const DIANA = DEMO_ACCOUNTS['security-relief'];

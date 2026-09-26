@@ -26,8 +26,8 @@
       }
 
       <h1 class="panel__title" id="visitor-title">
-        @if (pass()) {
-          Tu pase de ingreso
+        @if (visitor()) {
+          Tu visita quedó registrada
         } @else {
           Registro de visitante
         }
@@ -35,92 +35,37 @@
       <span class="panel__rule" aria-hidden="true"></span>
     </header>
 
-    @if (pass(); as visit) {
+    @if (visitor(); as v) {
       <div class="pass">
         <p class="pass__intro">
-          Muestra este código en la entrada. El personal de seguridad verá tus datos al escanearlo.
+          Tu ingreso ya quedó registrado. Muestra este código a la salida: el personal de seguridad lo escanea para
+          marcar que saliste.
         </p>
 
-        <div class="qr" [class.qr--blocked]="qrConcealed() || expired()">
+        <div class="qr">
           @if (qrDataUrl(); as image) {
-            <img class="qr__image" [src]="image" alt="Código QR de tu pase de ingreso" width="512" height="512" />
-          }
-
-          @if (expired()) {
-            <p class="qr__cover">
-              <svg class="qr__cover-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m1 5v6h-2V7zm0 8v2h-2v-2z" fill="currentColor" />
-              </svg>
-              Código vencido
-            </p>
-          } @else if (qrConcealed()) {
-            <button type="button" class="qr__cover qr__cover--action" (click)="revealQr()">
-              <svg class="qr__cover-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M12 5c-5 0-9 4.5-9 7s4 7 9 7 9-4.5 9-7-4-7-9-7m0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8m0-6a2 2 0 1 0 0 4 2 2 0 0 0 0-4"
-                  fill="currentColor"
-                />
-              </svg>
-              Toca para mostrar el código
-            </button>
+            <img class="qr__image" [src]="image" alt="Código de tu visita" width="512" height="512" />
           }
         </div>
 
         <p class="pass__holder">
-          {{ visit.visitor.firstName }} {{ visit.visitor.lastName }}
-          @if (visit.visitor.vehicle.plate; as plate) {
+          {{ v.first_name }} {{ v.last_name }}
+          @if (v.plate_vehicle_visitor; as plate) {
             <span class="pass__badge pass__badge--plate">{{ plate }}</span>
           } @else {
-            <span class="pass__badge">{{ vehicleLabel(visit.visitor.vehicle.type) }}</span>
+            <span class="pass__badge">{{ vehicleLabel(v.type_vehicle) }}</span>
           }
-        </p>
-
-        @if (expired()) {
-          <p class="pass__timer pass__timer--expired" role="status">
-            Este código ya no es válido. Genera uno nuevo para poder ingresar.
-          </p>
-        } @else {
-          <p class="pass__timer" role="timer" aria-live="off">
-            Válido por <strong>{{ countdown() }}</strong>
-          </p>
-        }
-
-        <p class="pass__warning">
-          <svg class="pass__warning-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M18 8h-1V6A5 5 0 0 0 7 6v2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2M9 6a3 3 0 0 1 6 0v2H9zm3 12a2 2 0 1 1 0-4 2 2 0 0 1 0 4"
-              fill="currentColor"
-            />
-          </svg>
-          <span>
-            Es personal y de un solo uso: al validarlo en portería deja de servir.
-            No lo compartas, quien tenga el código puede entrar en tu lugar.
-          </span>
         </p>
 
         <div class="actions">
-          @if (expired()) {
-            <button type="button" class="btn btn--primary" [disabled]="submitting()" (click)="regenerate()">
-              @if (submitting()) {
-                <span class="btn__spinner" aria-hidden="true"></span>
-                <span>Generando…</span>
-              } @else {
-                <span>Generar un código nuevo</span>
-              }
-            </button>
-          } @else {
-            <button type="button" class="btn btn--primary" (click)="registerAnother()">
-              Registrar otro visitante
-            </button>
-          }
+          <button type="button" class="btn btn--primary" (click)="registerAnother()">
+            Registrar otro visitante
+          </button>
           <a class="btn btn--ghost" routerLink="/login">Salir</a>
         </div>
       </div>
     } @else {
-      <p class="intro">
-        Completa tus datos para registrar el ingreso del vehículo. Los campos marcados como opcionales puedes dejarlos
-        en blanco.
-      </p>
+      <p class="intro">Completa tus datos para registrar el ingreso del vehículo.</p>
 
       @if (submitError(); as message) {
         <p class="field__error" role="alert">{{ message }}</p>
@@ -226,6 +171,7 @@
                   class="field__control"
                   id="vehicleType"
                   formControlName="vehicleType"
+                  (change)="onVehicleTypeChange()"
                   [class.field__control--invalid]="isInvalid('vehicleType')"
                   [attr.aria-invalid]="isInvalid('vehicleType')"
                   [attr.aria-describedby]="isInvalid('vehicleType') ? 'vehicleType-error' : null"
@@ -244,54 +190,45 @@
               }
             </div>
 
-            @if (isAsked(requires().brand)) {
-              <div class="field">
-                <label class="field__label" for="vehicleBrand">
-                  Marca
-                  @if (requires().brand === 'optional') {
-                    <span class="field__optional">(opcional)</span>
-                  }
-                </label>
-                <input
-                  class="field__control"
-                  id="vehicleBrand"
-                  type="text"
-                  formControlName="vehicleBrand"
-                  autocomplete="off"
-                  maxlength="30"
-                  placeholder="Yamaha, Bianchi…"
-                  [class.field__control--invalid]="isInvalid('vehicleBrand')"
-                  [attr.aria-invalid]="isInvalid('vehicleBrand')"
-                  [attr.aria-describedby]="isInvalid('vehicleBrand') ? 'vehicleBrand-error' : null"
-                />
-                @if (errorFor('vehicleBrand'); as message) {
-                  <p class="field__error" id="vehicleBrand-error">{{ message }}</p>
-                }
-              </div>
-            }
+            <div class="field">
+              <label class="field__label" for="vehicleBrand">Marca</label>
+              <input
+                class="field__control"
+                id="vehicleBrand"
+                type="text"
+                formControlName="vehicleBrand"
+                autocomplete="off"
+                maxlength="30"
+                placeholder="Yamaha, Bianchi…"
+                [class.field__control--invalid]="isInvalid('vehicleBrand')"
+                [attr.aria-invalid]="isInvalid('vehicleBrand')"
+                [attr.aria-describedby]="isInvalid('vehicleBrand') ? 'vehicleBrand-error' : null"
+              />
+              @if (errorFor('vehicleBrand'); as message) {
+                <p class="field__error" id="vehicleBrand-error">{{ message }}</p>
+              }
+            </div>
 
-            @if (isAsked(requires().color)) {
-              <div class="field">
-                <label class="field__label" for="vehicleColor">Color</label>
-                <input
-                  class="field__control"
-                  id="vehicleColor"
-                  type="text"
-                  formControlName="vehicleColor"
-                  autocomplete="off"
-                  maxlength="20"
-                  placeholder="Negro"
-                  [class.field__control--invalid]="isInvalid('vehicleColor')"
-                  [attr.aria-invalid]="isInvalid('vehicleColor')"
-                  [attr.aria-describedby]="isInvalid('vehicleColor') ? 'vehicleColor-error' : null"
-                />
-                @if (errorFor('vehicleColor'); as message) {
-                  <p class="field__error" id="vehicleColor-error">{{ message }}</p>
-                }
-              </div>
-            }
+            <div class="field">
+              <label class="field__label" for="vehicleColor">Color</label>
+              <input
+                class="field__control"
+                id="vehicleColor"
+                type="text"
+                formControlName="vehicleColor"
+                autocomplete="off"
+                maxlength="20"
+                placeholder="Negro"
+                [class.field__control--invalid]="isInvalid('vehicleColor')"
+                [attr.aria-invalid]="isInvalid('vehicleColor')"
+                [attr.aria-describedby]="isInvalid('vehicleColor') ? 'vehicleColor-error' : null"
+              />
+              @if (errorFor('vehicleColor'); as message) {
+                <p class="field__error" id="vehicleColor-error">{{ message }}</p>
+              }
+            </div>
 
-            @if (isAsked(requires().plate)) {
+            @if (form.controls.vehicleType.value === 'moto') {
               <div class="field">
                 <label class="field__label" for="plate">Placa</label>
                 <input
@@ -303,7 +240,7 @@
                   autocomplete="off"
                   spellcheck="false"
                   maxlength="6"
-                  placeholder="ABC12D"
+                  placeholder="ABC123"
                   (input)="normalizePlate()"
                   [class.field__control--invalid]="isInvalid('plate')"
                   [attr.aria-invalid]="isInvalid('plate')"
@@ -312,34 +249,7 @@
                 @if (errorFor('plate'); as message) {
                   <p class="field__error" id="plate-error">{{ message }}</p>
                 } @else {
-                  <p class="field__hint" id="plate-hint">Placa de moto. Ej. ABC12D</p>
-                }
-              </div>
-            }
-
-            @if (isAsked(requires().frameSerial)) {
-              <div class="field">
-                <label class="field__label" for="frameSerial">
-                  Serial del marco <span class="field__optional">(opcional)</span>
-                </label>
-                <input
-                  class="field__control field__control--plate"
-                  id="frameSerial"
-                  type="text"
-                  formControlName="frameSerial"
-                  autocapitalize="characters"
-                  autocomplete="off"
-                  spellcheck="false"
-                  maxlength="30"
-                  (input)="normalizeSerial()"
-                  [class.field__control--invalid]="isInvalid('frameSerial')"
-                  [attr.aria-invalid]="isInvalid('frameSerial')"
-                  [attr.aria-describedby]="isInvalid('frameSerial') ? 'frameSerial-error' : 'frameSerial-hint'"
-                />
-                @if (errorFor('frameSerial'); as message) {
-                  <p class="field__error" id="frameSerial-error">{{ message }}</p>
-                } @else {
-                  <p class="field__hint" id="frameSerial-hint">Suele estar grabado debajo del pedalier.</p>
+                  <p class="field__hint" id="plate-hint">Formato ABC123.</p>
                 }
               </div>
             }
@@ -373,7 +283,7 @@
           >
             @if (submitting()) {
               <span class="btn__spinner" aria-hidden="true"></span>
-              <span>Generando pase…</span>
+              <span>Registrando…</span>
             } @else {
               <span>Registrar ingreso</span>
             }

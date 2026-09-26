@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type ScanOptions, ScannerService } from '../../core/services/scanner.service';
+import { type ScanOptions, ScannerService } from '../../core/services/modules/security-dashboard/scanner.service';
 import { LectorCodigoQr } from './lector-codigo-qr';
 
 /** Cámara simulada: jsdom no tiene getUserMedia y las pruebas no deben pedir permisos. */
