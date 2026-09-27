@@ -3,6 +3,10 @@ import { Router, provideRouter, withComponentInputBinding } from '@angular/route
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import type { DemoProfile } from './core/services/auth.service';
+import {
+  FIREBASE_AUTH_STATE_SUBSCRIBER,
+  type FirebaseAuthStateSubscriber,
+} from './core/auth/firebase-auth-session';
 import { signInForTest } from './testing/demo-session';
 
 /**
@@ -11,9 +15,18 @@ import { signInForTest } from './testing/demo-session';
  */
 describe('rutas por rol', () => {
   let harness: RouterTestingHarness;
+  const firebaseAuthStateSubscriber: FirebaseAuthStateSubscriber = async (onUser) => {
+    onUser(null);
+    return () => {};
+  };
 
   const as = async (profile: DemoProfile | null) => {
-    TestBed.configureTestingModule({ providers: [provideRouter(routes, withComponentInputBinding())] });
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter(routes, withComponentInputBinding()),
+        { provide: FIREBASE_AUTH_STATE_SUBSCRIBER, useValue: firebaseAuthStateSubscriber },
+      ],
+    });
     signInForTest(profile);
     harness = await RouterTestingHarness.create();
   };

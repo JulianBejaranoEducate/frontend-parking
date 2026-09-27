@@ -1,4 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { InjectionToken, Injectable, computed, inject, signal } from '@angular/core';
+import type { User } from 'firebase/auth';
+import { FIREBASE_AUTH_STATE_SUBSCRIBER } from '../auth/firebase-auth-session';
 import { BRAND } from '../config/branding.config';
 import { isFirebaseConfigured } from '../config/firebase.config';
 import { PARKING } from '../config/parking.config';
@@ -102,8 +104,21 @@ export const DEMO_ACCOUNTS: Record<DemoProfile, AuthUser> = {
 
 const DEMO_SESSION_KEY = 'session';
 
+export const FIREBASE_CURRENT_USER = new InjectionToken<() => Promise<User | null>>(
+  'FIREBASE_CURRENT_USER',
+  {
+    providedIn: 'root',
+    factory: () => async () => {
+      const { firebaseAuth } = await import('./microsoft-auth');
+      return firebaseAuth().currentUser;
+    },
+  },
+);
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
+  private readonly subscribeFirebaseAuthState = inject(FIREBASE_AUTH_STATE_SUBSCRIBER);
+  private readonly getFirebaseCurrentUser = inject(FIREBASE_CURRENT_USER);
   /**
    * En demostración la sesión se guarda en la pestaña, para que recargar no
    * obligue a entrar de nuevo. Con Firebase, la sesión la restaura su SDK.
@@ -111,11 +126,21 @@ export class AuthService {
   private readonly _user = signal<AuthUser | null>(loadDemo<AuthUser>(DEMO_SESSION_KEY, 'session'));
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
+  private readonly _authReady = signal(!isFirebaseConfigured());
+  private resolveAuthReady!: () => void;
+  private readonly authReadyPromise = new Promise<void>((resolve) => {
+    this.resolveAuthReady = resolve;
+  });
+  private authListenerStarted = false;
+  private authInitializationFailed = false;
+  private authStateRevision = 0;
+  private authReadyTimeout?: ReturnType<typeof setTimeout>;
 
   /** Cuenta con la sesión abierta; null si no hay sesión. */
   readonly user = this._user.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  readonly authReady = this._authReady.asReadonly();
   readonly isAuthenticated = computed(() => this._user() !== null);
   /** Rol de la sesión actual; null si no hay sesión. */
   readonly role = computed(() => this._user()?.role ?? null);
@@ -124,6 +149,38 @@ export class AuthService {
 
   /** Sin credenciales de Firebase la app funciona con cuentas simuladas. */
   readonly demoMode = !isFirebaseConfigured();
+
+  constructor() {
+    if (!isFirebaseConfigured()) {
+      this.resolveAuthReady();
+      return;
+    }
+
+    this.authReadyTimeout = setTimeout(
+      () => this.failFirebaseAuth(new Error('Firebase Auth initialization timed out')),
+      10_000,
+    );
+    this.startFirebaseAuthListener();
+  }
+
+  waitUntilReady(): Promise<void> {
+    return this._authReady() ? Promise.resolve() : this.authReadyPromise;
+  }
+
+  /** Obtiene el ID token de la sesión actual sin guardarlo en la aplicación. */
+  async getIdToken(): Promise<string | null> {
+    if (!isFirebaseConfigured()) {
+      return null;
+    }
+
+    try {
+      const user = await this.getFirebaseCurrentUser();
+
+      return user ? await user.getIdToken() : null;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Inicio de sesión institucional con Microsoft (Azure AD) a través de Firebase.
@@ -239,6 +296,85 @@ export class AuthService {
     } else {
       clearDemo(DEMO_SESSION_KEY, 'session');
     }
+  }
+
+  private startFirebaseAuthListener(): void {
+    if (!isFirebaseConfigured() || this.authListenerStarted) {
+      return;
+    }
+
+    this.authListenerStarted = true;
+    void this.subscribeFirebaseAuthState(
+      (user) => {
+        if (!this.authInitializationFailed) {
+          void this.syncFirebaseUser(user);
+        }
+      },
+      (error) => this.failFirebaseAuth(error),
+    )
+      .then((unsubscribe) => {
+        if (this.authInitializationFailed) {
+          unsubscribe();
+          return;
+        }
+
+        this.unsubscribeAuth = unsubscribe;
+      })
+      .catch((error: unknown) => this.failFirebaseAuth(error));
+  }
+
+  private async syncFirebaseUser(firebaseUser: User | null): Promise<void> {
+    const revision = ++this.authStateRevision;
+
+    if (!firebaseUser) {
+      this.setUser(null);
+      this._error.set(null);
+      this.markAuthReady();
+      return;
+    }
+
+    try {
+      const user = await this.toAuthUser(firebaseUser);
+      this.assertAllowedAccount(user);
+
+      if (revision === this.authStateRevision) {
+        this.setUser(user);
+        this._error.set(null);
+        this.markAuthReady();
+      }
+    } catch (error) {
+      if (revision === this.authStateRevision) {
+        this.setUser(null);
+        this._error.set(this.describe(error));
+        this.markAuthReady();
+      }
+    }
+  }
+
+  private failFirebaseAuth(error: unknown): void {
+    this.authInitializationFailed = true;
+    this.authStateRevision++;
+    this.unsubscribeAuth?.();
+    this.unsubscribeAuth = undefined;
+    this.setUser(null);
+    this._error.set(this.describe(error));
+    this.markAuthReady();
+  }
+
+  private unsubscribeAuth?: () => void;
+
+  private markAuthReady(): void {
+    if (this._authReady()) {
+      return;
+    }
+
+    if (this.authReadyTimeout !== undefined) {
+      clearTimeout(this.authReadyTimeout);
+      this.authReadyTimeout = undefined;
+    }
+
+    this._authReady.set(true);
+    this.resolveAuthReady();
   }
 
   /**

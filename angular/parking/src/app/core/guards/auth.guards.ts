@@ -41,8 +41,11 @@ export function homeFor(user: AuthUser | null): string {
  * { path: 'admin', canMatch: [roleGuard('admin')], loadChildren: () => import('./admin.routes') }
  */
 export function roleGuard(...roles: readonly UserRole[]): CanMatchFn {
-  return () => {
-    const role = inject(AuthService).role();
+  return async () => {
+    const auth = inject(AuthService);
+    await auth.waitUntilReady();
+
+    const role = auth.role();
     return role !== null && roles.includes(role);
   };
 }
@@ -51,6 +54,10 @@ export function roleGuard(...roles: readonly UserRole[]): CanMatchFn {
  * Destino de cualquier dirección que no le corresponde a la sesión actual:
  * el inicio de su rol, o el acceso si no hay sesión.
  */
-export const redirectToHome: RedirectFunction = () => {
-  return inject(Router).parseUrl(homeFor(inject(AuthService).user()));
+export const redirectToHome: RedirectFunction = async () => {
+  const router = inject(Router);
+  const auth = inject(AuthService);
+  await auth.waitUntilReady();
+
+  return router.parseUrl(homeFor(auth.user()));
 };
