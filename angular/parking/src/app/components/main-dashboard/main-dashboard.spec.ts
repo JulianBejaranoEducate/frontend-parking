@@ -3,7 +3,6 @@ import { provideRouter } from '@angular/router';
 import {
   type BackendAccessRecord,
   type BackendParkingZone,
-  type BackendVehicleStatus,
   ParkingApiService,
 } from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
 import {
@@ -56,7 +55,14 @@ const record = (
   plate: string,
   entryDateTime: string,
   exitDateTime: string | null,
-): BackendAccessRecord => ({ id, plate, visitorId: null, zoneType: 'moto', entryDateTime, exitDateTime });
+): BackendAccessRecord => ({
+  id,
+  plate,
+  visitorId: null,
+  zoneType: 'moto',
+  entryDateTime,
+  exitDateTime,
+});
 
 /** No extiende ParkingApiService (que inyecta HttpClient) para no tener que proveerlo. */
 class ParkingApiServiceStub {
@@ -79,21 +85,16 @@ class ParkingApiServiceStub {
   historyCalls: string[] = [];
 
   zones(): Promise<BackendParkingZone[]> {
-    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
-  }
-
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
-    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
+    return this.zonesFail
+      ? Promise.reject(new Error('sin conexión'))
+      : Promise.resolve(this.zoneRows);
   }
 
   history(plate: string): Promise<BackendAccessRecord[]> {
     this.historyCalls.push(plate);
-    return this.historyFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.historyByPlate[plate] ?? []);
-  }
-
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
+    return this.historyFail
+      ? Promise.reject(new Error('sin conexión'))
+      : Promise.resolve(this.historyByPlate[plate] ?? []);
   }
 }
 
@@ -132,14 +133,20 @@ describe('MainDashboard', () => {
     component as unknown as {
       greeting: () => string;
       elapsedSince: (date: Date) => string;
-      historyRange: () => number;
-      setHistoryRange: (days: number) => void;
-      filteredStays: () => unknown[];
       vehiclesLoading: () => boolean;
       vehiclesError: () => string | null;
     };
 
   const vehicleRows = () => [...host().querySelectorAll('.vehicle')];
+
+  /** Simula elegir un periodo del historial desde el radiogroup del componente compartido. */
+  const chooseHistoryRange = (days: number) => {
+    const input = [...host().querySelectorAll<HTMLInputElement>('.range__input')].find(
+      (candidate) => Number(candidate.value) === days,
+    );
+    input!.checked = true;
+    input!.dispatchEvent(new Event('change'));
+  };
 
   it('should create', async () => {
     await configure();
@@ -210,7 +217,9 @@ describe('MainDashboard', () => {
     ]);
     await create();
 
-    const titles = vehicleRows().map((row) => row.querySelector('.vehicle__title span')?.textContent?.trim());
+    const titles = vehicleRows().map((row) =>
+      row.querySelector('.vehicle__title span')?.textContent?.trim(),
+    );
     expect(titles).toEqual(['KZT45F', 'Scooter']);
   });
 
@@ -246,9 +255,10 @@ describe('MainDashboard', () => {
     await create();
 
     const labels = [...host().querySelectorAll('.range__label')].map((l) => l.textContent?.trim());
+    const checked = host().querySelector<HTMLInputElement>('.range__input:checked');
 
     expect(labels).toEqual(['1 día', '7 días', '15 días', '30 días']);
-    expect(api().historyRange()).toBe(7);
+    expect(checked?.value).toBe('7');
   });
 
   it('ampliar el periodo nunca muestra menos estancias', async () => {
@@ -258,9 +268,9 @@ describe('MainDashboard', () => {
     const counts: number[] = [];
 
     for (const days of [1, 7, 15, 30]) {
-      api().setHistoryRange(days);
+      chooseHistoryRange(days);
       await fixture.whenStable();
-      counts.push(api().filteredStays().length);
+      counts.push(host().querySelectorAll('.stay').length);
     }
 
     expect(counts).toEqual([...counts].sort((a, b) => a - b));
@@ -271,7 +281,9 @@ describe('MainDashboard', () => {
     await configure();
     await create();
 
-    const headers = [...host().querySelectorAll('.data-table th')].map((th) => th.textContent?.trim());
+    const headers = [...host().querySelectorAll('.data-table th')].map((th) =>
+      th.textContent?.trim(),
+    );
 
     expect(headers).toEqual(['Fecha', 'Placa', 'Entrada', 'Salida', 'Permanencia']);
     expect(host().querySelector('.data-table .chip--inside')?.textContent?.trim()).toBe('En curso');
@@ -283,7 +295,8 @@ describe('MainDashboard', () => {
     await create();
 
     expect(
-      host().querySelector('#history-title')?.closest('.card')?.querySelector('.empty')?.textContent,
+      host().querySelector('#history-title')?.closest('.card')?.querySelector('.empty')
+        ?.textContent,
     ).toContain('No pudimos consultar');
   });
 

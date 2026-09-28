@@ -4,6 +4,7 @@ import { seedRegistrations } from '../demo/seed-registrations';
 import type { Vehicle } from '../models/vehicle';
 import {
   DOCUMENT_LABELS,
+  type BackendVehicleCreation,
   type DeclaredOwner,
   type DocumentKind,
   type RegistrationDocument,
@@ -43,7 +44,9 @@ const STORAGE_KEY = 'registrations';
 
 /** "una moto KZT45F", "una bicicleta Bianchi", "un scooter". */
 export function vehiclePhrase(vehicle: Vehicle): string {
-  const noun = { moto: 'una moto', bicicleta: 'una bicicleta', scooter: 'un scooter' }[vehicle.type];
+  const noun = { moto: 'una moto', bicicleta: 'una bicicleta', scooter: 'un scooter' }[
+    vehicle.type
+  ];
   const detail = vehicle.plate ?? vehicle.brand;
 
   return detail ? `${noun} ${detail}` : noun;
@@ -124,7 +127,10 @@ export class VehicleRegistrationService {
     }
 
     if (input.vehicle.plate && this.isPlateTaken(input.vehicle.plate)) {
-      throw new RegistrationError('plate-taken', `La placa ${input.vehicle.plate} ya está registrada.`);
+      throw new RegistrationError(
+        'plate-taken',
+        `La placa ${input.vehicle.plate} ya está registrada.`,
+      );
     }
 
     if (missingRequiredDocuments(input.vehicle.type, input.documents).length) {
@@ -208,11 +214,16 @@ export class VehicleRegistrationService {
     }
 
     const replaced = new Set(documents.map((document) => document.kind));
-    const merged = [...registration.documents.filter((document) => !replaced.has(document.kind)), ...documents];
+    const merged = [
+      ...registration.documents.filter((document) => !replaced.has(document.kind)),
+      ...documents,
+    ];
 
     this.replace({ ...registration, documents: merged, status: 'pending', updatedAt: new Date() });
 
-    const names = documents.map((document) => DOCUMENT_LABELS[document.kind].toLowerCase()).join(' y ');
+    const names = documents
+      .map((document) => DOCUMENT_LABELS[document.kind].toLowerCase())
+      .join(' y ');
 
     this.notifications.notify({
       kind: 'registration',
@@ -223,13 +234,24 @@ export class VehicleRegistrationService {
     });
   }
 
-  /** Libera el cupo. El historial de entradas y salidas no se toca. */
-  remove(id: string): void {
-    this.requireOwn(id);
-    this._items.update((items) => items.filter((item) => item.id !== id));
+  /**
+   * Deja constancia, en la propia solicitud, de si la creación del vehículo
+   * real en el backend (`VehiclesApiService.postCreate`, llamada aparte de
+   * esta cola de aprobación) tuvo éxito o no. Antes no había ninguna forma de
+   * saberlo mirando solo la solicitud de demostración.
+   */
+  markBackendVehicleCreation(id: string, creation: BackendVehicleCreation): void {
+    const registration = this.find(id);
+
+    if (registration) {
+      this.replace({ ...registration, backendVehicleCreation: creation });
+    }
   }
 
-  private decide(id: string, decision: Omit<ReviewDecision, 'reviewer' | 'decidedAt'>): VehicleRegistration {
+  private decide(
+    id: string,
+    decision: Omit<ReviewDecision, 'reviewer' | 'decidedAt'>,
+  ): VehicleRegistration {
     const user = this.auth.user();
 
     if (user?.role !== 'admin') {
@@ -251,7 +273,10 @@ export class VehicleRegistrationService {
       ...registration,
       status: decision.outcome as RegistrationStatus,
       updatedAt: now,
-      reviews: [...registration.reviews, { ...decision, reviewer: user.displayName, decidedAt: now }],
+      reviews: [
+        ...registration.reviews,
+        { ...decision, reviewer: user.displayName, decidedAt: now },
+      ],
     };
 
     this.replace(updated);

@@ -50,12 +50,17 @@ export type DemoProfile = 'user' | 'admin' | 'security' | 'security-relief';
 
 /** Errores de Firebase traducidos a mensajes que sí puede leer el usuario final. */
 const ERROR_MESSAGES: Record<string, string> = {
-  'auth/popup-closed-by-user': 'Cerraste la ventana de Microsoft antes de terminar. Inténtalo de nuevo.',
+  'auth/popup-closed-by-user':
+    'Cerraste la ventana de Microsoft antes de terminar. Inténtalo de nuevo.',
   'auth/cancelled-popup-request': 'Se canceló el inicio de sesión anterior. Inténtalo de nuevo.',
-  'auth/popup-blocked': 'Tu navegador bloqueó la ventana de Microsoft. Habilita las ventanas emergentes.',
-  'auth/network-request-failed': 'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.',
-  'auth/account-exists-with-different-credential': 'Ya existe una cuenta registrada con ese correo.',
-  'auth/unauthorized-domain': 'Este dominio no está autorizado en Firebase. Avisa al administrador.',
+  'auth/popup-blocked':
+    'Tu navegador bloqueó la ventana de Microsoft. Habilita las ventanas emergentes.',
+  'auth/network-request-failed':
+    'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.',
+  'auth/account-exists-with-different-credential':
+    'Ya existe una cuenta registrada con ese correo.',
+  'auth/unauthorized-domain':
+    'Este dominio no está autorizado en Firebase. Avisa al administrador.',
   'auth/operation-not-allowed': 'El acceso con Microsoft no está habilitado en Firebase.',
   'auth/invalid-domain': `Debes ingresar con tu correo institucional @${BRAND.emailDomain}.`,
 };
@@ -102,16 +107,6 @@ export const DEMO_ACCOUNTS: Record<DemoProfile, AuthUser> = {
     program: PARKING.postName,
   },
 };
-
-/**
- * uid real, sembrado en la base de datos del backend, para poder probar
- * llamadas ya conectadas (registro de vehículos, "Mis vehículos") mientras no
- * hay login con Firebase: la sesión de demostración usa `demo-uid`, que no
- * existe en la base de datos real, así que el backend rechazaría cualquier
- * llamada que lo use como dueño. Cada consumidor decide con `demoMode` entre
- * este valor y el uid de verdad; quitar cuando haya login real.
- */
-export const SEEDED_OWNER_UID = 'Ctj1W2XEcKVNxKt7seae8xvR8fR2';
 
 const DEMO_SESSION_KEY = 'session';
 
@@ -195,6 +190,14 @@ export class AuthService {
       return null;
     }
   }
+
+  /**
+   * uid a usar en las llamadas al backend real del panel de usuario: el de la
+   * cuenta con sesión abierta. Centraliza lo que antes cada consumidor
+   * (`ParkingService`, `MainDashboard`, `Vehicles`, `RegisterVehicle`)
+   * repetía por su cuenta.
+   */
+  readonly effectiveUid = computed(() => this._user()?.uid ?? '');
 
   /**
    * Inicio de sesión institucional con Microsoft (Azure AD) a través de Firebase.
@@ -533,7 +536,9 @@ export class AuthService {
 
   private describe(error: unknown): string {
     const code = (error as { code?: string })?.code ?? '';
-    return ERROR_MESSAGES[code] ?? 'No pudimos iniciar sesión. Inténtalo de nuevo en unos segundos.';
+    return (
+      ERROR_MESSAGES[code] ?? 'No pudimos iniciar sesión. Inténtalo de nuevo en unos segundos.'
+    );
   }
 
   /** Sustituto mientras firebase.config.ts no tenga credenciales reales. */

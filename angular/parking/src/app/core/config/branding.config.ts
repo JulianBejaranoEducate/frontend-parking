@@ -64,8 +64,8 @@ export const BRAND: BrandConfig = {
   tagline: 'Sistema de control y gestión de parqueadero',
   logoUrl: 'brand/logo_uniempresarial.png',
   logoAlt: 'Uniempresarial - Fundación Universitaria Empresarial',
-  logoWidth: 1600,
-  logoHeight: 1600,
+  logoWidth: 336,
+  logoHeight: 336,
   emailDomain: 'uniempresarial.edu.co',
   supportEmail: 'soporte@uniempresarial.edu.co',
   theme: {

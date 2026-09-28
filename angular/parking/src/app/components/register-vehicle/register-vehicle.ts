@@ -39,11 +39,14 @@ import {
   type VehicleRegistration,
   latestReview,
 } from '../../core/models/vehicle-registration';
-import { AuthService, SEEDED_OWNER_UID } from '../../core/services/auth.service';
-import { StudentsApiService } from '../../core/services/modules/students-student-panel/students-api.sp.service';
+import { AuthService } from '../../core/services/auth.service';
 import { VehiclesApiService } from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
+import { StudentsService } from '../../core/services/students.service';
 import { UploadService } from '../../core/services/upload.service';
-import { RegistrationError, VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
+import {
+  RegistrationError,
+  VehicleRegistrationService,
+} from '../../core/services/vehicle-registration.service';
 
 type Step = 'type' | 'details' | 'documents' | 'review' | 'done';
 
@@ -69,7 +72,14 @@ const FIELDS_BY_TYPE: Record<VehicleType, readonly FieldName[]> = {
   scooter: ['brand', 'color'],
 };
 
-const ALL_FIELDS: readonly FieldName[] = ['plate', 'brand', 'line', 'modelYear', 'color', 'frameSerial'];
+const ALL_FIELDS: readonly FieldName[] = [
+  'plate',
+  'brand',
+  'line',
+  'modelYear',
+  'color',
+  'frameSerial',
+];
 
 /** Placa de moto colombiana. La letra final es opcional en motos antiguas. */
 const PLATE_PATTERN = /^[A-Z]{3}\d{2}[A-Z]?$/;
@@ -105,17 +115,17 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
  * bloquea ni muestra error, para no depender de que el backend esté
  * disponible en ese momento.
  *
- * El dueño que se manda en esa llamada es `SEEDED_OWNER_UID` mientras la
- * sesión sea de demostración (`auth.demoMode`): el uid simulado no existe en
- * la base de datos real. Con login de Firebase, pasa solo a usar el uid real.
+ * El dueño que se manda en esa llamada sale de `AuthService.effectiveUid()`:
+ * el uid real de la cuenta con sesión abierta.
  *
  * El tope de {@link MAX_VEHICLES_PER_USER} vehículos se evalúa contra los
- * vehículos reales del usuario (`StudentsApiService.findById`, el mismo
- * `GET /users/:id` que alimenta "Mis vehículos" en el dashboard) — no contra
- * cuántas solicitudes de demostración existan en `VehicleRegistrationService`.
- * Antes eran el mismo número; ahora que "Mis vehículos" sale del backend real,
- * comparar contra la demo bloqueaba (o dejaba pasar) según datos que ya no
- * tienen relación con lo que el usuario ve en su propio dashboard.
+ * vehículos reales del usuario (`StudentsService`, compartido con
+ * `MainDashboard` y `Vehicles`; el mismo `GET /users/:id` que alimenta "Mis
+ * vehículos" en el dashboard) — no contra cuántas solicitudes de demostración
+ * existan en `VehicleRegistrationService`. Antes eran el mismo número; ahora
+ * que "Mis vehículos" sale del backend real, comparar contra la demo
+ * bloqueaba (o dejaba pasar) según datos que ya no tienen relación con lo que
+ * el usuario ve en su propio dashboard.
  */
 @Component({
   imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink],
@@ -130,7 +140,7 @@ export class RegisterVehicle {
   private readonly auth = inject(AuthService);
   private readonly registrations = inject(VehicleRegistrationService);
   private readonly vehicleApi = inject(VehiclesApiService);
-  private readonly studentsApi = inject(StudentsApiService);
+  private readonly studentsService = inject(StudentsService);
   private readonly uploads = inject(UploadService);
   private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder);
@@ -146,9 +156,10 @@ export class RegisterVehicle {
 
   // ---- Tope de vehículos (contra el backend real, no contra la demo) -----------
   protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
-  protected readonly vehiclesCountLoading = signal(true);
-  protected readonly vehiclesCount = signal(0);
-  protected readonly canRegisterMore = computed(() => this.vehiclesCount() < this.maxVehicles);
+  protected readonly vehiclesCountLoading = this.studentsService.loading;
+  protected readonly canRegisterMore = computed(
+    () => this.studentsService.vehicles().length < this.maxVehicles,
+  );
 
   // ---- Modo actualización ------------------------------------------------------------
 
@@ -186,7 +197,11 @@ export class RegisterVehicle {
   protected readonly form = this.fb.nonNullable.group({
     plate: [
       '',
-      [Validators.required, Validators.pattern(PLATE_PATTERN), (control: AbstractControl) => this.plateTaken(control)],
+      [
+        Validators.required,
+        Validators.pattern(PLATE_PATTERN),
+        (control: AbstractControl) => this.plateTaken(control),
+      ],
     ],
     brand: ['', [Validators.required, Validators.maxLength(30)]],
     line: ['', [Validators.required, Validators.maxLength(40)]],
@@ -199,9 +214,12 @@ export class RegisterVehicle {
     frameSerial: ['', [Validators.pattern(SERIAL_PATTERN)]],
   });
 
-  private readonly formValue = toSignal(this.form.valueChanges.pipe(map(() => this.form.getRawValue())), {
-    initialValue: this.form.getRawValue(),
-  });
+  private readonly formValue = toSignal(
+    this.form.valueChanges.pipe(map(() => this.form.getRawValue())),
+    {
+      initialValue: this.form.getRawValue(),
+    },
+  );
 
   protected readonly detailsAttempted = signal(false);
 
@@ -231,7 +249,9 @@ export class RegisterVehicle {
   });
 
   protected readonly missingDocuments = computed(() =>
-    this.requirements().filter((requirement) => requirement.required && !this.documents()[requirement.kind]),
+    this.requirements().filter(
+      (requirement) => requirement.required && !this.documents()[requirement.kind],
+    ),
   );
 
   // ---- Envío -----------------------------------------------------------------------------------
@@ -248,30 +268,13 @@ export class RegisterVehicle {
 
   constructor() {
     this.syncEnabledFields(null);
-    void this.loadVehiclesCount();
-  }
-
-  /**
-   * Cuántos vehículos institucionales tiene de verdad el usuario, según el
-   * backend real (`GET /users/:id`, sin Firebase — mismo `SEEDED_OWNER_UID`
-   * que usa `MainDashboard`). Decide si se puede seguir con el registro.
-   *
-   * Falla abierto: si la consulta falla, no bloquea el registro por un
-   * problema de red — el tope de {@link MAX_VEHICLES_PER_USER} es una regla
-   * del frontend, el backend no la exige todavía (PEN-020).
-   */
-  private async loadVehiclesCount(): Promise<void> {
-    this.vehiclesCountLoading.set(true);
-
-    try {
-      const uid = this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? '');
-      const student = await this.studentsApi.findById(uid);
-      this.vehiclesCount.set(student.vehicles.length);
-    } catch {
-      // Falla abierto: ver doc de arriba.
-    } finally {
-      this.vehiclesCountLoading.set(false);
-    }
+    // Cuántos vehículos institucionales tiene de verdad el usuario (StudentsService,
+    // compartido con MainDashboard y Vehicles), para decidir si puede seguir con el
+    // registro. Falla abierto: si la consulta falla, `canRegisterMore` queda en true
+    // (`vehicles()` sigue vacío) y no bloquea el registro por un problema de red — el
+    // tope de MAX_VEHICLES_PER_USER es una regla del frontend, el backend no la exige
+    // todavía (PEN-020).
+    void this.studentsService.refresh().catch(() => {});
   }
 
   // ---- Navegación ----------------------------------------------------------------------------------
@@ -327,7 +330,11 @@ export class RegisterVehicle {
   }
 
   protected back(): void {
-    const previous: Partial<Record<Step, Step>> = { details: 'type', documents: 'details', review: 'documents' };
+    const previous: Partial<Record<Step, Step>> = {
+      details: 'type',
+      documents: 'details',
+      review: 'documents',
+    };
     const target = previous[this.step()];
 
     if (target) {
@@ -348,9 +355,10 @@ export class RegisterVehicle {
     }
 
     const vehicle = this.buildVehicle();
+    let registration: VehicleRegistration;
 
     try {
-      const registration = this.registrations.submit({
+      registration = this.registrations.submit({
         owner: this.buildOwner(),
         vehicle,
         documents: Object.values(this.documents()),
@@ -360,7 +368,9 @@ export class RegisterVehicle {
       this.goTo('done');
     } catch (error) {
       this.submitError.set(
-        error instanceof RegistrationError ? error.message : 'No pudimos enviar la solicitud. Inténtalo de nuevo.',
+        error instanceof RegistrationError
+          ? error.message
+          : 'No pudimos enviar la solicitud. Inténtalo de nuevo.',
       );
       return;
     }
@@ -370,22 +380,33 @@ export class RegisterVehicle {
     // las dos cosas (PEN-020). Además de eso, se crea el vehículo de verdad
     // con lo que el backend sí acepta hoy — sin bloquear ni mostrar error si
     // falla, para no depender de que el backend esté disponible en este momento.
+    // El resultado de este intento (éxito o fallo) queda en la propia
+    // solicitud (`backendVehicleCreation`): antes no había forma de saberlo
+    // mirándola después.
     try {
-      await this.vehicleApi.postCreate({
+      const created = await this.vehicleApi.postCreate({
         type: vehicle.type,
         brand: vehicle.brand ?? '',
         model: vehicle.modelYear ?? CURRENT_YEAR,
         color: vehicle.color ?? '',
-        ownerUid: this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? ''),
+        ownerUid: this.auth.effectiveUid(),
         ...(vehicle.plate ? { plate: vehicle.plate } : {}),
       });
+      this.registrations.markBackendVehicleCreation(registration.id, {
+        status: 'created',
+        vehicleId: created.plate,
+      });
     } catch (error) {
-      console.error('No se pudo crear el vehículo en el backend real (la solicitud sí quedó guardada):', error);
+      console.error(
+        'No se pudo crear el vehículo en el backend real (la solicitud sí quedó guardada):',
+        error,
+      );
+      this.registrations.markBackendVehicleCreation(registration.id, { status: 'failed' });
     }
 
     // Se acaba de crear (o al menos intentar) un vehículo real: el tope de la
     // próxima vez que se entre a este formulario debe reflejarlo.
-    void this.loadVehiclesCount();
+    void this.studentsService.refresh().catch(() => {});
   }
 
   /** Empieza de cero para registrar otro vehículo. */
@@ -529,7 +550,9 @@ export class RegisterVehicle {
       this.goTo('done');
     } catch (error) {
       this.submitError.set(
-        error instanceof RegistrationError ? error.message : 'No pudimos enviar el documento. Inténtalo de nuevo.',
+        error instanceof RegistrationError
+          ? error.message
+          : 'No pudimos enviar el documento. Inténtalo de nuevo.',
       );
     }
   }
@@ -620,7 +643,9 @@ export class RegisterVehicle {
   private goTo(step: Step): void {
     this.step.set(step);
     // El título del paso recibe el foco: el lector de pantalla anuncia dónde está.
-    afterNextRender(() => document.getElementById('step-title')?.focus(), { injector: this.injector });
+    afterNextRender(() => document.getElementById('step-title')?.focus(), {
+      injector: this.injector,
+    });
   }
 
   private focusFirstInvalid(): void {

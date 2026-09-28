@@ -1,4 +1,13 @@
-import { Component, type ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  type ElementRef,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { AFFILIATION_LABELS, AuthService } from '../../core/services/auth.service';
 import { Notifications } from '../notifications/notifications';
@@ -23,6 +32,8 @@ export class Header {
   readonly menuOpen = input(false);
   /** Texto de ayuda del buscador; cada rol explica qué se puede buscar. */
   readonly searchPlaceholder = input('Buscar');
+  /** false si el dashboard activo no tiene ninguna búsqueda que ofrecer (PEN-005). */
+  readonly searchEnabled = input(true);
   readonly menuToggled = output<void>();
   /** Búsqueda enviada, ya recortada; nunca vacía. */
   readonly searched = output<string>();

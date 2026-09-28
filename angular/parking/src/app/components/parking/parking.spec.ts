@@ -1,10 +1,15 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type BackendVehicle, VehicleApiService } from '../../core/services/modules/security-dashboard/vehicle-api.service';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
+import {
+  type BackendVehicle,
+  VehicleApiService,
+} from '../../core/services/modules/security-dashboard/vehicle-api.service';
+import {
+  type BackendVisitor,
+  VisitorApiService,
+} from '../../core/services/modules/visitors/visitor-api.service';
 import {
   type BackendAccessRecord,
   type BackendParkingZone,
-  type BackendVehicleStatus,
   ParkingApiService,
 } from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
 import {
@@ -101,20 +106,13 @@ class ParkingApiServiceStub {
   zonesFail = false;
 
   zones(): Promise<BackendParkingZone[]> {
-    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
-  }
-
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
-    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
+    return this.zonesFail
+      ? Promise.reject(new Error('sin conexión'))
+      : Promise.resolve(this.zoneRows);
   }
 
   history(_plate: string): Promise<BackendAccessRecord[]> {
     return Promise.resolve([]);
-  }
-
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
   }
 }
 
@@ -185,7 +183,10 @@ describe('Parking', () => {
   it('cuenta por separado los institucionales y los visitantes que siguen dentro', async () => {
     await configure();
     vehicleApi.vehicles = [vehicle('ABC123', 'moto'), vehicle('XYZ987', 'moto')];
-    visitorApi.visitors = [visitor(1, 'bicicleta', null), visitor(2, 'scooter', '2026-09-26T10:00:00.000Z')];
+    visitorApi.visitors = [
+      visitor(1, 'bicicleta', null),
+      visitor(2, 'scooter', '2026-09-26T10:00:00.000Z'),
+    ];
     await create();
 
     expect(api().institutionalInside()).toBe(2);
@@ -228,6 +229,8 @@ describe('Parking', () => {
     await configure();
     await create();
 
-    expect(host().querySelector('.zones__disclaimer')?.textContent).toContain('no garantiza un cupo reservado');
+    expect(host().querySelector('.zones__disclaimer')?.textContent).toContain(
+      'no garantiza un cupo reservado',
+    );
   });
 });

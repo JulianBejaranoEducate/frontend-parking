@@ -19,6 +19,7 @@
   <div class="content">
     <app-header
       [menuOpen]="menuOpen()"
+      [searchEnabled]="!!navigation.search"
       [searchPlaceholder]="navigation.search?.placeholder ?? 'Buscar'"
       (menuToggled)="toggleMenu()"
       (searched)="search($event)"

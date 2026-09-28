@@ -9,7 +9,12 @@ import { type Vehicle, type VehicleType, vehicleTitle } from './vehicle';
 
 // ---- Cupos y ocupación ----------------------------------------------------------------
 
-/** Cupo de un tipo de vehículo, tal como lo configura cada institución. */
+/**
+ * Identidad de una zona, tal como la configura cada institución: solo su id y
+ * su nombre visible. El cupo ya no vive aquí (ADR-021): la capacidad real la
+ * expone el backend (`GET /parkingZone`, ver `ParkingService`), así que
+ * `ParkingZone` la declara aparte, con el dato que sí llega de verdad.
+ */
 export interface ZoneCapacity {
   /** Identificador estable de la zona, p. ej. `motos`. */
   id: string;
@@ -17,12 +22,12 @@ export interface ZoneCapacity {
   name: string;
   /** Tipo de vehículo que ocupa estos puestos. */
   accepts: VehicleType;
-  /** Total de puestos para ese tipo. */
-  capacity: number;
 }
 
-/** Una zona con su ocupación en este momento. */
+/** Una zona con su cupo real y su ocupación en este momento. */
 export interface ParkingZone extends ZoneCapacity {
+  /** Total de puestos para este tipo, tal como lo informa el backend. */
+  capacity: number;
   /** Vehículos de este tipo que están dentro. */
   occupied: number;
 }
@@ -290,7 +295,9 @@ export function isLongStay(stay: ParkingStay, hours: number, now: Date = new Dat
  * @example stayPersonLabel(stay) // "Visitante · Reunión en Admisiones"
  */
 export function stayPersonLabel(stay: ParkingStay): string {
-  return stay.subject.kind === 'visitor' ? `Visitante · ${stay.subject.reason}` : 'Comunidad universitaria';
+  return stay.subject.kind === 'visitor'
+    ? `Visitante · ${stay.subject.reason}`
+    : 'Comunidad universitaria';
 }
 
 /** Inicio del día (00:00 local) de la fecha dada. */
@@ -317,7 +324,11 @@ const DAY_MS = 86_400_000;
  * Ventanas móviles contadas desde ahora: "7 días" son las últimas 168 horas,
  * no la semana calendario. Así las cuatro opciones se comportan igual.
  */
-export function staysWithinDays<T extends Stay>(stays: readonly T[], days: number, now: Date = new Date()): T[] {
+export function staysWithinDays<T extends Stay>(
+  stays: readonly T[],
+  days: number,
+  now: Date = new Date(),
+): T[] {
   const from = now.getTime() - days * DAY_MS;
   return stays.filter((stay) => stay.enteredAt.getTime() >= from);
 }

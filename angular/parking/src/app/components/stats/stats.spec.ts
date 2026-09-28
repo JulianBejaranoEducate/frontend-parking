@@ -2,7 +2,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
   type BackendAccessRecord,
   type BackendParkingZone,
-  type BackendVehicleStatus,
   ParkingApiService,
 } from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
 import {
@@ -70,17 +69,10 @@ class ParkingApiServiceStub {
     return Promise.resolve(this.zoneRows);
   }
 
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
-    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
-  }
-
   history(plate: string): Promise<BackendAccessRecord[]> {
-    return this.historyFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.historyByPlate[plate] ?? []);
-  }
-
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
+    return this.historyFail
+      ? Promise.reject(new Error('sin conexión'))
+      : Promise.resolve(this.historyByPlate[plate] ?? []);
   }
 }
 
@@ -118,11 +110,19 @@ describe('Stats', () => {
       loading: () => boolean;
       error: () => string | null;
       historyRange: () => number;
-      setHistoryRange: (days: number) => void;
       filteredStays: () => unknown[];
       averageStayLabel: () => string;
       perVehicle: () => { label: string; count: number }[];
     };
+
+  /** Simula elegir un periodo del historial desde el radiogroup del componente compartido. */
+  const chooseHistoryRange = (days: number) => {
+    const input = [...host().querySelectorAll<HTMLInputElement>('.range__input')].find(
+      (candidate) => Number(candidate.value) === days,
+    );
+    input!.checked = true;
+    input!.dispatchEvent(new Event('change'));
+  };
 
   it('should create', async () => {
     await configure();
@@ -163,7 +163,7 @@ describe('Stats', () => {
 
     const before = api().filteredStays().length;
 
-    api().setHistoryRange(1);
+    chooseHistoryRange(1);
     await fixture.whenStable();
 
     expect(api().filteredStays().length).toBeLessThanOrEqual(before);

@@ -100,6 +100,12 @@ describe('RegisterVehicle', () => {
   let studentsApi: StudentsApiServiceStub;
 
   const configure = async () => {
+    // VehicleRegistrationService persiste en localStorage de verdad (demo-storage.ts):
+    // sin limpiarlo, una prueba que deje una solicitud sembrada en otro estado
+    // (p. ej. "actualizar un documento pedido") se filtra a la siguiente prueba de
+    // este archivo, que arranca esperando el estado original de la semilla.
+    localStorage.clear();
+
     vehicleApi = new VehiclesApiServiceStub();
     studentsApi = new StudentsApiServiceStub();
 
@@ -134,11 +140,14 @@ describe('RegisterVehicle', () => {
 
   const attach = (kind: DocumentKind) =>
     api().onFileSelected(
-      { target: { files: [new File(['x'], 'tarjeta.jpg', { type: 'image/jpeg' })], value: '' } } as unknown as Event,
+      {
+        target: { files: [new File(['x'], 'tarjeta.jpg', { type: 'image/jpeg' })], value: '' },
+      } as unknown as Event,
       kind,
     );
 
-  const acceptDeclaration = () => api().toggleDeclaration({ target: { checked: true } } as unknown as Event);
+  const acceptDeclaration = () =>
+    api().toggleDeclaration({ target: { checked: true } } as unknown as Event);
 
   describe('registro nuevo', () => {
     beforeEach(async () => {
@@ -192,7 +201,14 @@ describe('RegisterVehicle', () => {
       }
       // El backend real exige marca en los tres tipos, sin excepción: ya no es opcional.
       expect(host().querySelector('label[for="brand"]')?.textContent).not.toContain('(opcional)');
-      for (const id of ['plate', 'frameSerial', 'firstName', 'lastName', 'documentType', 'documentNumber']) {
+      for (const id of [
+        'plate',
+        'frameSerial',
+        'firstName',
+        'lastName',
+        'documentType',
+        'documentNumber',
+      ]) {
         expect(host().querySelector(`#${id}`), id).toBeNull();
       }
 
@@ -220,7 +236,9 @@ describe('RegisterVehicle', () => {
       api().form.controls.plate.markAsTouched();
       await render();
 
-      expect(host().querySelector('#plate-error')?.textContent).toContain('ya tiene un registro vigente');
+      expect(host().querySelector('#plate-error')?.textContent).toContain(
+        'ya tiene un registro vigente',
+      );
     });
 
     it('una moto completa llega a la administración como pendiente, con el dueño de la sesión', async () => {
@@ -271,7 +289,13 @@ describe('RegisterVehicle', () => {
     it('además de la solicitud, crea el vehículo de verdad en el backend real', async () => {
       api().chooseType('moto');
       api().continueFromType();
-      api().form.patchValue({ plate: 'RTG34K', brand: 'Honda', line: 'CB 125F', modelYear: 2023, color: 'Rojo' });
+      api().form.patchValue({
+        plate: 'RTG34K',
+        brand: 'Honda',
+        line: 'CB 125F',
+        modelYear: 2023,
+        color: 'Rojo',
+      });
       api().continueFromDetails();
       await attach('property-card-front');
       api().continueFromDocuments();
@@ -285,9 +309,8 @@ describe('RegisterVehicle', () => {
         color: 'Rojo',
         model: 2023,
         plate: 'RTG34K',
-        // En modo demostración se manda el uid real sembrado (no 'demo-uid',
-        // que no existe en la base de datos real): ver SEEDED_OWNER_UID.
-        ownerUid: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
+        // El uid real de la cuenta con sesión (DEMO_ACCOUNTS.user en esta prueba).
+        ownerUid: 'demo-uid',
       });
       // La "línea" no existe en el backend real: no se manda, aunque se guarde en la solicitud de demo.
       expect(vehicleApi.calls[0]).not.toHaveProperty('line');
@@ -318,7 +341,12 @@ describe('RegisterVehicle', () => {
       api().submit();
 
       const created = registrations.find(api().submitted()?.id);
-      expect(created?.vehicle).toEqual({ type: 'bicicleta', brand: 'Trek', color: 'Verde', frameSerial: 'WTU123456' });
+      expect(created?.vehicle).toEqual({
+        type: 'bicicleta',
+        brand: 'Trek',
+        color: 'Verde',
+        frameSerial: 'WTU123456',
+      });
       expect(created?.owner).toEqual({ firstName: 'Julian', lastName: 'Bejarano' });
       expect(created?.documents).toEqual([]);
     });
@@ -370,7 +398,9 @@ describe('RegisterVehicle', () => {
       ];
       await create();
 
-      expect(host().querySelector('#step-title')?.textContent).toContain('Llegaste al máximo de vehículos');
+      expect(host().querySelector('#step-title')?.textContent).toContain(
+        'Llegaste al máximo de vehículos',
+      );
       expect(host().querySelectorAll('.type')).toHaveLength(0);
     });
 
@@ -382,16 +412,22 @@ describe('RegisterVehicle', () => {
 
         // La demostración (uid 'demo-uid') llega a su propio tope de 5 solicitudes,
         // sin relación con los vehículos reales del uid sembrado que usa el backend.
-        const bike = { owner: { firstName: 'Julian', lastName: 'Bejarano' }, vehicle: { type: 'bicicleta' as const }, documents: [] };
+        const bike = {
+          owner: { firstName: 'Julian', lastName: 'Bejarano' },
+          vehicle: { type: 'bicicleta' as const },
+          documents: [],
+        };
         registrations.submit(bike);
         registrations.submit(bike);
         expect(registrations.mine().length).toBeGreaterThanOrEqual(5);
 
-        // El backend real (SEEDED_OWNER_UID) solo tiene 2 vehículos.
+        // El backend real (el uid de la sesión) solo tiene 2 vehículos.
         studentsApi.vehicles = [backendVehicle('AAA11A'), backendVehicle('BBB22B')];
         await create();
 
-        expect(host().querySelector('#step-title')?.textContent).not.toContain('Llegaste al máximo');
+        expect(host().querySelector('#step-title')?.textContent).not.toContain(
+          'Llegaste al máximo',
+        );
         expect(host().querySelectorAll('.type')).toHaveLength(3);
       },
     );
@@ -441,7 +477,9 @@ describe('RegisterVehicle', () => {
     it('no deja actualizar solicitudes ajenas', async () => {
       await create('reg-camila');
 
-      expect(host().querySelector('#step-title')?.textContent).toContain('No hay nada que actualizar');
+      expect(host().querySelector('#step-title')?.textContent).toContain(
+        'No hay nada que actualizar',
+      );
     });
   });
 });

@@ -18,7 +18,8 @@
           Adentro
         </p>
         <p class="tile__note">
-          {{ vehicleTitle(stay.vehicle) }} lleva {{ elapsedSince(stay.enteredAt) }} en {{ stay.zoneName }}.
+          {{ vehicleTitle(stay.vehicle) }} lleva {{ elapsedSince(stay.enteredAt) }} en
+          {{ stay.zoneName }}.
         </p>
       } @else {
         <p class="tile__value">
@@ -131,7 +132,9 @@
                   @default {
                     <circle cx="5.5" cy="16.5" r="3.5" />
                     <circle cx="18.5" cy="16.5" r="3.5" />
-                    <path d="M5.5 16.5H12L9 9zM9 9h6.5l3 7.5M15.5 9 12 16.5M9 9V7M7.5 7h3M15.5 9l-1-2.5M13.5 6.5h2.5" />
+                    <path
+                      d="M5.5 16.5H12L9 9zM9 9h6.5l3 7.5M15.5 9 12 16.5M9 9V7M7.5 7h3M15.5 9l-1-2.5M13.5 6.5h2.5"
+                    />
                   }
                 }
               </svg>
@@ -140,12 +143,21 @@
             <div class="vehicle__info">
               <p class="vehicle__title">
                 <span [class.plate]="!!vehicle.plate">{{ vehicleTitle(vehicle) }}</span>
-                <span class="chip" [class]="'chip ' + (vehicle.isAuthorized ? 'chip--inside' : 'chip--neutral')">
+                <span
+                  class="chip"
+                  [class]="'chip ' + (vehicle.isAuthorized ? 'chip--inside' : 'chip--neutral')"
+                >
                   <svg class="chip__icon" viewBox="0 0 24 24" aria-hidden="true">
                     @if (vehicle.isAuthorized) {
-                      <path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" />
+                      <path
+                        d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z"
+                        fill="currentColor"
+                      />
                     } @else {
-                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16" fill="currentColor" />
+                      <path
+                        d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20m0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16"
+                        fill="currentColor"
+                      />
                     }
                   </svg>
                   {{ statusLabel(vehicle) }}
@@ -164,103 +176,5 @@
   </section>
 
   <!-- ===================== Historial de entradas y salidas ===================== -->
-  <section class="card" aria-labelledby="history-title">
-    <div class="card__head">
-      <h2 class="card__title" id="history-title">Historial de entradas y salidas</h2>
-
-      <div class="range" role="radiogroup" aria-label="Periodo del historial">
-        @for (option of historyRanges; track option.days) {
-          <label class="range__option">
-            <input
-              class="range__input"
-              type="radio"
-              name="history-range"
-              [value]="option.days"
-              [checked]="historyRange() === option.days"
-              (change)="setHistoryRange(option.days)"
-            />
-            <span class="range__label">{{ option.label }}</span>
-          </label>
-        }
-      </div>
-    </div>
-
-    @if (staysLoading()) {
-      <p class="empty">Consultando tu historial…</p>
-    } @else if (staysError(); as message) {
-      <p class="empty">{{ message }}</p>
-    } @else if (filteredStays().length) {
-      <!-- Escritorio y tablet: tabla. -->
-      <div class="history-table">
-        <table class="data-table" aria-labelledby="history-title">
-          <thead>
-            <tr>
-              <th scope="col">Fecha</th>
-              <th scope="col">Placa</th>
-              <th scope="col">Entrada</th>
-              <th scope="col">Salida</th>
-              <th scope="col">Permanencia</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (stay of filteredStays(); track stay.id) {
-              <tr>
-                <td class="data-table__muted">{{ formatDate(stay.enteredAt) }}</td>
-                <td>
-                  <span [class.plate]="!!stay.vehicle.plate">{{ vehicleTitle(stay.vehicle) }}</span>
-                </td>
-                <td>
-                  <time class="time time--in" [attr.datetime]="stay.enteredAt.toISOString()">
-                    {{ formatTime(stay.enteredAt) }}
-                  </time>
-                </td>
-                <td>
-                  @if (stay.exitedAt; as exitedAt) {
-                    <time class="time time--out" [attr.datetime]="exitedAt.toISOString()">
-                      {{ formatTime(exitedAt) }}
-                    </time>
-                  } @else {
-                    <span class="chip chip--inside">En curso</span>
-                  }
-                </td>
-                <td class="data-table__muted">{{ stayDuration(stay) }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Móvil: la tabla no cabe, cada estancia es una tarjeta. -->
-      <ul class="stays">
-        @for (stay of filteredStays(); track stay.id) {
-          <li class="stay">
-            <div class="stay__head">
-              <span class="stay__date">{{ formatDate(stay.enteredAt) }}</span>
-              <span [class.plate]="!!stay.vehicle.plate">{{ vehicleTitle(stay.vehicle) }}</span>
-            </div>
-            <dl class="stay__times">
-              <div>
-                <dt>Entrada</dt>
-                <dd class="time time--in">{{ formatTime(stay.enteredAt) }}</dd>
-              </div>
-              <div>
-                <dt>Salida</dt>
-                @if (stay.exitedAt; as exitedAt) {
-                  <dd class="time time--out">{{ formatTime(exitedAt) }}</dd>
-                } @else {
-                  <dd><span class="chip chip--inside">En curso</span></dd>
-                }
-              </div>
-              <div>
-                <dt>Permanencia</dt>
-                <dd>{{ stayDuration(stay) }}</dd>
-              </div>
-            </dl>
-          </li>
-        }
-      </ul>
-    } @else {
-      <p class="empty">No hay movimientos en este periodo.</p>
-    }
-  </section>
+  <app-stay-history [stays]="stays()" [loading]="staysLoading()" [error]="staysError()" />
 </main>

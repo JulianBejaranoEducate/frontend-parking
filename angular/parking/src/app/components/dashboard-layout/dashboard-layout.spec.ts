@@ -14,7 +14,9 @@ describe('DashboardLayout', () => {
         provideRouter([]),
         provideDashboardNavigation(() => ({
           context: 'Pruebas',
-          items: signal([{ id: 'uno', label: 'Opción de prueba', icon: 'M0 0h24v24H0z', route: '/uno' }]),
+          items: signal([
+            { id: 'uno', label: 'Opción de prueba', icon: 'M0 0h24v24H0z', route: '/uno' },
+          ]),
         })),
       ],
     }).compileComponents();
@@ -26,7 +28,9 @@ describe('DashboardLayout', () => {
   const host = () => fixture.nativeElement as HTMLElement;
 
   it('pinta el menú y el contexto que aporta el grupo de rutas, y nada más', () => {
-    const labels = [...host().querySelectorAll('.menu__label')].map((item) => item.textContent?.trim());
+    const labels = [...host().querySelectorAll('.menu__label')].map((item) =>
+      item.textContent?.trim(),
+    );
 
     expect(labels).toEqual(['Opción de prueba']);
     expect(host().querySelector('.sidebar__context')?.textContent?.trim()).toBe('Pruebas');
@@ -47,8 +51,9 @@ describe('DashboardLayout', () => {
     expect(shell().classList.contains('shell--menu-open')).toBe(!before);
   });
 
-  it('sin buscador propio, el header muestra el texto genérico', () => {
-    expect(host().querySelector<HTMLInputElement>('.topbar__center .search__input')?.placeholder).toBe('Buscar');
+  it('sin buscador propio, el header no ofrece ningún campo de búsqueda (PEN-005)', () => {
+    expect(host().querySelector('.search__input')).toBeNull();
+    expect(host().querySelector('.icon-btn--search')).toBeNull();
   });
 });
 
@@ -63,7 +68,10 @@ describe('DashboardLayout con buscador', () => {
         provideDashboardNavigation(() => ({
           context: 'Pruebas',
           items: signal([]),
-          search: { placeholder: 'Buscar placa o documento', submit: (query) => queries.push(query) },
+          search: {
+            placeholder: 'Buscar placa o documento',
+            submit: (query) => queries.push(query),
+          },
         })),
       ],
     }).compileComponents();

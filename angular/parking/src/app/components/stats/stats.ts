@@ -1,16 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import {
-  HISTORY_RANGES,
   type HistoryRange,
-  type Stay,
   averageStayDurationMs,
   entriesByVehicle,
   formatDuration,
-  stayDurationMs,
   staysWithinDays,
 } from '../../core/models/parking';
-import { vehicleTitle } from '../../core/models/vehicle';
 import { ParkingService } from '../../core/services/parking.service';
+import { StayHistory } from '../stay-history/stay-history';
 
 /**
  * Estadísticas personales de uso del parqueadero (Opción A de
@@ -28,6 +25,7 @@ import { ParkingService } from '../../core/services/parking.service';
  * filtrado por su dueño.
  */
 @Component({
+  imports: [StayHistory],
   selector: 'app-stats',
   styleUrl: './stats.css',
   templateUrl: './stats.html',
@@ -35,13 +33,21 @@ import { ParkingService } from '../../core/services/parking.service';
 export class Stats {
   private readonly parking = inject(ParkingService);
 
-  protected readonly vehicleTitle = vehicleTitle;
   protected readonly loading = this.parking.staysLoading;
   protected readonly error = this.parking.staysError;
-  protected readonly historyRanges = HISTORY_RANGES;
+  protected readonly stays = this.parking.stays;
+
+  /**
+   * Periodo elegido, atado con `[(range)]` al selector que vive en
+   * `<app-stay-history>`: esta pantalla necesita leerlo de vuelta para que
+   * "Duración promedio" y "Entradas por vehículo" usen el mismo periodo que
+   * el historial, sin duplicar aquí el selector ni la tabla.
+   */
   protected readonly historyRange = signal<HistoryRange>(30);
 
-  protected readonly filteredStays = computed(() => staysWithinDays(this.parking.stays(), this.historyRange()));
+  protected readonly filteredStays = computed(() =>
+    staysWithinDays(this.stays(), this.historyRange()),
+  );
 
   protected readonly averageStayLabel = computed(() => {
     const stays = this.filteredStays();
@@ -50,22 +56,4 @@ export class Stats {
 
   /** Entradas por vehículo en el periodo elegido, de más a menos. */
   protected readonly perVehicle = computed(() => entriesByVehicle(this.filteredStays()));
-
-  protected setHistoryRange(days: HistoryRange): void {
-    this.historyRange.set(days);
-  }
-
-  /** Ej. "vie, 12 sept". */
-  protected formatDate(date: Date): string {
-    return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-
-  /** Ej. "7:32 a. m." */
-  protected formatTime(date: Date): string {
-    return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
-  }
-
-  protected stayDuration(stay: Stay): string {
-    return formatDuration(stayDurationMs(stay));
-  }
 }

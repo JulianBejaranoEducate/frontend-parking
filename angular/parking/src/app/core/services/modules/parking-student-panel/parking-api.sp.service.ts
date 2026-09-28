@@ -32,14 +32,6 @@ export interface BackendAccessRecord {
   exitDateTime: string | null;
 }
 
-/** Resumen del estado actual de un vehículo, por placa. */
-export interface BackendVehicleStatus {
-  plate: string;
-  isInside: boolean;
-  entryDateTime: string | null;
-  exitDateTime: string | null;
-}
-
 @Injectable({ providedIn: 'root' })
 export class ParkingApiService {
   private readonly http = inject(HttpClient);
@@ -51,23 +43,10 @@ export class ParkingApiService {
     return firstValueFrom(this.http.get<BackendParkingZone[]>(this.baseUrlZones));
   }
 
-  /** Capacidad y disponibilidad de una sola zona, por tipo de vehículo. */
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    return firstValueFrom(this.http.get<BackendParkingZone>(`${this.baseUrlZones}/${vehicleType}`));
-  }
-
   /** Historial completo de entradas y salidas de un vehículo, del más antiguo al más reciente. */
   history(plate: string): Promise<BackendAccessRecord[]> {
-    return firstValueFrom(this.http.get<BackendAccessRecord[]>(`${this.baseUrlParking}/historical/${plate}`));
-  }
-
-  /**
-   * Si el vehículo está dentro del parqueadero ahora mismo, y desde cuándo.
-   * Sin uso todavía: `ParkingService` deriva lo mismo de `history()` (el
-   * registro con `exitDateTime: null`, si existe) para no duplicar llamadas
-   * cuando ya se necesita el historial completo de todas formas.
-   */
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return firstValueFrom(this.http.get<BackendVehicleStatus>(`${this.baseUrlParking}/status/${plate}`));
+    return firstValueFrom(
+      this.http.get<BackendAccessRecord[]>(`${this.baseUrlParking}/historical/${plate}`),
+    );
   }
 }

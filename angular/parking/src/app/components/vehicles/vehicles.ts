@@ -1,18 +1,17 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
-import { type DashboardVehicle, toDashboardVehicle, vehicleDetails, vehicleTitle } from '../../core/models/vehicle';
-import { AuthService, SEEDED_OWNER_UID } from '../../core/services/auth.service';
-import { StudentsApiService } from '../../core/services/modules/students-student-panel/students-api.sp.service';
+import { type DashboardVehicle, vehicleDetails, vehicleTitle } from '../../core/models/vehicle';
 import { VehiclesApiService } from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
+import { StudentsService } from '../../core/services/students.service';
 
 /**
  * "Vehículos" del panel de estudiante (fase de conexión; ver "Conexión
  * frontend-backend" en planeacion-desarrollo.md).
  *
  * Es la versión completa de "Mis vehículos" (que en `/inicio` sigue siendo un
- * resumen): mismos datos reales, `GET /users/:id` vía `StudentsApiService`,
- * sin necesidad de Firebase (mismo `SEEDED_OWNER_UID` mientras dure el modo
- * demostración). Lo que agrega esta pantalla es el código QR de cada
- * vehículo, para mostrarlo en portería.
+ * resumen): mismos datos reales, vía `StudentsService` (compartido con
+ * `MainDashboard` y `RegisterVehicle`, para no repetir la consulta ni el uid
+ * efectivo de cada uno por su cuenta). Lo que agrega esta pantalla es el
+ * código QR de cada vehículo, para mostrarlo en portería.
  *
  * El QR codifica `vehicle.id` (la placa tal cual la tiene el backend, sea una
  * placa real o el identificador que le asigna a lo que no lleva placa) — es
@@ -33,16 +32,15 @@ import { VehiclesApiService } from '../../core/services/modules/vehicles-student
   templateUrl: './vehicles.html',
 })
 export class Vehicles {
-  private readonly auth = inject(AuthService);
-  private readonly studentsApi = inject(StudentsApiService);
+  private readonly studentsService = inject(StudentsService);
   private readonly vehicleApi = inject(VehiclesApiService);
 
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
 
-  protected readonly loading = signal(true);
-  protected readonly error = signal<string | null>(null);
-  protected readonly vehicles = signal<DashboardVehicle[]>([]);
+  protected readonly loading = this.studentsService.loading;
+  protected readonly error = this.studentsService.error;
+  protected readonly vehicles = this.studentsService.vehicles;
 
   // ---- Código QR ------------------------------------------------------------------
 
@@ -53,22 +51,8 @@ export class Vehicles {
   protected readonly qrDataUrl = signal<string | null>(null);
 
   constructor() {
-    void this.load();
-  }
-
-  protected async load(): Promise<void> {
-    this.loading.set(true);
-    this.error.set(null);
-
-    try {
-      const uid = this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? '');
-      const student = await this.studentsApi.findById(uid);
-      this.vehicles.set(student.vehicles.map(toDashboardVehicle));
-    } catch {
-      this.error.set('No pudimos consultar tus vehículos. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      this.loading.set(false);
-    }
+    // La promesa la observan los signals de StudentsService; un rechazo no bloquea nada aquí.
+    void this.studentsService.refresh().catch(() => {});
   }
 
   protected statusLabel(vehicle: DashboardVehicle): string {

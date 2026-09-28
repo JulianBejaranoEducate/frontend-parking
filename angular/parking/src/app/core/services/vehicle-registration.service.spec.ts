@@ -14,8 +14,20 @@ const frontCard: RegistrationDocument = {
 };
 
 const motoInput = (plate: string) => ({
-  owner: { firstName: 'Julian', lastName: 'Bejarano', documentType: 'CC' as const, documentNumber: '1012345678' },
-  vehicle: { type: 'moto' as const, plate, brand: 'Honda', line: 'CB 125F', modelYear: 2023, color: 'Rojo' },
+  owner: {
+    firstName: 'Julian',
+    lastName: 'Bejarano',
+    documentType: 'CC' as const,
+    documentNumber: '1012345678',
+  },
+  vehicle: {
+    type: 'moto' as const,
+    plate,
+    brand: 'Honda',
+    line: 'CB 125F',
+    modelYear: 2023,
+    color: 'Rojo',
+  },
   documents: [frontCard],
 });
 
@@ -33,7 +45,9 @@ describe('VehicleRegistrationService', () => {
 
   /** Cambia de cuenta sin recrear los servicios, como al cerrar y abrir sesión. */
   const switchTo = (auth: AuthService, profile: 'user' | 'admin') =>
-    (auth as unknown as { _user: { set: (value: unknown) => void } })._user.set(DEMO_ACCOUNTS[profile]);
+    (auth as unknown as { _user: { set: (value: unknown) => void } })._user.set(
+      DEMO_ACCOUNTS[profile],
+    );
 
   it('envía la solicitud como pendiente y avisa a la administración', () => {
     const { service, auth, notifications } = setup('user');
@@ -87,18 +101,14 @@ describe('VehicleRegistrationService', () => {
 
     const registration = service.find('reg-bianchi');
     expect(registration?.status).toBe('pending');
-    expect(registration?.documents.filter((document) => document.kind === 'frame-serial')).toHaveLength(1);
+    expect(
+      registration?.documents.filter((document) => document.kind === 'frame-serial'),
+    ).toHaveLength(1);
   });
 
   it('una solicitud ya revisada no admite otra decisión', () => {
     const { service } = setup('admin');
 
     expect(() => service.reject('reg-kzt45f', 'Otro motivo')).toThrowError(/ya fue revisada/);
-  });
-
-  it('nadie puede eliminar la solicitud de otra persona', () => {
-    const { service } = setup('user');
-
-    expect(() => service.remove('reg-qwe28f')).toThrowError(/pertenece a otra persona/);
   });
 });

@@ -1,5 +1,5 @@
 <header class="topbar">
-  @if (searchExpanded()) {
+  @if (searchEnabled() && searchExpanded()) {
     <!-- Móvil: el buscador toma toda la barra hasta que se cierra. -->
     <button type="button" class="icon-btn" aria-label="Cerrar búsqueda" (click)="collapseSearch()">
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -39,18 +39,38 @@
       </svg>
     </button>
 
-    <div class="topbar__center">
-      <form class="search" role="search" (submit)="submitSearch($event, inline.value)">
-        <input
-          #inline
-          class="search__input"
-          type="search"
-          name="q"
-          autocomplete="off"
-          [placeholder]="searchPlaceholder()"
-          [attr.aria-label]="searchPlaceholder()"
-        />
-        <button type="submit" class="search__submit" aria-label="Buscar">
+    @if (searchEnabled()) {
+      <div class="topbar__center">
+        <form class="search" role="search" (submit)="submitSearch($event, inline.value)">
+          <input
+            #inline
+            class="search__input"
+            type="search"
+            name="q"
+            autocomplete="off"
+            [placeholder]="searchPlaceholder()"
+            [attr.aria-label]="searchPlaceholder()"
+          />
+          <button type="submit" class="search__submit" aria-label="Buscar">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
+                fill="currentColor"
+              />
+            </svg>
+          </button>
+        </form>
+      </div>
+    }
+
+    <div class="topbar__end">
+      @if (searchEnabled()) {
+        <button
+          type="button"
+          class="icon-btn icon-btn--search"
+          aria-label="Buscar"
+          (click)="expandSearch()"
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path
               d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
@@ -58,18 +78,7 @@
             />
           </svg>
         </button>
-      </form>
-    </div>
-
-    <div class="topbar__end">
-      <button type="button" class="icon-btn icon-btn--search" aria-label="Buscar" (click)="expandSearch()">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 1 0-.7.7l.3.3v.8l5 5 1.5-1.5zM10 14a4 4 0 1 1 0-8 4 4 0 0 1 0 8"
-            fill="currentColor"
-          />
-        </svg>
-      </button>
+      }
 
       <app-notifications />
 
@@ -93,7 +102,13 @@
           <div class="account" role="menu">
             <div class="account__head">
               @if (photoUrl(); as photo) {
-                <img class="account__avatar account__avatar--photo" [src]="photo" alt="" width="48" height="48" />
+                <img
+                  class="account__avatar account__avatar--photo"
+                  [src]="photo"
+                  alt=""
+                  width="48"
+                  height="48"
+                />
               } @else {
                 <span class="account__avatar" aria-hidden="true">{{ initials() }}</span>
               }
@@ -120,7 +135,9 @@
                   stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <path d="M10.34 5.1L10.61 2.7L13.39 2.7L13.66 5.1A7.1 7.1 0 0 1 15.71 5.95L17.59 4.44L19.56 6.41L18.05 8.29A7.1 7.1 0 0 1 18.9 10.34L21.3 10.61L21.3 13.39L18.9 13.66A7.1 7.1 0 0 1 18.05 15.71L19.56 17.59L17.59 19.56L15.71 18.05A7.1 7.1 0 0 1 13.66 18.9L13.39 21.3L10.61 21.3L10.34 18.9A7.1 7.1 0 0 1 8.29 18.05L6.41 19.56L4.44 17.59L5.95 15.71A7.1 7.1 0 0 1 5.1 13.66L2.7 13.39L2.7 10.61L5.1 10.34A7.1 7.1 0 0 1 5.95 8.29L4.44 6.41L6.41 4.44L8.29 5.95A7.1 7.1 0 0 1 10.34 5.1Z" />
+                  <path
+                    d="M10.34 5.1L10.61 2.7L13.39 2.7L13.66 5.1A7.1 7.1 0 0 1 15.71 5.95L17.59 4.44L19.56 6.41L18.05 8.29A7.1 7.1 0 0 1 18.9 10.34L21.3 10.61L21.3 13.39L18.9 13.66A7.1 7.1 0 0 1 18.05 15.71L19.56 17.59L17.59 19.56L15.71 18.05A7.1 7.1 0 0 1 13.66 18.9L13.39 21.3L10.61 21.3L10.34 18.9A7.1 7.1 0 0 1 8.29 18.05L6.41 19.56L4.44 17.59L5.95 15.71A7.1 7.1 0 0 1 5.1 13.66L2.7 13.39L2.7 10.61L5.1 10.34A7.1 7.1 0 0 1 5.95 8.29L4.44 6.41L6.41 4.44L8.29 5.95A7.1 7.1 0 0 1 10.34 5.1Z"
+                  />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
                 Configuración

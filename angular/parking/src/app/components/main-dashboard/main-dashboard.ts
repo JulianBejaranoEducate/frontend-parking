@@ -1,24 +1,17 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import {
-  HISTORY_RANGES,
-  type HistoryRange,
-  type Stay,
-  formatDuration,
-  stayDurationMs,
-  staysWithinDays,
-} from '../../core/models/parking';
+import { formatDuration } from '../../core/models/parking';
 import {
   MAX_VEHICLES_PER_USER,
   type DashboardVehicle,
-  toDashboardVehicle,
   vehicleDetails,
   vehicleTitle,
 } from '../../core/models/vehicle';
-import { AuthService, SEEDED_OWNER_UID } from '../../core/services/auth.service';
-import { StudentsApiService } from '../../core/services/modules/students-student-panel/students-api.sp.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ParkingService } from '../../core/services/parking.service';
+import { StudentsService } from '../../core/services/students.service';
+import { StayHistory } from '../stay-history/stay-history';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
 
 /**
@@ -29,7 +22,7 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
  * contenido de la página.
  */
 @Component({
-  imports: [ZoneAvailability],
+  imports: [StayHistory, ZoneAvailability],
   selector: 'app-main-dashboard',
   styleUrl: './main-dashboard.css',
   templateUrl: './main-dashboard.html',
@@ -37,7 +30,7 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 export class MainDashboard {
   private readonly auth = inject(AuthService);
   private readonly parking = inject(ParkingService);
-  private readonly studentsApi = inject(StudentsApiService);
+  private readonly studentsService = inject(StudentsService);
   private readonly router = inject(Router);
 
   protected readonly brand = BRAND;
@@ -45,9 +38,19 @@ export class MainDashboard {
   protected readonly vehicleDetails = vehicleDetails;
 
   protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
-  protected readonly vehiclesLoading = signal(true);
-  protected readonly vehiclesError = signal<string | null>(null);
-  protected readonly vehicles = signal<DashboardVehicle[]>([]);
+
+  /**
+   * Vehículos institucionales de verdad del usuario con sesión (`GET
+   * /users/:id`, vía `StudentsService`, compartido con `Vehicles` y
+   * `RegisterVehicle`). No hay ni estado de aprobación ni eliminación en el
+   * backend real todavía — eso solo existe en la solicitud de demostración
+   * que arma el registro (PEN-020); aquí solo se lee y se muestra lo que de
+   * verdad quedó guardado, con `is_authorized` como único estado real
+   * (dentro/fuera).
+   */
+  protected readonly vehiclesLoading = this.studentsService.loading;
+  protected readonly vehiclesError = this.studentsService.error;
+  protected readonly vehicles = this.studentsService.vehicles;
   protected readonly canAddVehicle = computed(() => this.vehicles().length < this.maxVehicles);
 
   protected readonly zonesLoading = this.parking.zonesLoading;
@@ -60,11 +63,7 @@ export class MainDashboard {
 
   protected readonly staysLoading = this.parking.staysLoading;
   protected readonly staysError = this.parking.staysError;
-  protected readonly historyRanges = HISTORY_RANGES;
-  protected readonly historyRange = signal<HistoryRange>(7);
-  protected readonly filteredStays = computed(() =>
-    staysWithinDays(this.parking.stays(), this.historyRange()),
-  );
+  protected readonly stays = this.parking.stays;
 
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? 'Invitado');
 
@@ -80,33 +79,9 @@ export class MainDashboard {
     return hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   });
 
-  // ---- Mis vehículos -----------------------------------------------------------
-
   constructor() {
-    void this.loadVehicles();
-  }
-
-  /**
-   * Trae los vehículos institucionales de verdad del usuario con sesión
-   * (`GET /users/:id`, sin necesidad de Firebase: el backend solo pide el uid
-   * en la URL). No hay ni estado de aprobación ni eliminación en el backend
-   * real todavía — eso solo existe en la solicitud de demostración que arma el
-   * registro (PEN-020); aquí solo se lee y se muestra lo que de verdad quedó
-   * guardado, con `is_authorized` como único estado real (dentro/fuera).
-   */
-  protected async loadVehicles(): Promise<void> {
-    this.vehiclesLoading.set(true);
-    this.vehiclesError.set(null);
-
-    try {
-      const uid = this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? '');
-      const student = await this.studentsApi.findById(uid);
-      this.vehicles.set(student.vehicles.map(toDashboardVehicle));
-    } catch {
-      this.vehiclesError.set('No pudimos consultar tus vehículos. Revisa tu conexión e inténtalo de nuevo.');
-    } finally {
-      this.vehiclesLoading.set(false);
-    }
+    // La promesa la observan los signals de StudentsService; un rechazo no bloquea nada aquí.
+    void this.studentsService.refresh().catch(() => {});
   }
 
   protected addVehicle(): void {
@@ -117,26 +92,6 @@ export class MainDashboard {
 
   protected statusLabel(vehicle: DashboardVehicle): string {
     return vehicle.isAuthorized ? 'Activo' : 'Inactivo';
-  }
-
-  // ---- Historial ---------------------------------------------------------------
-
-  protected setHistoryRange(days: HistoryRange): void {
-    this.historyRange.set(days);
-  }
-
-  /** Ej. "vie, 12 sept". */
-  protected formatDate(date: Date): string {
-    return date.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-
-  /** Ej. "7:32 a. m." */
-  protected formatTime(date: Date): string {
-    return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
-  }
-
-  protected stayDuration(stay: Stay): string {
-    return formatDuration(stayDurationMs(stay));
   }
 
   /** Ej. "1 h 36 min" — cuánto lleva el vehículo dentro del parqueadero. */
