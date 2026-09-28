@@ -4,6 +4,10 @@ import { Router, provideRouter, withComponentInputBinding } from '@angular/route
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import type { DemoProfile } from './core/services/auth.service';
+import {
+  FIREBASE_AUTH_STATE_SUBSCRIBER,
+  type FirebaseAuthStateSubscriber,
+} from './core/auth/firebase-auth-session';
 import { signInForTest } from './testing/demo-session';
 
 /**
@@ -12,6 +16,10 @@ import { signInForTest } from './testing/demo-session';
  */
 describe('rutas por rol', () => {
   let harness: RouterTestingHarness;
+  const firebaseAuthStateSubscriber: FirebaseAuthStateSubscriber = async (onUser) => {
+    onUser(null);
+    return () => {};
+  };
 
   const as = async (profile: DemoProfile | null) => {
     // provideHttpClient: security-dashboard consulta el backend real al entrar
@@ -19,7 +27,11 @@ describe('rutas por rol', () => {
     // fallan y el resumen muestra su propio aviso de error; no afecta estas
     // pruebas, que solo verifican a qué pantalla llega cada rol.
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient()],
+      providers: [
+        provideRouter(routes, withComponentInputBinding()),
+        provideHttpClient(),
+        { provide: FIREBASE_AUTH_STATE_SUBSCRIBER, useValue: firebaseAuthStateSubscriber },
+      ],
     });
     signInForTest(profile);
     harness = await RouterTestingHarness.create();

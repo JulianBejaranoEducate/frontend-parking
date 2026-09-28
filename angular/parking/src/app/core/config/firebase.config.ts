@@ -1,32 +1,23 @@
 /**
  * Configuración de Firebase.
- *
- * Estos valores NO son secretos: la consola de Firebase los publica en el
- * cliente a propósito y la seguridad real vive en las reglas de Firestore y en
- * la lista de dominios autorizados del proyecto. Aun así, cámbialos por los del
- * proyecto real antes de desplegar.
- *
- * Cópialos de: consola de Firebase -> Configuración del proyecto -> Tus apps.
  */
+
 export const FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyCFB-N_V_UapsmVo7EUgcDxzL8Co4Zbq3Y',
+  authDomain: 'parking-48614.firebaseapp.com',
+  projectId: 'parking-48614',
+  storageBucket: 'parking-48614.firebasestorage.app',
+  messagingSenderId: '206293644758',
+  appId: '1:206293644758:web:dcad44be2621128044a077',
 };
 
 /**
- * Tenant de Azure AD de la universidad. Al fijarlo, Microsoft solo deja entrar
- * a cuentas de ese directorio; si queda vacío, aceptaría cualquier cuenta
- * Microsoft y la única barrera sería la validación de dominio del correo.
+ * Tenant de Azure AD de la universidad.
  */
-export const MICROSOFT_TENANT_ID = '';
+export const MICROSOFT_TENANT_ID = '470219e7-5ba1-4435-84e0-186963d8e120';
 
 /**
- * Mientras falten las credenciales, la aplicación usa un inicio de sesión
- * simulado para poder revisar las pantallas sin bloquear el diseño.
+ * Indica si Firebase está configurado.
  */
 export function isFirebaseConfigured(): boolean {
   return Boolean(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId);
