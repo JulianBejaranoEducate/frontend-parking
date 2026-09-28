@@ -4,7 +4,7 @@ import { BRAND } from '../../core/config/branding.config';
 import {
   HISTORY_RANGES,
   type HistoryRange,
-  type ParkingStay,
+  type Stay,
   formatDuration,
   stayDurationMs,
   staysWithinDays,
@@ -50,12 +50,16 @@ export class MainDashboard {
   protected readonly vehicles = signal<DashboardVehicle[]>([]);
   protected readonly canAddVehicle = computed(() => this.vehicles().length < this.maxVehicles);
 
+  protected readonly zonesLoading = this.parking.zonesLoading;
+  protected readonly zonesError = this.parking.zonesError;
   protected readonly zones = this.parking.zones;
   protected readonly currentStay = this.parking.currentStay;
   protected readonly totalFreeSpots = this.parking.totalFreeSpots;
   protected readonly totalCapacity = this.parking.totalCapacity;
   protected readonly entriesThisMonth = this.parking.entriesThisMonth;
 
+  protected readonly staysLoading = this.parking.staysLoading;
+  protected readonly staysError = this.parking.staysError;
   protected readonly historyRanges = HISTORY_RANGES;
   protected readonly historyRange = signal<HistoryRange>(7);
   protected readonly filteredStays = computed(() =>
@@ -131,7 +135,7 @@ export class MainDashboard {
     return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
   }
 
-  protected stayDuration(stay: ParkingStay): string {
+  protected stayDuration(stay: Stay): string {
     return formatDuration(stayDurationMs(stay));
   }
 

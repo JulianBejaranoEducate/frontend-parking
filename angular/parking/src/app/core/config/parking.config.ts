@@ -2,9 +2,11 @@
  * Configuración operativa del parqueadero del cliente activo.
  *
  * Igual que la marca (`branding.config.ts`), cada institución tendrá la suya:
- * cupos por tipo de vehículo, nombre de la portería y umbrales de alerta.
- * Los cupos de Uniempresarial son de ejemplo hasta que la universidad confirme
- * los reales (pregunta abierta 2 de planeacion-desarrollo.md).
+ * nombre de la portería, umbrales de alerta y, por zona, su id y nombre
+ * visible. El cupo (`capacity`) de cada zona quedó como dato de ejemplo sin
+ * uso: la capacidad real ya la expone el backend (`GET /parkingZone`, ver
+ * `ParkingService`), que es de donde sale para el panel de usuario. Esta
+ * configuración solo sigue prestando el id y el nombre de cada zona (ADR-021).
  */
 import type { ZoneCapacity } from '../models/parking';
 import type { VehicleType } from '../models/vehicle';

@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import {
   HISTORY_RANGES,
   type HistoryRange,
-  type ParkingStay,
+  type Stay,
   averageStayDurationMs,
   entriesByVehicle,
   formatDuration,
@@ -17,18 +17,15 @@ import { ParkingService } from '../../core/services/parking.service';
  * `docs-claude/06-propuesta-parqueaderos-estadisticas.md`).
  *
  * Es la versión completa del historial que ya vive en `/inicio` (misma
- * fuente, mismo filtro de rango), más dos métricas nuevas que ya se podían
- * calcular con esos mismos datos: duración promedio de la estancia y
- * entradas por vehículo.
+ * fuente, mismo filtro de rango), más dos métricas que ya se podían calcular
+ * con esos mismos datos: duración promedio de la estancia y entradas por
+ * vehículo.
  *
- * A propósito no es un servicio HTTP como Visitantes o Vehículos: HU-21 es
- * "mi historial", y el backend real todavía no tiene ningún módulo de
- * estancias o movimientos (solo `User`, `Vehicle`, `Visitors`, `Incidents`).
- * `ParkingService` ya es el servicio correcto para esto — sigue en modo
- * demostración honestamente, no simula una conexión que no existe (PEN-020
- * en planeacion-desarrollo.md). No confundir con `ParkingStatsService`, que
- * es para el dashboard de administración y genera datos simulados con
- * semilla: esto es el historial real de la sesión, filtrado por su dueño.
+ * `ParkingService` ya trae el historial real (`GET /parking/historical/:plate`,
+ * uno por vehículo del usuario, combinados) — no confundir con
+ * `ParkingStatsService`, que es para el dashboard de administración y genera
+ * datos simulados con semilla: esto es el historial real de la sesión,
+ * filtrado por su dueño.
  */
 @Component({
   selector: 'app-stats',
@@ -39,6 +36,8 @@ export class Stats {
   private readonly parking = inject(ParkingService);
 
   protected readonly vehicleTitle = vehicleTitle;
+  protected readonly loading = this.parking.staysLoading;
+  protected readonly error = this.parking.staysError;
   protected readonly historyRanges = HISTORY_RANGES;
   protected readonly historyRange = signal<HistoryRange>(30);
 
@@ -66,7 +65,7 @@ export class Stats {
     return date.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
   }
 
-  protected stayDuration(stay: ParkingStay): string {
+  protected stayDuration(stay: Stay): string {
     return formatDuration(stayDurationMs(stay));
   }
 }

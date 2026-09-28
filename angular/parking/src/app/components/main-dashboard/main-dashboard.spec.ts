@@ -1,6 +1,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { ParkingService } from '../../core/services/parking.service';
+import {
+  type BackendAccessRecord,
+  type BackendParkingZone,
+  type BackendVehicleStatus,
+  ParkingApiService,
+} from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
 import {
   type BackendStudent,
   type BackendUserVehicle,
@@ -42,22 +47,77 @@ class StudentsApiServiceStub {
   }
 }
 
+const now = Date.now();
+const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString();
+const hoursAgo = (n: number) => new Date(now - n * 3_600_000).toISOString();
+
+const record = (
+  id: number,
+  plate: string,
+  entryDateTime: string,
+  exitDateTime: string | null,
+): BackendAccessRecord => ({ id, plate, visitorId: null, zoneType: 'moto', entryDateTime, exitDateTime });
+
+/** No extiende ParkingApiService (que inyecta HttpClient) para no tener que proveerlo. */
+class ParkingApiServiceStub {
+  zoneRows: BackendParkingZone[] = [
+    { id: 1, vehicleType: 'moto', totalCapacity: 60, availableSpaces: 53 },
+    { id: 2, vehicleType: 'bicicleta', totalCapacity: 30, availableSpaces: 27 },
+    { id: 3, vehicleType: 'scooter', totalCapacity: 20, availableSpaces: 18 },
+  ];
+  /** Historial por placa. Por defecto, KZT45F: cuatro estancias repartidas en 20 días, una en curso. */
+  historyByPlate: Record<string, BackendAccessRecord[]> = {
+    KZT45F: [
+      record(1, 'KZT45F', daysAgo(20), daysAgo(19.9)),
+      record(2, 'KZT45F', daysAgo(10), daysAgo(9.9)),
+      record(3, 'KZT45F', daysAgo(3), daysAgo(2.9)),
+      record(4, 'KZT45F', hoursAgo(2), null),
+    ],
+  };
+  zonesFail = false;
+  historyFail = false;
+  historyCalls: string[] = [];
+
+  zones(): Promise<BackendParkingZone[]> {
+    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
+  }
+
+  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
+    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
+    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
+  }
+
+  history(plate: string): Promise<BackendAccessRecord[]> {
+    this.historyCalls.push(plate);
+    return this.historyFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.historyByPlate[plate] ?? []);
+  }
+
+  status(plate: string): Promise<BackendVehicleStatus> {
+    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
+  }
+}
+
 describe('MainDashboard', () => {
   let component: MainDashboard;
   let fixture: ComponentFixture<MainDashboard>;
-  let parking: ParkingService;
   let studentsApi: StudentsApiServiceStub;
+  let parkingApi: ParkingApiServiceStub;
 
   const configure = async () => {
     studentsApi = new StudentsApiServiceStub();
+    studentsApi.student = student([vehicle('KZT45F', 'moto')]);
+    parkingApi = new ParkingApiServiceStub();
 
     await TestBed.configureTestingModule({
       imports: [MainDashboard],
-      providers: [provideRouter([]), { provide: StudentsApiService, useValue: studentsApi }],
+      providers: [
+        provideRouter([]),
+        { provide: StudentsApiService, useValue: studentsApi },
+        { provide: ParkingApiService, useValue: parkingApi },
+      ],
     }).compileComponents();
 
     signInForTest('user');
-    parking = TestBed.inject(ParkingService);
   };
 
   const create = async () => {
@@ -156,6 +216,7 @@ describe('MainDashboard', () => {
 
   it('sin vehículos, muestra el estado vacío', async () => {
     await configure();
+    studentsApi.student = student([]);
     await create();
 
     expect(host().querySelector('.empty')?.textContent).toContain('Todavía no has registrado');
@@ -178,7 +239,7 @@ describe('MainDashboard', () => {
     expect(host().querySelector('#vehicles-limit')?.textContent).toContain('máximo de 5');
   });
 
-  // ---- Historial -------------------------------------------------------------------
+  // ---- Historial (backend real, GET /parking/historical/:plate) ---------------------
 
   it('ofrece los cuatro periodos y arranca en 7 días', async () => {
     await configure();
@@ -216,7 +277,25 @@ describe('MainDashboard', () => {
     expect(host().querySelector('.data-table .chip--inside')?.textContent?.trim()).toBe('En curso');
   });
 
-  // ---- Disponibilidad y utilidades ---------------------------------------------------
+  it('si el backend del historial falla, lo avisa y no inventa movimientos', async () => {
+    await configure();
+    parkingApi.historyFail = true;
+    await create();
+
+    expect(
+      host().querySelector('#history-title')?.closest('.card')?.querySelector('.empty')?.textContent,
+    ).toContain('No pudimos consultar');
+  });
+
+  it('el historial solo pide movimientos de los vehículos propios', async () => {
+    await configure();
+    studentsApi.student = student([vehicle('KZT45F', 'moto'), vehicle('AAA11A', 'moto')]);
+    await create();
+
+    expect(parkingApi.historyCalls.sort()).toEqual(['AAA11A', 'KZT45F']);
+  });
+
+  // ---- Disponibilidad (backend real, GET /parkingZone) y utilidades -----------------
 
   it('la disponibilidad es la misma que ve portería: una fila por tipo de vehículo', async () => {
     await configure();
@@ -225,14 +304,14 @@ describe('MainDashboard', () => {
     expect(host().querySelectorAll('app-zone-availability .zone')).toHaveLength(3);
   });
 
-  it('el historial solo trae las estancias de quien tiene la sesión', async () => {
+  it('si el backend de zonas falla, lo avisa y no inventa cupos', async () => {
     await configure();
+    parkingApi.zonesFail = true;
     await create();
 
-    const stays = parking.stays();
-
-    expect(stays.length).toBeGreaterThan(0);
-    expect(stays.every((stay) => stay.subject.kind === 'institutional' && stay.subject.uid === 'demo-uid')).toBe(true);
+    expect(
+      host().querySelector('#zones-title')?.closest('.card')?.querySelector('.empty')?.textContent,
+    ).toContain('No pudimos consultar');
   });
 
   it('resume el tiempo transcurrido en horas y minutos', async () => {

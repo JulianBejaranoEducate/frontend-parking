@@ -4,6 +4,11 @@
     <p class="page__subtitle">Tu historial completo de entradas y salidas, con algunos resúmenes.</p>
   </header>
 
+  @if (loading()) {
+    <p class="empty">Consultando tu historial…</p>
+  } @else if (error(); as message) {
+    <p class="empty">{{ message }}</p>
+  } @else {
   <section class="tiles" aria-label="Resumen del periodo">
     <article class="tile">
       <p class="tile__label">Entradas en el periodo</p>
@@ -140,4 +145,5 @@
       <p class="empty">No hay movimientos en este periodo.</p>
     }
   </section>
+  }
 </main>

@@ -4,50 +4,68 @@
     <p class="page__subtitle">Disponibilidad en tiempo real, por tipo de vehículo.</p>
   </header>
 
-  @if (loading()) {
-    <p class="empty">Consultando el backend…</p>
-  } @else if (error(); as message) {
-    <p class="notice notice--critical" role="alert">{{ message }}</p>
-  } @else {
-    <section class="tiles" aria-label="Resumen de ocupación">
-      <article class="tile">
-        <p class="tile__label">Cupos disponibles</p>
+  <section class="tiles" aria-label="Resumen de ocupación">
+    <article class="tile">
+      <p class="tile__label">Cupos disponibles</p>
+      @if (zonesLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else if (zonesError(); as message) {
+        <p class="tile__note">{{ message }}</p>
+      } @else {
         <p class="tile__value">{{ totalFree() }}</p>
         <p class="tile__note">de {{ totalCapacity() }} en todas las zonas.</p>
-      </article>
+      }
+    </article>
 
-      <article class="tile">
-        <p class="tile__label">Vehículos dentro</p>
+    <article class="tile">
+      <p class="tile__label">Vehículos dentro</p>
+      @if (insideLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else if (insideError(); as message) {
+        <p class="tile__note">{{ message }}</p>
+      } @else {
         <p class="tile__value">{{ institutionalInside() + visitorsInside() }}</p>
         <p class="tile__note">{{ institutionalInside() }} de la comunidad · {{ visitorsInside() }} visitantes</p>
-      </article>
+      }
+    </article>
 
-      <article class="tile">
-        <p class="tile__label">Estado de tu vehículo</p>
-        @if (currentStay(); as stay) {
-          <p class="tile__value">
-            <span class="dot dot--in" aria-hidden="true"></span>
-            Adentro
-          </p>
-          <p class="tile__note">
-            {{ vehicleTitle(stay.vehicle) }} lleva {{ elapsedSince(stay.enteredAt) }} en {{ stay.zoneName }}.
-          </p>
-        } @else {
-          <p class="tile__value">
-            <span class="dot dot--out" aria-hidden="true"></span>
-            Afuera
-          </p>
-          <p class="tile__note">No hay ningún ingreso activo.</p>
-        }
-      </article>
-    </section>
+    <article class="tile">
+      <p class="tile__label">Estado de tu vehículo</p>
+      @if (staysLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else if (currentStay(); as stay) {
+        <p class="tile__value">
+          <span class="dot dot--in" aria-hidden="true"></span>
+          Adentro
+        </p>
+        <p class="tile__note">
+          {{ vehicleTitle(stay.vehicle) }} lleva {{ elapsedSince(stay.enteredAt) }} en {{ stay.zoneName }}.
+        </p>
+      } @else {
+        <p class="tile__value">
+          <span class="dot dot--out" aria-hidden="true"></span>
+          Afuera
+        </p>
+        <p class="tile__note">No hay ningún ingreso activo.</p>
+      }
+    </article>
+  </section>
 
-    <section class="card" aria-labelledby="zones-title">
-      <div class="card__head">
-        <h2 class="card__title" id="zones-title">Disponibilidad por zona</h2>
-        <button type="button" class="link-btn" (click)="load()">Actualizar</button>
-      </div>
+  <section class="card" aria-labelledby="zones-title">
+    <div class="card__head">
+      <h2 class="card__title" id="zones-title">Disponibilidad por zona</h2>
+      <button type="button" class="link-btn" (click)="refreshZones()">Actualizar</button>
+    </div>
+
+    @if (zonesLoading()) {
+      <p class="empty">Consultando el backend…</p>
+    } @else if (zonesError(); as message) {
+      <p class="notice notice--critical" role="alert">{{ message }}</p>
+    } @else {
       <app-zone-availability [zones]="zones()" [showOccupied]="true" />
-    </section>
-  }
+    }
+  </section>
 </main>

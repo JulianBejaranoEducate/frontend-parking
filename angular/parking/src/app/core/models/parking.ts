@@ -138,18 +138,34 @@ export interface StayFlags {
 }
 
 /**
- * Una estancia completa en el parqueadero, de la entrada a la salida.
+ * Lo mínimo de una estancia para calcular su duración, filtrarla por fecha y
+ * agruparla por vehículo — lo único que necesitan `stayDurationMs`,
+ * `staysWithinDays`, `averageStayDurationMs` y `entriesByVehicle`.
  *
- * Guarda una copia del vehículo tal como era ese día: si el usuario elimina el
- * vehículo después, su historial sigue mostrando la placa con la que entró.
+ * `ParkingStay` (abajo) lo extiende con todo lo que además guarda portería
+ * (quién lo registró, el turno, anulaciones). El historial real del backend
+ * (`AccessRecord`, sin ese detalle) se representa directo como `Stay`, sin
+ * inventar los campos que portería no tiene — ver `ParkingService`.
  */
-export interface ParkingStay {
+export interface Stay {
   id: string;
   vehicle: Vehicle;
   zoneName: string;
   enteredAt: Date;
   /** null mientras el vehículo siga dentro. */
   exitedAt: Date | null;
+}
+
+/**
+ * Una estancia completa en el parqueadero, de la entrada a la salida, con la
+ * auditoría que registra portería. Es la que usan el dashboard de
+ * administración y el de seguridad (turnos, anulaciones); el historial real
+ * del panel de estudiante no tiene nada de esto — usa {@link Stay} directo.
+ *
+ * Guarda una copia del vehículo tal como era ese día: si el usuario elimina el
+ * vehículo después, su historial sigue mostrando la placa con la que entró.
+ */
+export interface ParkingStay extends Stay {
   subject: StaySubject;
   /** Registro del ingreso. */
   entry: MovementAudit;
@@ -301,17 +317,13 @@ const DAY_MS = 86_400_000;
  * Ventanas móviles contadas desde ahora: "7 días" son las últimas 168 horas,
  * no la semana calendario. Así las cuatro opciones se comportan igual.
  */
-export function staysWithinDays(
-  stays: readonly ParkingStay[],
-  days: number,
-  now: Date = new Date(),
-): ParkingStay[] {
+export function staysWithinDays<T extends Stay>(stays: readonly T[], days: number, now: Date = new Date()): T[] {
   const from = now.getTime() - days * DAY_MS;
   return stays.filter((stay) => stay.enteredAt.getTime() >= from);
 }
 
 /** Cuánto duró la estancia; si sigue en curso, lo que lleva hasta ahora. */
-export function stayDurationMs(stay: ParkingStay, now: Date = new Date()): number {
+export function stayDurationMs(stay: Stay, now: Date = new Date()): number {
   const end = stay.exitedAt ?? now;
   return Math.max(0, end.getTime() - stay.enteredAt.getTime());
 }
@@ -325,7 +337,7 @@ export function formatDuration(ms: number): string {
 }
 
 /** Cuánto duran en promedio las estancias dadas; 0 si no hay ninguna. */
-export function averageStayDurationMs(stays: readonly ParkingStay[], now: Date = new Date()): number {
+export function averageStayDurationMs(stays: readonly Stay[], now: Date = new Date()): number {
   if (stays.length === 0) {
     return 0;
   }
@@ -348,7 +360,7 @@ export interface VehicleEntriesCount {
  * por id: es lo mismo que ya usa el resto del historial para identificar un
  * vehículo de un vistazo.
  */
-export function entriesByVehicle(stays: readonly ParkingStay[]): VehicleEntriesCount[] {
+export function entriesByVehicle(stays: readonly Stay[]): VehicleEntriesCount[] {
   const byLabel = new Map<string, VehicleEntriesCount>();
 
   for (const stay of stays) {

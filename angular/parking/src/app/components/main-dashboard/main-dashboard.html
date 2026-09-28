@@ -9,7 +9,10 @@
   <section class="tiles" aria-label="Resumen de hoy">
     <article class="tile">
       <p class="tile__label">Estado de tu vehículo</p>
-      @if (currentStay(); as stay) {
+      @if (staysLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else if (currentStay(); as stay) {
         <p class="tile__value">
           <span class="dot dot--in" aria-hidden="true"></span>
           Adentro
@@ -28,21 +31,37 @@
 
     <article class="tile">
       <p class="tile__label">Cupos disponibles</p>
-      <p class="tile__value">{{ totalFreeSpots() }}</p>
-      <p class="tile__note">de {{ totalCapacity() }} en todas las zonas.</p>
+      @if (zonesLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else {
+        <p class="tile__value">{{ totalFreeSpots() }}</p>
+        <p class="tile__note">de {{ totalCapacity() }} en todas las zonas.</p>
+      }
     </article>
 
     <article class="tile">
       <p class="tile__label">Ingresos este mes</p>
-      <p class="tile__value">{{ entriesThisMonth() }}</p>
-      <p class="tile__note">Registrados en portería.</p>
+      @if (staysLoading()) {
+        <p class="tile__value">—</p>
+        <p class="tile__note">Consultando…</p>
+      } @else {
+        <p class="tile__value">{{ entriesThisMonth() }}</p>
+        <p class="tile__note">Registrados en portería.</p>
+      }
     </article>
   </section>
 
   <!-- ============================ Disponibilidad ============================ -->
   <section class="card" aria-labelledby="zones-title">
     <h2 class="card__title" id="zones-title">Disponibilidad</h2>
-    <app-zone-availability [zones]="zones()" />
+    @if (zonesLoading()) {
+      <p class="empty">Consultando el backend…</p>
+    } @else if (zonesError(); as message) {
+      <p class="empty">{{ message }}</p>
+    } @else {
+      <app-zone-availability [zones]="zones()" />
+    }
   </section>
 
   <!-- ============================ Mis vehículos ============================ -->
@@ -166,7 +185,11 @@
       </div>
     </div>
 
-    @if (filteredStays().length) {
+    @if (staysLoading()) {
+      <p class="empty">Consultando tu historial…</p>
+    } @else if (staysError(); as message) {
+      <p class="empty">{{ message }}</p>
+    } @else if (filteredStays().length) {
       <!-- Escritorio y tablet: tabla. -->
       <div class="history-table">
         <table class="data-table" aria-labelledby="history-title">
