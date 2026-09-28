@@ -1,8 +1,8 @@
 # Uni-parking · Planeación y registro de desarrollo
 
-> **Fase actual:** Fase 7 (conexión a backend real de Visitantes y Seguridad) **completada** el 2026-09-26 (ver ADR-020). Para estos dos módulos reemplaza el diseño de demostración de la sección 4. Las Fases 4, 5 y 6 (foto de placa, integración con el usuario, PWA en portería) siguen sin iniciar.
-> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-26
-> **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 541 kB, límite de 500 kB; ver MEJ-001) · 176 pruebas unitarias pasando (2026-09-26; bajó de 250 al retirar turnos, movimientos, `access-result` y dos componentes huérfanos, ver ADR-020)
+> **Fase actual:** Fase 8 (módulo Parking: el QR valida el ingreso) **pendiente**: ingreso, salida y «Dentro ahora» ya funcionan contra el backend real; faltan «Movimientos de hoy» y la dirección automática en Control de acceso. Ver ADR-021. Las Fases 4, 5 y 6 (foto de placa, integración con el usuario, PWA en portería) siguen sin iniciar. Fuera de Visitantes y Seguridad ya no hay datos de demostración: esas pantallas conservan su diseño, sin datos (ADR-022).
+> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-27
+> **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 536 kB, límite de 500 kB; ver MEJ-001) · 133 pruebas unitarias pasando (2026-09-27; eran 186 antes de retirar el modo demostración, ADR-022)
 
 Este documento es la fuente única para saber en qué va el proyecto: qué está hecho, qué se decidió y por qué, qué falta y qué hay que corregir. Se actualiza en el mismo commit que el cambio que registra (ver [Cómo actualizar este documento](#cómo-actualizar-este-documento)).
 
@@ -26,7 +26,7 @@ Este documento es la fuente única para saber en qué va el proyecto: qué está
 
 - **Plataforma:** aplicación web progresiva (PWA) instalable en computador y celular (ADR-014). Ionic y Capacitor quedan como opción si la materia los pide (ADR-015).
 - **Vehículos admitidos:** moto, bicicleta y scooter. No hay parqueadero para carros.
-- **Tecnología:** Angular 22 (componentes standalone, signals, sin zone.js), `@angular/service-worker`, Firebase JS SDK 12 (inicio de sesión con Microsoft), `qrcode` (generar el pase), ZXing (`@zxing/browser`, leer el pase) y Vitest.
+- **Tecnología:** Angular 22 (componentes standalone, signals, sin zone.js), `@angular/service-worker`, `qrcode` (generar el pase), ZXing (`@zxing/browser`, leer el pase) y Vitest. El paquete `firebase` 12 sigue instalado, pero ningún archivo lo usa desde el 2026-09-27 (ADR-022, PEN-026).
 
 | Rol | Quién | Qué hace |
 | --- | --- | --- |
@@ -48,20 +48,20 @@ Estados (ver [Estados](#estados)):
 
 | Módulo | Ruta | Estado | Responsable | Actualizado | Notas |
 | --- | --- | --- | --- | --- | --- |
-| Login | `/login` | Completado (demo) | Julian | 2026-09-15 | Inicio con Microsoft vía Firebase implementado, sin probar aún con credenciales reales. En demostración: accesos a administración y a los dos guardias |
-| Visitantes | `/visitantes` | Completado | Julian | 2026-09-26 | Conectado al backend real del equipo (rama `camilo-dev`), sin datos quemados. Enviar el formulario **es** el ingreso: no hay paso de autorización aparte. El QR lleva el id numérico que asigna el backend (ADR-020) |
-| Dashboard de usuarios | `/inicio` | Completado (demo) | Julian | 2026-09-15 | Usa el layout común; disponibilidad e historial salen de las mismas estancias que registra portería |
-| Registro de vehículos | `/vehiculos/registrar` | Completado (demo) | Julian | 2026-09-15 | Las bicicletas piden documento (PEN-009) y los scooters color y marca opcional |
-| Dashboard de administración | `/admin/:section` | Completado (demo) | Julian | 2026-09-15 | Usa el layout común; la revisión del scooter incluye color y marca. Faltan cuentas de guardias e historial de turnos |
-| Notificaciones | Panel del header | Completado (demo) | Julian | 2026-09-15 | Avisos por persona, para administración y para seguridad. Botón de configuración sin función (PEN-004) |
+| Login | `/login` | Completado (demo) | Julian | 2026-09-27 | Solo quedan «Visitantes» y el acceso simulado de los dos guardias (Carlos y Diana), que abre el panel de seguridad. Se retiraron el inicio con Microsoft (Firebase) y el acceso de administración (ADR-022). Falta el inicio de sesión real (PEN-013) |
+| Visitantes | `/visitantes` | Completado | Julian | 2026-09-27 | Conectado al backend real del equipo (rama `camilo-dev`), sin datos quemados. Enviar el formulario solo registra la visita; el QR (el id que asigna el backend) es la llave con la que portería valida el ingreso (ADR-021) |
+| Dashboard de usuarios | `/inicio` | Pendiente | Julian | 2026-09-27 | Solo el diseño, con el layout común: sin servicios ni datos, cada sección muestra su estado vacío (ADR-022). Nadie puede abrirlo mientras no haya inicio de sesión de la comunidad. Falta conectarlo al backend |
+| Registro de vehículos | `/vehiculos/registrar` | Pendiente | Julian | 2026-09-27 | Diseño y validaciones del formulario: las bicicletas piden documento (PEN-009) y los scooters color y marca opcional. Adjuntar y enviar avisan que no está conectado al backend (ADR-022) |
+| Dashboard de administración | `/admin/:section` | Pendiente | Julian | 2026-09-27 | Solo el diseño: secciones vacías y menú sin contadores. Aprobar, rechazar y pedir actualización validan el formulario y avisan que no está conectado al backend (ADR-022). Faltan cuentas de guardias e historial de turnos |
+| Notificaciones | Panel del header | Pendiente | Julian | 2026-09-27 | Solo el diseño: la campana muestra «No tiene notificaciones pendientes» hasta que el backend envíe avisos (ADR-022). Botón de configuración sin función (PEN-004) |
 | Layout común por rol | — | Completado | Julian | 2026-09-15 | ADR-010. Cada rol solo ve y descarga su grupo de rutas; cada rol puede aportar su buscador del header |
-| Dashboard de seguridad | `/seguridad/:section` | Completado (reducido) | Julian | 2026-09-26 | Reducido a **Resumen** y **Control de acceso** contra el backend real: Turno, Movimientos, «Vehículos dentro» como pantalla aparte y `access-result` se retiraron porque el backend aún no tiene esos módulos (ADR-020). El resumen combina visitantes y vehículos institucionales reales; control de acceso decide sola si corresponde ingreso o salida |
+| Dashboard de seguridad | `/seguridad/:section` | Pendiente | Julian | 2026-09-27 | **Resumen**: vehículos dentro, puestos disponibles, ocupación por tipo y «Dentro ahora» (búsqueda, filtros, orden y paginación) con los registros de acceso abiertos. **Control de acceso** registra ingresos y salidas en `access_record` para visitantes (QR, documento o placa) y comunidad (placa) (ADR-021). Faltan «Movimientos de hoy» y la dirección automática (PEN-021) |
 | PWA | — | Pendiente | Julian | 2026-09-15 | Base lista y verificada: service worker activo y apertura sin conexión. Faltan pruebas en celulares, aviso de nueva versión e íconos por cliente |
 | Documentación del código (TSDoc) | — | Pendiente | Julian | 2026-09-15 | Todo lo nuevo de las Fases 1 a 3 está documentado; falta el código anterior (PEN-015) |
 | Lector de QR (`lector-codigo-qr`) | — | Completado | Julian | 2026-09-15 | ZXing en la PWA, con linterna y lectura desde una foto (ADR-019). Probado con la foto de un pase real en computador; la cámara en vivo se prueba en celulares en la Fase 6 (PEN-010) |
-| Accesibilidad y footer | — | Sin iniciar | — | 2026-08-31 | Componentes creados sin contenido (PEN-008) |
-| Backend (Firebase) | — | Sin iniciar | — | — | Authentication, Firestore, Storage y reglas de seguridad |
-| Ionic / Capacitor | — | Sin iniciar | — | — | Opcional: solo si la materia lo pide (ADR-015) |
+| Accesibilidad y footer | — | Sin iniciar | — | 2026-09-26 | Los componentes vacíos se borraron el 2026-09-26; se crean de nuevo cuando se diseñen (PEN-008) |
+| Inicio de sesión real | — | Sin iniciar | — | 2026-09-27 | Para la comunidad, la administración y los guardias. El código de Firebase se retiró (ADR-022) y el paquete sigue instalado (PEN-026); falta definir con el equipo cómo será |
+| Ionic / Capacitor | — | Pendiente | Julian | 2026-09-27 | Capacitor 8 agregado para probar en Android (`capacitor.config.ts`, carpeta `android/`, permiso de cámara). Falta acordarlo con el equipo antes de subirlo (ADR-015). Ionic sigue sin instalar |
 
 ---
 
@@ -120,9 +120,9 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 
 ### Fase 5 · Integración con el usuario
 
-**Estado de la fase: Pendiente (iniciada en la Fase 1)**
+**Estado de la fase: Sin iniciar** (lo que se había hecho con datos de demostración se retiró el 2026-09-27, ADR-022)
 
-- [ ] Disponibilidad e historial del usuario alimentados por los movimientos reales — **Pendiente**: salen de las mismas estancias que registra portería desde la Fase 2, y lo anulado ya no aparece en el historial; falta comprobarlo entre dispositivos, que exige Firebase (PEN-001)
+- [ ] Disponibilidad e historial del usuario alimentados por los movimientos reales — Sin iniciar: la versión de demostración (estancias guardadas en el navegador) se retiró el 2026-09-27 (ADR-022). Se hará con las zonas y los registros de acceso del backend cuando exista el inicio de sesión de la comunidad
 - [ ] Notificar al usuario cada ingreso y salida (por confirmar, [pregunta 4](#9-preguntas-abiertas)) — Sin iniciar
 
 ### Fase 6 · PWA en portería y opción nativa
@@ -147,9 +147,24 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 - [x] Sembrar datos de ejemplo reales a través de la API (5 usuarios institucionales con vehículo, 5 visitantes) — **Completado** (2026-09-26)
 - [x] Verificar en el navegador contra el backend real: registrar un visitante, marcarle la salida, autorizar y desautorizar un vehículo institucional — **Completado** (2026-09-26)
 
+### Fase 8 · Módulo Parking: el QR valida el ingreso
+
+**Estado de la fase: Pendiente (iniciada el 2026-09-27)**
+
+- [x] Formulario de visitantes: enviarlo solo registra la visita; el QR es la llave de ingreso — **Completado** (2026-09-27)
+- [x] Resumen: vehículos dentro, puestos disponibles y ocupación por tipo con las zonas reales (`GET /parkingZone`) — **Completado** (2026-09-27)
+- [x] Control de acceso: registrar ingreso y salida en `access_record`, para visitantes (QR, documento o placa) y comunidad (placa) — **Completado** (2026-09-27)
+- [x] Corregir en el backend los tres errores del ingreso (PEN-022) y verificarlos por la API — **Completado** (2026-09-27)
+- [x] Verificar ingreso y salida de punta a punta — **Completado** (2026-09-27): Julian registró desde el celular el ingreso de un visitante en bicicleta y cuadraron el panel y la base de datos
+- [x] Backend (autorizado): `GET /parking/records/open`, y las correcciones de la salida, del contador de puestos con ingresos simultáneos y de los errores de tipos que rompían `npm run build` (PEN-022) — **Completado** (2026-09-27)
+- [x] «Dentro ahora» (búsqueda, filtros, orden y paginación) a partir de los registros de acceso abiertos — **Completado** (2026-09-27)
+- [ ] «Movimientos de hoy» — Sin iniciar: necesita consultar los registros del día, no solo los abiertos (PEN-021)
+- [ ] Una sola acción según si la persona está dentro o no (dirección automática, ADR-006) — Sin iniciar: ya es posible con `GET /parking/records/open`
+
 ### Después
 
-- [ ] Firebase real: Authentication, Firestore, Storage y reglas de seguridad — Sin iniciar
+- [ ] Inicio de sesión real para la comunidad, la administración y los guardias (el código de Firebase se retiró el 2026-09-27, ADR-022) — Sin iniciar
+- [ ] Conectar al backend el dashboard de usuarios, el registro de vehículos, la administración y las notificaciones, que hoy son solo diseño (ADR-022) — Sin iniciar
 - [ ] Administración: crear y desactivar cuentas de guardias; historial de turnos — Sin iniciar
 - [ ] Incidencias reportadas por seguridad desde su dashboard — Sin iniciar
 - [ ] Registrar movimientos sin conexión y sincronizar después — Sin iniciar
@@ -161,7 +176,7 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 
 > Acordada el 2026-09-14. Los cambios posteriores se anotan en la bitácora; si cambian una decisión, se escribe un ADR nuevo.
 >
-> **Vigencia (2026-09-26):** esta era la especificación de demostración. Para Visitantes y Seguridad, el diseño vigente es el del backend real del equipo (rama `camilo-dev`): sin turnos ni movimientos históricos, sin `access-result`, con el ingreso del visitante automático al enviar el formulario y con control de acceso también para vehículos institucionales. Ver **ADR-020**. Esta sección queda como registro de las decisiones originales (4.3 a 4.9 describen funciones que hoy no existen en el código).
+> **Vigencia (2026-09-26):** esta era la especificación de demostración. Para Visitantes y Seguridad, el diseño vigente es el del backend real del equipo (rama `camilo-dev`): sin turnos ni movimientos históricos, sin `access-result`, con el ingreso del visitante automático al enviar el formulario y con control de acceso también para vehículos institucionales. Ver **ADR-020**. Esta sección queda como registro de las decisiones originales (4.3 a 4.9 describen funciones que hoy no existen en el código). Desde el 2026-09-27 tampoco existen `parking.config.ts` ni `StayService` (ADR-022): la capacidad de las zonas viene del backend (ADR-021). La estructura vigente está en [Estructura de `core/` y `testing/`](#estructura-de-core-y-testing).
 
 ### 4.1 Objetivo
 
@@ -328,26 +343,33 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | --- | --- | --- | --- | --- |
 | COR-001 | Alta | Rutas | `/inicio` no tenía guard de sesión y el historial de demostración era global: sin sesión, o con sesión de administrador, se veía el historial de prueba del usuario. Resuelto con las rutas por rol y el historial filtrado por cuenta. | **Completado** (2026-09-15) |
 | COR-002 | Alta | Visitantes | El pase QR no se guardaba en ningún lado, así que seguridad no podía validarlo. Resuelto: `VisitorPassService` guarda los pases, portería los valida y quedan usados con la estancia y el guardia. | **Completado** (2026-09-15) |
-| PEN-001 | Alta | Backend | Firebase no está configurado: todo funciona en modo demostración, con los datos guardados en el navegador (`uniparking.demo.v2.*`). | Sin iniciar |
-| PEN-002 | Alta | Seguridad | Faltan las reglas de Firestore y los claims por rol. Las rutas por rol ordenan la navegación, pero no protegen datos. | Sin iniciar |
-| PEN-003 | Media | Registro de vehículos | Subir los documentos a Storage; hoy quedan comprimidos en el navegador. | Sin iniciar |
+| PEN-001 | Alta | Backend | Firebase no estaba configurado y todo funcionaba en modo demostración, con los datos guardados en el navegador (`uniparking.demo.v2.*`). | **Completado** (2026-09-27): ya no se guarda nada en el navegador. Visitantes y Seguridad usan el backend del equipo (ADR-020, ADR-021) y el resto quedó sin datos hasta conectarse (ADR-022) |
+| PEN-002 | Alta | Seguridad | Faltan los permisos por rol en el servidor (antes se pensaban como reglas de Firestore y claims). Las rutas por rol ordenan la navegación, pero no protegen datos, y la API de Visitantes y Parking hoy no pide sesión. | Sin iniciar |
+| PEN-003 | Media | Registro de vehículos | Subir los documentos del registro al backend. Desde el 2026-09-27 adjuntar solo avisa que no está conectado (ADR-022). | Sin iniciar |
 | PEN-004 | Baja | Notificaciones | El botón de configuración no hace nada. | Sin iniciar |
 | PEN-005 | Baja | Header | El buscador ya funciona en seguridad (lleva a Control de acceso), pero en usuarios y administración no hace nada. «Configuración» del menú de cuenta no tiene función. | Pendiente |
 | PEN-006 | Baja | Dashboard de usuarios | «Parqueaderos» y «Estadísticas» del menú no llevan a ninguna parte. | Sin iniciar |
-| PEN-007 | Media | Administración | Las estadísticas usan datos simulados (generador con semilla). | Sin iniciar |
-| PEN-008 | Baja | Componentes | `accessibility` y `footer` están creados, pero vacíos. | Sin iniciar |
+| PEN-007 | Media | Administración | Las estadísticas salen vacías: el generador de datos simulados se retiró el 2026-09-27 (ADR-022). Faltan los datos del backend; se pueden calcular a partir de los registros de acceso. | Sin iniciar |
+| PEN-008 | Baja | Componentes | `accessibility` y `footer` estaban creados, pero vacíos, y se borraron el 2026-09-26. Se crean de nuevo cuando se diseñen. | Sin iniciar |
 | PEN-009 | Alta | Registro de vehículos | El registro de bicicletas no pedía documento, y portería las busca por documento (ADR-007). Resuelto: tipo y número de documento obligatorios en bicicletas. | **Completado** (2026-09-15) |
 | PEN-010 | Media | PWA | Probar en Android e iOS la instalación, el uso sin conexión y el lector de QR con la cámara en vivo (exige HTTPS). Verificado solo en computador: la PWA en Edge sin interfaz y el lector leyendo la foto de un pase. | Sin iniciar (Fase 6) |
 | PEN-011 | Media | PWA | Avisar cuando hay una versión nueva de la app (`SwUpdate`), para no dejar a nadie con una versión vieja. | Sin iniciar |
 | PEN-012 | Baja | PWA | El manifiesto y los íconos son de Uniempresarial; cada cliente necesitará los suyos al publicar. | Sin iniciar |
-| PEN-013 | Alta | Autenticación | Con Firebase la sesión se restaura de forma asíncrona: las rutas por rol deben esperarla antes de decidir (hoy la sesión de demostración es inmediata). | Sin iniciar |
-| PEN-014 | Media | Autenticación | En la PWA instalada en iOS, la ventana emergente de Microsoft puede fallar: usar redirección en modo `standalone`, como ya se hace en la app nativa. | Sin iniciar |
+| PEN-013 | Alta | Autenticación | Con un inicio de sesión real la sesión se restaura de forma asíncrona: las rutas por rol deben esperarla antes de decidir (hoy la sesión simulada de los guardias es inmediata). | Sin iniciar |
+| PEN-014 | Media | Autenticación | En la PWA instalada en iOS, la ventana emergente de Microsoft puede fallar: usar redirección en modo `standalone`, como ya se hace en la app nativa. Solo aplica si vuelve el inicio con Microsoft, que se retiró el 2026-09-27 (ADR-022). | Por decidir |
 | PEN-015 | Media | Documentación | Completar TSDoc en el código anterior a la Fase 1 (ADR-017). | Pendiente |
 | PEN-016 | Alta | Visitantes | En demostración los pases vivían en el navegador: un pase solo se validaba en el mismo navegador donde se generó. | **Completado** (2026-09-26): con el backend real (ADR-020) el visitante queda guardado en la base de datos, así que cualquier guardia lo valida desde cualquier navegador |
 | PEN-017 | Baja | Seguridad | Vibrar al registrar un movimiento en los celulares que lo permitan (4.2). | Sin iniciar |
 | PEN-018 | Alta | Seguridad | El QR de ingreso/salida de un usuario institucional se genera en otra parte del proyecto (ADR-020); acá se asumió que codifica la **placa** del vehículo, porque es el único identificador que expone el módulo de Vehículos. Falta confirmarlo con quien construya esa generación. | Por decidir |
-| PEN-019 | Media | Todo el proyecto | La limpieza de datos quemados solo se hizo en Visitantes y Seguridad (ADR-020). El dashboard de usuarios, administración y registro de vehículos siguen en modo demostración. Falta decidir si se aborda ahora para todo el proyecto o se deja para cuando el backend tenga esos módulos. | Por decidir |
-| MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista lo usa. Por eso el paquete inicial pesa 541 kB (límite de 500 kB) y sus clases chocan con `.card`, `.table` y `.btn`. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
+| PEN-019 | Media | Todo el proyecto | La limpieza de datos quemados solo se había hecho en Visitantes y Seguridad (ADR-020): el dashboard de usuarios, la administración, el registro de vehículos y las notificaciones seguían en modo demostración, con sus servicios (`parking`, `parking-stats`, `stay`, `vehicle-registration`, `incident`, `notification`, `upload`). | **Completado** (2026-09-27): Julian pidió retirarlo todo antes de integrar la rama. Esas pantallas quedan con su diseño y sin datos (ADR-022) |
+| PEN-021 | Alta | Seguridad y visitantes | Para el flujo del módulo Parking (ADR-021) el backend debía publicar cuatro cosas. Camilo publicó (commit `84c49a2`) el ingreso y la salida de visitantes por id y la consulta de zonas (`GET /parkingZone`). La cuarta se agregó el 2026-09-27, con su autorización, para «Dentro ahora»: `GET /parking/records/open` (registros sin salida). Falta consultar los registros del día para «Movimientos de hoy». | Pendiente (backend) |
+| PEN-022 | Alta | Seguridad | Errores del backend en `camilo-dev` (`84c49a2`), encontrados al probar por la API el 2026-09-27: **(1)** ningún ingreso se guarda: `RegisterEntryUseCase` y `RegisterEntryVisitorUseCase` crean el registro con id `""` y Postgres lo rechaza (`invalid input syntax for type integer: ""`); con `null` o sin id lo genera la base de datos. **(2)** El puesto de la zona se descuenta antes de guardar el registro y sin transacción: cada ingreso fallido deja un puesto ocupado de más (los de las pruebas se devolvieron con `PATCH /parkingZone/:id`). **(3)** Latente, se verá al corregir (1): a los visitantes sin placa se les guarda la placa como `""`, y el índice único de registros abiertos por placa solo excluye `NULL`, así que no podrían estar dentro dos visitantes sin placa a la vez. Corrección (autorizada por el líder de backend, solo estos tres puntos, en `RegisterEntryUseCase.ts` y `RegisterEntryVisitorUseCase.ts`): el registro se crea con id `null`, se guarda antes de descontar el puesto, y la placa vacía se guarda como `null`. Verificado por la API: ingresos y salidas, dos visitantes sin placa dentro a la vez, ingresos repetidos rechazados sin gastar puestos, y con un guardado que falla la zona no se toca. Segunda ronda, también autorizada: **(a)** la salida cerraba el registro después de liberar el puesto; ahora lo cierra primero y solo si seguía abierto, así dos salidas simultáneas no liberan dos puestos. **(b)** El contador de puestos se leía, se restaba y se guardaba: dos ingresos simultáneos podían dejarlo descuadrado. Ahora Postgres suma o resta en el mismo `UPDATE`, con tope en 0 y en la capacidad, y el ingreso reserva el puesto antes de guardar el registro (si el registro falla, lo devuelve). **(c)** `npm run build` fallaba por errores de tipos en Incidencias, Usuarios, Vehículos, Visitantes y los scripts; el de Incidencias era una falla real: al actualizar, el dueño nunca cambiaba. Verificado con ingresos y salidas simultáneos contra la base real. | **Completado** (2026-09-27), sin commit: queda para revisión de backend |
+| PEN-023 | Media | Visitantes | El QR del visitante no vence después de la salida: el backend solo rechaza el ingreso si el visitante está dentro en ese momento, así que con el mismo QR puede volver a entrar ese día o cualquier otro. Si cada QR debe servir para una sola visita (un ingreso y una salida), el ingreso del visitante tiene que rechazar a quien ya tenga un registro cerrado, y el visitante llenaría el formulario en cada visita. | Por decidir (con backend) |
+| PEN-024 | Media | Backend | En `camilo-dev` la carpeta `dist/` sigue versionada aunque `.gitignore` la excluye (en `master` y `nico_dev` ya se sacó): cada `npm run build` modifica unos 190 archivos versionados. Se arregla sacándola del índice (`git rm -r --cached dist`). | Por decidir (backend) |
+| PEN-025 | Media | Seguridad | En el celular, «Leer desde una foto» todavía falla en algunas fotos reales de la pantalla (Julian, 2026-09-27), aunque con las fotos simuladas lee 16 de 16. La cámara en vivo sí funciona. Si hace falta, la opción más robusta es el lector nativo ML Kit, como en `lector-codigo`. | Sin iniciar |
+| PEN-026 | Baja | Dependencias | El paquete `firebase` sigue en `package.json`, aunque desde el 2026-09-27 ningún archivo lo importa (Julian decidió dejarlo instalado). No pesa en la app, porque no entra en el build, pero conviene quitarlo si el inicio de sesión real no lo usa. | Por decidir |
+| PEN-020 | Baja | Seguridad | En «Dentro ahora», un vehículo institucional no tenía hora de ingreso real (el backend solo guardaba `is_authorized`), así que el orden por hora lo dejaba al final. Con los registros de acceso (ADR-021) cada ingreso tiene su hora: se resuelve al reconstruir «Dentro ahora» sobre ellos (PEN-021). | **Completado** (2026-09-27): «Dentro ahora» ordena por la hora real de ingreso de todos |
+| MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista lo usa. Por eso el paquete inicial pesa 536 kB (límite de 500 kB) y sus clases chocan con `.card`, `.table` y `.btn`. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
 | MEJ-002 | Baja | Estilos | El límite de estilos por componente se subió a 12 kB (aviso) por `admin-dashboard` y `register-vehicle`. Revisarlo al separar componentes. | Sin iniciar |
 | MEJ-003 | Baja | Documentación | Generar un sitio navegable con la documentación del código (p. ej. Compodoc). Hay que verificar antes su compatibilidad con Angular 22. | Por decidir |
 | MEJ-004 | Baja | Dependencias | `npm audit` reporta dos avisos moderados en dependencias de las herramientas (`hono` y `qs`). Revisar con `npm audit fix`. | Por decidir |
@@ -362,10 +384,10 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 | ID | Fecha | Decisión | Estado |
 | --- | --- | --- | --- |
 | ADR-001 | 2026-08-31 | Marca personalizable desde un solo archivo | Aceptado |
-| ADR-002 | 2026-09-05 | Firebase JS SDK en lugar de `@angular/fire` | Aceptado |
+| ADR-002 | 2026-09-05 | Firebase JS SDK en lugar de `@angular/fire` | Retirado por ADR-022 (el código se borró; el paquete sigue instalado, PEN-026) |
 | ADR-003 | 2026-09-05 | Pase de visitante con token opaco, vigencia corta y uso único | Reemplazado por ADR-020 |
 | ADR-004 | 2026-09-13 | Verificación humana de la tarjeta de propiedad | Aceptado |
-| ADR-005 | 2026-09-13 | Modo demostración con datos locales | Aceptado |
+| ADR-005 | 2026-09-13 | Modo demostración con datos locales | Reemplazado por ADR-022 |
 | ADR-006 | 2026-09-14 | Un solo flujo de control de acceso con dirección automática | Aceptado |
 | ADR-007 | 2026-09-14 | Identificación según el tipo de vehículo y de persona | Aceptado |
 | ADR-008 | 2026-09-14 | Ocupación por conteo con cupo por tipo | Aceptado |
@@ -380,7 +402,9 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 | ADR-017 | 2026-09-15 | Documentación del código con TSDoc | Aceptado |
 | ADR-018 | 2026-09-15 | Deshacer sin rastro y anular con motivo | Aceptado |
 | ADR-019 | 2026-09-15 | Leer el QR desde una foto como respaldo de la cámara | Aceptado |
-| ADR-020 | 2026-09-26 | Conexión al backend real (`camilo-dev`): nuevo modelo de visitantes y reducción del dashboard de seguridad | Aceptado |
+| ADR-020 | 2026-09-26 | Conexión al backend real (`camilo-dev`): nuevo modelo de visitantes y reducción del dashboard de seguridad | Reemplazado en parte por ADR-021 (ingreso del visitante) |
+| ADR-021 | 2026-09-27 | Módulo Parking: el QR valida el ingreso y la ocupación sale de las zonas | Aceptado |
+| ADR-022 | 2026-09-27 | Retiro del modo demostración: quedan Visitantes, Seguridad y el acceso simulado de los guardias | Aceptado |
 
 ### ADR-001 · Marca personalizable desde un solo archivo
 
@@ -599,6 +623,41 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
   - La limpieza de datos quemados solo se hizo en Visitantes y Seguridad; el resto del proyecto (dashboard de usuarios, administración, registro de vehículos) sigue en modo demostración (PEN-019).
   - La sección 4 de este documento describe el diseño original de demostración; para Visitantes y Seguridad, este ADR es la versión vigente.
 
+### ADR-021 · Módulo Parking: el QR valida el ingreso y la ocupación sale de las zonas
+
+- **Estado:** Aceptado; reemplaza la parte de ADR-020 según la cual enviar el formulario era el ingreso · **Fecha:** 2026-09-27
+- **Contexto:** el backend agregó el módulo Parking (`camilo-dev`, commits `a1d54c8` a `84c49a2`): zonas de parqueo con capacidad y puestos libres por tipo de vehículo, y registros de acceso (`access_record`) con placa, visitante, zona, hora de ingreso y hora de salida. Con eso, registrarse ya no tiene que ser entrar: una persona puede llenar el formulario y al final no ingresar.
+- **Decisión:**
+  - Enviar el formulario de visitantes solo registra la visita. El QR (el id del registro) es la llave de acceso: el ingreso queda validado cuando portería lo escanea y lo registra (`POST /parking/entry/visitor/:id`), y la salida cuando el guardia la registra con un botón (`PATCH /parking/exit/visitor/:id`).
+  - Los vehículos de la comunidad entran y salen igual, por placa (`/parking/entry/:plate`, `/parking/exit/:plate`). `is_authorized` pasa a ser el permiso para entrar, no «está dentro»; sin permiso no se ofrece el ingreso.
+  - Sin el QR a mano, el guardia encuentra al visitante por documento o por la placa de su moto; vale su registro más reciente.
+  - El resumen toma la ocupación de las zonas (`GET /parkingZone`): vehículos dentro = capacidad − puestos libres, en total y por tipo.
+  - Mientras el backend no deje consultar los registros de acceso (PEN-021): el guardia ve las dos acciones y el backend rechaza la que no corresponde, con su motivo; «Dentro ahora» muestra un aviso en lugar de la lista, y «Movimientos de hoy» no se muestra.
+- **Alternativas descartadas:**
+  - Seguir mostrando en «Dentro ahora» a los visitantes sin salida y a los vehículos autorizados: con este modelo, eso incluye a quien solo se registró y a quien solo tiene permiso, y el guardia vería como «dentro» a gente que no entró.
+  - Registrar el ingreso sin que el guardia lo confirme al escanear: se pierde la verificación del documento, y un escaneo de alguien que va saliendo abriría un ingreso.
+- **Consecuencias:**
+  - La lista «Dentro ahora» (búsqueda, filtros, orden y paginación) se retiró por ahora y se reconstruye sobre los registros de acceso, que traen la hora de ingreso de todos, también de la comunidad (resuelve PEN-020).
+  - El ingreso dependía de corregir tres errores del backend (PEN-022); se corrigieron el 2026-09-27 con autorización del líder de backend.
+
+### ADR-022 · Retiro del modo demostración: quedan Visitantes, Seguridad y el acceso simulado de los guardias
+
+- **Estado:** Aceptado; reemplaza ADR-005 y retira el uso de Firebase de ADR-002 · **Fecha:** 2026-09-27
+- **Contexto:** Visitantes y Seguridad ya trabajan con el backend real (ADR-020, ADR-021). El resto del proyecto seguía en modo demostración (ADR-005, PEN-019): el inicio de sesión de la comunidad y de administración, el dashboard de usuarios, el registro de vehículos, la administración y las notificaciones usaban cuentas simuladas y servicios con datos quemados guardados en el navegador. Antes de integrar la rama, Julian pidió dejar solo lo que se usa de verdad, para que no haya confusiones entre los desarrolladores sobre qué está en uso.
+- **Decisión:**
+  - Se borra todo lo que generaba o guardaba datos de demostración: los servicios `parking`, `parking-stats`, `stay`, `vehicle-registration`, `incident`, `notification`, `upload` y `microsoft-auth`; la carpeta `core/demo` (semillas, documentos de ejemplo, reloj y almacenamiento de demostración); `auth.interceptors.ts`; `firebase.config.ts` y `parking.config.ts`; y `utils/id.ts`. Nada queda apagado ni comentado.
+  - Las pantallas sin backend (dashboard de usuarios, registro de vehículos, administración y notificaciones) se conservan como **componentes vacíos**: compilan con su HTML y su CSS intactos, pero sin servicios ni datos, y cada sección muestra su estado vacío. Las acciones que necesitan backend (adjuntar, enviar, aprobar, rechazar y pedir actualización) validan lo que corresponde y avisan que el módulo no está conectado. Sus rutas siguen, pero ninguna cuenta puede abrirlas.
+  - El login queda con «Visitantes» y el acceso simulado de los dos guardias (Carlos Ramírez y Diana Morales), que sigue validando las rutas de seguridad (ADR-010). La sesión simulada se guarda en `sessionStorage` (`uniparking.session`) mientras la pestaña esté abierta. Se retiran el inicio con Microsoft y el acceso de administración.
+  - Los modelos de `core/models` se recortan a lo que usan los componentes: salen los movimientos, las anulaciones y las marcas de las estancias, y los ayudantes que solo usaban los servicios borrados.
+  - El paquete `firebase` sigue instalado por decisión de Julian, aunque ya no lo importa ningún archivo (PEN-026).
+- **Alternativas descartadas:**
+  - Borrar también las pantallas: se van a conectar después y su diseño ya está hecho.
+  - Dejar el modo demostración apagado con una bandera: seguiría habiendo código que nadie usa y que confunde al integrar.
+- **Consecuencias:**
+  - Resuelve PEN-019 y cierra PEN-001. La Fase 5 vuelve a «Sin iniciar»: la disponibilidad y el historial del usuario se harán sobre el backend.
+  - La suite de pruebas baja de 186 a 133: salen las de los servicios borrados y las que dependían de datos de ejemplo. Las pantallas vacías se prueban con sus estados vacíos y sus validaciones.
+  - Las pruebas de rutas por rol siguen cubriendo a la comunidad y la administración con cuentas que solo existen en las pruebas (`testing/demo-session.ts`).
+
 ---
 
 ## 7. Bitácora de cambios
@@ -609,9 +668,16 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Agregado
 
+- 2026-09-27 · «Dentro ahora» vuelve al resumen de seguridad, ahora con los registros de acceso abiertos: la búsqueda (placa, documento o nombre), los filtros de quién y de vehículo, el orden por hora real de ingreso y la paginación de siete en siete. La tarjeta «Vehículos dentro» vuelve a decir cuántos son de la comunidad y cuántos visitantes.
+- 2026-09-27 · Backend (autorizado por el líder de backend): `GET /parking/records/open`, los registros de acceso sin salida.
+- 2026-09-27 · `ParkingApiService` (módulo Parking del backend, ADR-021): zonas de parqueo e ingreso y salida en `access_record`, para visitantes y para la comunidad.
+- 2026-09-27 · Resumen de seguridad con la ocupación real de las zonas: tarjetas «Vehículos dentro» y «Puestos disponibles», y «Ocupación por tipo de vehículo» (reutiliza `zone-availability`).
+- 2026-09-27 · Control de acceso: «Registrar ingreso» y «Registrar salida» para visitantes y vehículos de la comunidad, con el motivo del backend cuando rechaza un movimiento; búsqueda del visitante por documento o placa cuando no tiene el QR a mano.
+- 2026-09-27 · Los 5 visitantes de ejemplo se volvieron a crear por la API: la base de datos se había vaciado con la actualización del backend.
 - 2026-09-26 · Conexión real de **Visitantes** y **Seguridad** al backend del equipo (rama `camilo-dev`, ADR-020): `VisitorApiService` y `VehicleApiService` nuevos, reorganizados en `core/services/modules/visitors` y `core/services/modules/security-dashboard`.
 - 2026-09-26 · Datos de ejemplo reales sembrados a través de la API, no quemados en el frontend: 5 usuarios institucionales con vehículo y 5 visitantes.
 - 2026-09-26 · Verificación de punta a punta en el navegador contra el backend real: registrar un visitante, marcarle la salida, y autorizar y desautorizar un vehículo institucional.
+- 2026-09-26 · Resumen de seguridad: tres filtros combinables en «Dentro ahora» — texto libre (placa, documento o nombre), quién (todos, visitantes o comunidad) y tipo de vehículo (todos, moto, scooter o bicicleta) — más orden por hora de ingreso (el más reciente primero) y paginación de siete en siete. El título «Dentro ahora» y «Actualizar» quedan en su propia fila arriba; los tres filtros van en una fila aparte debajo.
 - 2026-09-15 · Dashboard de seguridad, sección **Control de acceso** (Fases 2 y 3): búsqueda por placa, documento o nombre y lectura del pase QR del visitante. La tarjeta de resultado (`access-result`) muestra la persona y el vehículo según su tipo, los bloqueos y los avisos por confirmar, y ofrece cerrar un ingreso de otro día o registrar una salida sin ingreso con nota. Cada registro se puede deshacer durante 10 segundos.
 - 2026-09-15 · Secciones **Vehículos dentro** (filtros por tipo, persona y texto; salida desde cada vehículo) y **Movimientos** (del turno o de todo el día, con notas, marcas y anulación con motivo, ADR-018).
 - 2026-09-15 · `AccessControlService` (identificar, validar, decidir la dirección, registrar, deshacer y anular) y su modelo `core/models/access.ts`.
@@ -639,6 +705,14 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Cambiado
 
+- 2026-09-27 · Revisión de `core/` y `testing/` antes de integrar: todo lo que queda tiene uso (ver [Estructura de `core/` y `testing/`](#estructura-de-core-y-testing)). Se corrigieron comentarios que todavía hablaban de Firestore, de Firebase Storage y del conteo de ocupación anterior.
+- 2026-09-27 · El login queda con «Visitantes» y el acceso simulado de los dos guardias; salen «Iniciar sesión con Microsoft» y el acceso de administración (ADR-022). `AuthService` ya no usa Firebase: solo abre y cierra la sesión simulada del guardia, guardada en `sessionStorage` mientras la pestaña esté abierta.
+- 2026-09-27 · El dashboard de usuarios, el registro de vehículos, la administración y las notificaciones quedan como componentes vacíos: el mismo diseño, sin servicios ni datos, y cada sección con su estado vacío. Adjuntar, enviar, aprobar, rechazar y pedir actualización avisan que el módulo no está conectado al backend; el menú de administración ya no muestra contadores (ADR-022).
+- 2026-09-27 · Los tipos de las estadísticas pasan del servicio borrado a `core/models/parking-stats.ts`, y `app.config.ts` registra `HttpClient` sin interceptor.
+- 2026-09-27 · La suite de pruebas pasa de 186 a 133: salen las de los servicios borrados y las que dependían de datos de ejemplo. Las de rutas por rol usan cuentas de comunidad y de administración que solo existen en las pruebas (`testing/demo-session.ts`).
+- 2026-09-27 · El paquete inicial baja de 541 kB a 536 kB (sigue el aviso de MEJ-001).
+- 2026-09-27 · Enviar el formulario de visitantes ya no es el ingreso: solo registra la visita, y el QR es la llave que portería escanea para validar el ingreso (ADR-021). El botón pasa a decir «Registrar visita».
+- 2026-09-27 · Vehículos de la comunidad: el ingreso y la salida ya no autorizan ni desautorizan el vehículo (eso ahora es el permiso para entrar), sino que abren y cierran su registro de acceso.
 - 2026-09-26 · El formulario de visitantes ya no muestra cuenta regresiva ni vencimiento: enviarlo es el ingreso (ADR-020). Los campos de vehículo del visitante se simplifican al modelo plano del backend: marca y color siempre obligatorios, placa solo para moto, sin serial de marco.
 - 2026-09-26 · El dashboard de seguridad se reduce a Resumen y Control de acceso; el resumen combina visitantes y vehículos institucionales reales (ADR-020).
 - 2026-09-15 · El menú de seguridad pasa a cinco secciones y el botón del resumen, «Registrar ingreso o salida», lleva a Control de acceso.
@@ -657,12 +731,22 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Corregido
 
+- 2026-09-27 · Backend (autorizado por el líder de backend): la salida ya no libera el puesto antes de cerrar el registro; el contador de puestos ya no se descuadra con ingresos simultáneos; `npm run build` vuelve a compilar (PEN-022).
+- 2026-09-27 · App Android (Capacitor): la cámara no abría porque el manifiesto no declaraba el permiso `CAMERA`, y sin declararlo Android lo niega sin preguntar. Agregado en `android/app/src/main/AndroidManifest.xml`.
+- 2026-09-27 · «Leer desde una foto» no reconocía el QR en fotos de celular tomadas a una pantalla: ZXing recibía la foto completa (12 MP o más) y la rejilla de píxeles del monitor lo confundía. Ahora la foto se reduce con suavizado (1024, 1600 o 640 px de lado) y se lee con `TRY_HARDER`. En 16 fotos simuladas de pantalla, el lector anterior leyó 4 y el nuevo las 16.
+- 2026-09-27 · Backend (con autorización del líder de backend): los tres errores del ingreso en el módulo Parking (PEN-022). Ningún ingreso se guardaba, cada intento fallido gastaba un puesto y dos visitantes sin placa no podían estar dentro a la vez.
+- 2026-09-27 · El backend ahora devuelve el dueño de un vehículo como `owner.name` (antes `owner.name_user`): el panel de seguridad mostraba el nombre vacío y el buscador de «Dentro ahora» fallaba. Adaptado en `vehicle-api.service`.
 - 2026-09-26 · En «Dentro ahora», un visitante sin placa (bicicleta o scooter) mostraba el título vacío en vez del tipo de vehículo: el backend devuelve `''` (no `null`) cuando no hay placa, y el `??` no lo tomaba como ausente.
 - 2026-09-15 · COR-002: los pases QR se guardan y portería puede validarlos.
 - 2026-09-15 · COR-001: `/inicio` ya no se abre sin sesión ni desde la cuenta de otro rol.
 
 #### Eliminado
 
+- 2026-09-27 · El rol `visitor` (`UserRole` y su inicio en `ROLE_HOME`): los visitantes no tienen cuenta, y ninguna ruta, cuenta ni prueba lo usaba.
+- 2026-09-27 · Todo lo que generaba o guardaba datos de demostración fuera de Visitantes y Seguridad (ADR-022): los servicios `parking`, `parking-stats`, `stay`, `vehicle-registration`, `incident`, `notification`, `upload` y `microsoft-auth` (con sus pruebas); la carpeta `core/demo` (semillas de estancias y solicitudes, documentos de ejemplo, reloj y almacenamiento de demostración); `core/interceptors/auth.interceptors.ts`; `core/config/firebase.config.ts` y `parking.config.ts`; y `core/utils/id.ts`.
+- 2026-09-27 · De los modelos, lo que solo usaban esos servicios: movimientos, anulaciones y marcas de las estancias (`parking.ts`); `requirementsFor`, `isAsked` y `NO_VEHICLE_REQUIREMENTS` (`vehicle.ts`); `missingRequiredDocuments` y `statusNote` (`vehicle-registration.ts`); `visitorFullName` y `documentLabel` (`visitor-pass.ts`); y `momentLabel` (`dates.ts`).
+- 2026-09-27 · Todo el código de Firebase. El paquete `firebase` sigue instalado por decisión de Julian, pero ya no entra en el build (PEN-026).
+- 2026-09-27 · La lista «Dentro ahora» (búsqueda, filtros, orden y paginación) sale por ahora del resumen: con el modelo nuevo mostraría como dentro a quien solo se registró. Vuelve sobre los registros de acceso (PEN-021). También sale `registerExit` de `VisitorApiService`: `PATCH /visitors/:id/exit` no cierra el registro de acceso y el backend lo marcó para borrar.
 - 2026-09-26 · `AccessControlService`, `ShiftService`, `VisitorPassService` (y sus modelos, semillas y pruebas), el componente `access-result`, y las secciones de Turno y Movimientos del dashboard de seguridad: reemplazados por el backend real o retirados hasta que el backend tenga esos módulos (ADR-020).
 - 2026-09-26 · Auditoría de código huérfano en `core/` antes de subir la rama a integrar: se confirmó con qué archivo usa cada cosa y se borró lo que ningún componente ni servicio importaba: `accessibility` y `footer` (componentes creados sin contenido, nunca enlazados a ninguna ruta) y `user-profile.service.ts` (nunca importado). El resto de `core/` sigue en uso — por ejemplo `parking.service`, `stay.service`, `vehicle-registration.service` e `incident.service` los usan hoy `main-dashboard`, `admin-dashboard` y `register-vehicle`, así que no se tocan aunque no sean del enfoque actual (visitantes y seguridad).
 
@@ -774,11 +858,35 @@ Tipos: `feat` (función nueva), `fix` (corrección), `docs`, `refactor`, `test`,
 ### Código
 
 - Textos de interfaz, comentarios y documentación en español; clases y archivos nuevos en inglés.
-- La marca sale solo de `branding.config.ts` (ADR-001); los cupos y la portería, de `parking.config.ts`.
+- La marca sale solo de `branding.config.ts` (ADR-001); la capacidad y la ocupación de las zonas, del backend (`GET /parkingZone`, ADR-021).
+- Nada de datos quemados: lo que no tiene backend todavía se muestra vacío, no con datos de ejemplo (ADR-022).
 - Los estados llevan siempre icono y texto, nunca solo color.
 - Los datos de prueba son siempre ficticios: nunca datos de documentos o personas reales.
 - Las reglas de negocio van en servicios (`core/services`), no en componentes.
 - Mobile-first: todo debe verse bien en computador y en celular (probar al menos a 375 y 320 px de ancho).
+
+### Estructura de `core/` y `testing/`
+
+Revisada el 2026-09-27: todo lo que queda tiene uso. «Solo diseño» son las pantallas que esperan backend (ADR-022).
+
+| Archivo | Para qué sirve | Quién lo usa |
+| --- | --- | --- |
+| `config/branding.config.ts` | Colores, logos y nombres de la marca (ADR-001) | Toda la app |
+| `guards/auth.guards.ts` | Deja entrar a cada grupo de rutas solo al rol que le toca y manda a cada quien a su inicio (ADR-010) | Rutas y login |
+| `layout/drawer-state.ts` | Menú lateral: cerrado en el celular, abierto en el computador | `dashboard-layout` |
+| `navigation/dashboard-navigation.ts` | Cada rol declara su menú y su buscador del header (ADR-010) | Layout, sidebar y las rutas de cada rol |
+| `services/auth.service.ts` | Sesión simulada de los guardias | Login, guards y header |
+| `services/modules/` | Consumo del backend (visitantes, parqueadero y vehículos) y lector de QR | Visitantes y seguridad |
+| `utils/dates.ts` | Horas para portería: «hoy a las 7:05 p. m.» | Seguridad |
+| `models/visitor-pass.ts` | Datos del formulario de visitantes y tipos de documento | Visitantes; registro de vehículos |
+| `models/vehicle.ts` | Tipos de vehículo y cómo se muestran; lo de «Mis vehículos» | Visitantes y seguridad; pantallas de solo diseño |
+| `models/parking.ts` | Zonas y su estado (Disponible, Casi lleno, Sin cupos); estancias e historial | Seguridad (zonas); dashboard de usuarios (historial) |
+| `models/notification.ts` | Forma de un aviso y «hace 5 min» | Campana del header |
+| `models/vehicle-registration.ts` | Solicitudes de registro, documentos y revisión | Registro de vehículos y administración (solo diseño) |
+| `models/incident.ts` y `models/parking-stats.ts` | Incidencias y estadísticas | Administración (solo diseño) |
+| `testing/demo-session.ts` | Abre sesiones dentro de las pruebas: los guardias y cuentas ficticias de comunidad y administración | Solo las pruebas; no entra en la app |
+
+Los archivos `*.spec.ts` son las pruebas unitarias (`npm test`) y tampoco entran en la app.
 
 ### Documentación del código (TSDoc)
 
@@ -795,14 +903,13 @@ Todo código nuevo o modificado lleva comentarios TSDoc (`/** … */`) en españ
 
 ```ts
 /**
- * Registra la salida de una estancia abierta.
+ * Valida el ingreso de un visitante: es lo que pasa al escanear su QR.
  *
- * @param stayId Estancia que termina.
- * @param audit Guardia, turno y método con que se identificó la salida.
- * @returns La estancia cerrada.
- * @throws StayError `not-found` si la estancia no existe, o `already-exited` si ya tenía salida.
+ * @param visitorId Id del registro del visitante, el que lleva el QR.
+ * @returns El registro de acceso que abrió el backend.
+ * @throws HttpErrorResponse si el backend rechaza el ingreso, p. ej. porque el visitante ya está dentro.
  */
-registerExit(stayId: string, audit: MovementAudit, at: Date = new Date()): ParkingStay
+registerVisitorEntry(visitorId: number): Promise<BackendAccessRecord>
 ```
 
 ### Verificación
@@ -810,8 +917,8 @@ registerExit(stayId: string, audit: MovementAudit, at: Date = new Date()): Parki
 - Compilar: `npx ng build`
 - Pruebas: `npx ng test --no-watch`
 - PWA: el service worker no corre con `ng serve`. Hay que compilar y servir `dist/parking/browser` con cualquier servidor estático, y abrirlo en Chrome o Edge.
-- Control de acceso con QR en computador: generar un pase en `/visitantes`, guardar una captura del QR y, en el mismo navegador, entrar como «Guardia Carlos» → Control de acceso → Pase de visitante (QR) → «Leer desde una foto».
-- Datos de demostración limpios: borrar las claves `uniparking.demo.v2.*` del almacenamiento del navegador y recargar.
+- Control de acceso con QR en computador (con el backend corriendo): registrar una visita en `/visitantes`, guardar una captura del QR, entrar como «Guardia Carlos» → Control de acceso → «Leer desde una foto».
+- Cerrar la sesión simulada del guardia: menú de cuenta → cerrar sesión, o cerrar la pestaña (vive en `sessionStorage`).
 
 ### Terminado significa
 
@@ -841,7 +948,7 @@ Referencias: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · [Arc
 | # | Pregunta | Afecta |
 | --- | --- | --- |
 | 1 | ¿Cuántas porterías hay? ¿Puede haber más de un guardia en turno al mismo tiempo? Hoy se asume una portería y un turno activo. | Turnos |
-| 2 | ¿Cuáles son los cupos reales por tipo de vehículo en Uniempresarial? Hoy se usan 60, 30 y 20 de ejemplo. | Ocupación |
+| 2 | ¿Cuáles son los cupos reales por tipo de vehículo en Uniempresarial? Hoy las zonas del backend tienen 50 (motos), 20 (bicicletas) y 10 (scooters) de ejemplo. | Ocupación |
 | 3 | ¿Cuánto tiempo se guardan las fotos de las placas? Son datos personales (Ley 1581 de 2012). | Movimientos (Fase 4) |
 | 4 | ¿Se notifica al usuario cada ingreso y salida de su vehículo? | Fase 5 |
 | 5 | ¿La universidad dará correo institucional a los guardias? Si lo hace, solo cambia el inicio de sesión (ADR-009). | Inicio de sesión |

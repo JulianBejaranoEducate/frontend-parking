@@ -89,18 +89,9 @@ export interface RegistrationDocument {
   kind: DocumentKind;
   fileName: string;
   mimeType: string;
-  /** TODO: en producción será la ruta del archivo en Firebase Storage. */
+  /** TODO: con el backend será la dirección del archivo guardado (PEN-003). */
   dataUrl: string;
   uploadedAt: Date;
-}
-
-export function missingRequiredDocuments(
-  type: VehicleType,
-  documents: readonly Pick<RegistrationDocument, 'kind'>[],
-): DocumentRequirement[] {
-  return DOCUMENT_REQUIREMENTS[type].filter(
-    (requirement) => requirement.required && !documents.some((doc) => doc.kind === requirement.kind),
-  );
 }
 
 // ---- Personas ----------------------------------------------------------------------
@@ -172,22 +163,6 @@ export function wasResubmitted(registration: VehicleRegistration): boolean {
     registration.status === 'pending' &&
     registration.reviews.some((review) => review.outcome === 'needs-update')
   );
-}
-
-/** Texto para el usuario: por qué se rechazó o qué debe actualizar. */
-export function statusNote(registration: VehicleRegistration): string | undefined {
-  const review = latestReview(registration);
-
-  if (!review || registration.status === 'approved' || registration.status === 'pending') {
-    return undefined;
-  }
-
-  const lead =
-    review.outcome === 'needs-update' && review.documentKind
-      ? `Vuelve a enviar: ${DOCUMENT_LABELS[review.documentKind]}.`
-      : review.reason;
-
-  return [lead, review.note].filter(Boolean).join(' ');
 }
 
 // ---- Comparación de nombres ----------------------------------------------------------

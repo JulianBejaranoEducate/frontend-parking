@@ -1,7 +1,8 @@
 /**
- * Taxonomía de vehículos, compartida por el registro de visitantes y por el
- * dashboard de usuarios. El parqueadero de la universidad solo recibe vehículos
- * de dos ruedas, así que el automóvil no es una opción en ninguna pantalla.
+ * Taxonomía de vehículos: tipos, etiquetas y cómo se muestra un vehículo. La
+ * comparten visitantes, seguridad y las pantallas de la comunidad y la
+ * administración. El parqueadero de la universidad solo recibe vehículos de
+ * dos ruedas, así que el automóvil no es una opción en ninguna pantalla.
  */
 
 export const VEHICLE_TYPES = [
@@ -29,9 +30,9 @@ export interface VehicleRequirements {
 }
 
 /**
- * Qué datos pide cada tipo de vehículo. Es la única fuente de verdad: de aquí
- * salen tanto los campos que se muestran como los validadores del formulario
- * de visitantes y del registro de vehículos.
+ * Qué datos pide cada tipo de vehículo en el registro de vehículos de la
+ * comunidad: de aquí salen los campos que se muestran y sus validadores. (El
+ * formulario de visitantes sigue el modelo plano del backend, ADR-020.)
  *
  * - Scooter: color obligatorio y marca opcional, porque no todos la conocen.
  * - Bicicleta: serial del marco opcional, porque no todas lo tienen a la vista.
@@ -42,25 +43,12 @@ export const VEHICLE_REQUIREMENTS: Record<VehicleType, VehicleRequirements> = {
   bicicleta: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' },
 };
 
-/** Requisitos mientras todavía no se elige el tipo de vehículo: no se pide nada. */
-export const NO_VEHICLE_REQUIREMENTS: VehicleRequirements = {
-  brand: 'none',
-  color: 'none',
-  plate: 'none',
-  frameSerial: 'none',
-};
-
-/** true si el dato se pide, sea obligatorio u opcional. */
-export function isAsked(requirement: FieldRequirement): boolean {
-  return requirement !== 'none';
-}
-
 /** Datos de un vehículo; cuáles lleva según su tipo lo decide `VEHICLE_REQUIREMENTS`. */
 export interface Vehicle {
   type: VehicleType;
   /** Moto y bicicleta; en el scooter es opcional. */
   brand?: string;
-  /** Obligatorio en los tres tipos (en registros anteriores a la Fase 2 puede faltar en scooters). */
+  /** Obligatorio en los tres tipos. */
   color?: string;
   /** Solo para moto: scooter y bicicleta no llevan placa. */
   plate?: string;
@@ -74,15 +62,6 @@ export interface Vehicle {
 
 export function vehicleLabel(value: VehicleType): string {
   return VEHICLE_TYPES.find((type) => type.value === value)?.label ?? value;
-}
-
-/**
- * Requisitos del tipo elegido.
- *
- * @param type Tipo de vehículo, o cadena vacía si todavía no se eligió.
- */
-export function requirementsFor(type: VehicleType | ''): VehicleRequirements {
-  return type ? VEHICLE_REQUIREMENTS[type] : NO_VEHICLE_REQUIREMENTS;
 }
 
 // ---- Vehículos registrados por usuarios institucionales ----------------------

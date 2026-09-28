@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
+import { AuthService } from '../../core/services/auth.service';
 import { signInForTest } from '../../testing/demo-session';
 import { Login } from './login';
 
@@ -36,18 +37,28 @@ describe('Login', () => {
     expect(text).toContain(BRAND.organizationName);
   });
 
-  it('expone las dos acciones de acceso', async () => {
+  it('la acción principal es el registro de visitantes; no hay inicio de sesión de la comunidad', async () => {
     await create();
 
-    expect(host().querySelector('.btn--primary')?.textContent).toContain('Iniciar sesión');
-    expect(host().querySelector('.btn--secondary')?.textContent).toContain('Visitantes');
+    expect(host().querySelector('.btn--primary')?.textContent).toContain('Visitantes');
+    expect(host().textContent).not.toContain('Iniciar sesión');
   });
 
-  it('en demostración permite entrar como administración o como cualquiera de los dos guardias', async () => {
+  it('el único acceso con cuenta es el de los dos guardias', async () => {
     await create();
     const shortcuts = [...host().querySelectorAll('.demo__link')].map((link) => link.textContent?.trim());
 
-    expect(shortcuts).toEqual(['Administración', 'Guardia Carlos', 'Guardia Diana']);
+    expect(shortcuts).toEqual(['Guardia Carlos', 'Guardia Diana']);
+  });
+
+  it('entrar como guardia abre su sesión y lleva al panel de seguridad', async () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
+    await create();
+
+    host().querySelector<HTMLButtonElement>('.demo__link')?.click();
+
+    expect(TestBed.inject(AuthService).user()?.displayName).toBe('Carlos Ramírez');
+    expect(navigate).toHaveBeenCalledWith('/seguridad/resumen');
   });
 
   it('con la sesión abierta lleva directo al inicio del rol', async () => {

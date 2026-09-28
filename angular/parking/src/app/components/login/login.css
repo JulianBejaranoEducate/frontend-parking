@@ -125,25 +125,6 @@
   margin-top: 1.75rem;
 }
 
-.actions__divider {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--brand-text-muted);
-}
-
-.actions__divider::before,
-.actions__divider::after {
-  flex: 1;
-  height: 1px;
-  background: var(--brand-border);
-  content: '';
-}
-
 .btn {
   display: inline-flex;
   gap: 0.625rem;
@@ -175,12 +156,7 @@
   outline-offset: 3px;
 }
 
-.btn:disabled {
-  cursor: progress;
-  opacity: 0.75;
-}
-
-.btn:not(:disabled):active {
+.btn:active {
   transform: translateY(1px);
 }
 
@@ -190,68 +166,8 @@
   box-shadow: 0 10px 20px -12px var(--brand-primary-ring);
 }
 
-.btn--primary:not(:disabled):hover {
+.btn--primary:hover {
   background: var(--brand-primary-dark);
-}
-
-.btn--secondary {
-  color: var(--brand-secondary);
-  background: var(--brand-surface);
-  border-color: currentcolor;
-}
-
-.btn--secondary:not(:disabled):hover {
-  color: var(--brand-secondary-dark);
-  background: var(--brand-secondary-soft);
-}
-
-.btn--secondary:focus-visible {
-  outline-color: var(--brand-secondary);
-}
-
-.btn__spinner {
-  flex: none;
-  width: 1.125rem;
-  height: 1.125rem;
-  border: 2px solid rgb(255 255 255 / 35%);
-  border-top-color: currentcolor;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-/* ---------- Error ---------- */
-
-.alert {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  margin-top: 1rem;
-  padding: 0.75rem 0.875rem;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  text-align: left;
-  color: var(--brand-secondary-dark);
-  background: var(--brand-secondary-soft);
-  border: 1px solid var(--brand-secondary-ring);
-  border-radius: 0.75rem;
-}
-
-.alert__close {
-  flex: none;
-  padding: 0 0.25rem;
-  margin-left: auto;
-  font-size: 1.25rem;
-  line-height: 1;
-  color: inherit;
-  cursor: pointer;
-  background: none;
-  border: 0;
-  border-radius: 0.25rem;
-}
-
-.alert__close:focus-visible {
-  outline: 2px solid currentcolor;
-  outline-offset: 2px;
 }
 
 /* ---------- Acceso de demostración ---------- */
@@ -328,12 +244,6 @@
   }
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
 /* ---------- Adaptaciones por pantalla ---------- */
 
 /* Tablet y escritorio: la tarjeta respira más. */
@@ -388,8 +298,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .panel,
-  .btn__spinner {
+  .panel {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
   }

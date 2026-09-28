@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { type CanMatchFn, provideRouter } from '@angular/router';
-import { DEMO_ACCOUNTS, type DemoProfile, type UserRole } from '../services/auth.service';
-import { signInForTest } from '../../testing/demo-session';
+import type { UserRole } from '../services/auth.service';
+import { TEST_ACCOUNTS, type TestProfile, signInForTest } from '../../testing/demo-session';
 import { homeFor, redirectToHome, roleGuard } from './auth.guards';
 
 describe('barreras de navegación por rol', () => {
-  const setup = (profile: DemoProfile | null) => {
+  const setup = (profile: TestProfile | null) => {
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     signInForTest(profile);
   };
@@ -20,9 +20,9 @@ describe('barreras de navegación por rol', () => {
     TestBed.runInInjectionContext(() => String(redirectToHome({} as Parameters<typeof redirectToHome>[0])));
 
   it('cada rol tiene su propio inicio', () => {
-    expect(homeFor(DEMO_ACCOUNTS.user)).toBe('/inicio');
-    expect(homeFor(DEMO_ACCOUNTS.admin)).toBe('/admin/resumen');
-    expect(homeFor(DEMO_ACCOUNTS.security)).toBe('/seguridad/resumen');
+    expect(homeFor(TEST_ACCOUNTS.user)).toBe('/inicio');
+    expect(homeFor(TEST_ACCOUNTS.admin)).toBe('/admin/resumen');
+    expect(homeFor(TEST_ACCOUNTS.security)).toBe('/seguridad/resumen');
     expect(homeFor(null)).toBe('/login');
   });
 

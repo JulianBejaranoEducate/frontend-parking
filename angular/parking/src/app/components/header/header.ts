@@ -92,9 +92,10 @@ export class Header {
     this.closeProfile();
   }
 
+  /** Cierra la sesión simulada del guardia y vuelve al login. */
   protected async logout(): Promise<void> {
     this.closeProfile();
-    await this.auth.logout();
+    this.auth.logout();
     await this.router.navigate(['/login']);
   }
 

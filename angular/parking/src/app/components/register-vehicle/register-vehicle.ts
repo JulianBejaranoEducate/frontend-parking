@@ -21,6 +21,7 @@ import { RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { BRAND } from '../../core/config/branding.config';
 import {
+  MAX_VEHICLES_PER_USER,
   VEHICLE_REQUIREMENTS,
   type Vehicle,
   type VehicleType,
@@ -42,8 +43,9 @@ import {
 } from '../../core/models/vehicle-registration';
 import { DOCUMENT_TYPES, type DocumentType } from '../../core/models/visitor-pass';
 import { AuthService } from '../../core/services/auth.service';
-import { UploadService } from '../../core/services/upload.service';
-import { RegistrationError, VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
+
+/** Adjuntar y enviar necesitan el backend, que todavía no existe para este módulo. */
+const NO_BACKEND = 'Todavía no se puede enviar: el registro de vehículos no está conectado al backend.';
 
 type Step = 'type' | 'details' | 'documents' | 'review' | 'done';
 
@@ -125,6 +127,14 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
   frameSerial: 'Usa solo letras, números y guiones (4 a 30 caracteres).',
 };
 
+/**
+ * Registro de vehículos de la comunidad, en cuatro pasos: vehículo, datos,
+ * documentos y confirmación.
+ *
+ * Por ahora solo es el diseño con sus validaciones: no hay inicio de sesión de
+ * la comunidad ni backend para guardar solicitudes o documentos, así que
+ * adjuntar y enviar avisan que todavía no están disponibles.
+ */
 @Component({
   imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink],
   selector: 'app-register-vehicle',
@@ -136,10 +146,11 @@ export class RegisterVehicle {
   readonly actualizar = input<string>();
 
   private readonly auth = inject(AuthService);
-  private readonly registrations = inject(VehicleRegistrationService);
-  private readonly uploads = inject(UploadService);
   private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder);
+
+  /** Solicitudes registradas. Sin backend todavía: vacía. */
+  private readonly registrations = signal<VehicleRegistration[]>([]);
 
   protected readonly brand = BRAND;
   protected readonly steps = STEPS;
@@ -150,8 +161,12 @@ export class RegisterVehicle {
   protected readonly vehicleDetails = vehicleDetails;
   protected readonly documentLabels = DOCUMENT_LABELS;
   protected readonly maxYear = CURRENT_YEAR + 1;
-  protected readonly maxVehicles = this.registrations.maxPerUser;
-  protected readonly canRegisterMore = this.registrations.canRegisterMore;
+  protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
+  protected readonly canRegisterMore = computed(
+    () =>
+      this.registrations().filter((registration) => registration.applicant.uid === this.auth.user()?.uid).length <
+      MAX_VEHICLES_PER_USER,
+  );
   protected readonly accountName = computed(() => this.auth.user()?.displayName ?? '');
 
   // ---- Modo actualización ------------------------------------------------------------
@@ -160,7 +175,7 @@ export class RegisterVehicle {
 
   /** La solicitud a actualizar, solo si es propia y de verdad espera documentos. */
   protected readonly updateTarget = computed<VehicleRegistration | null>(() => {
-    const registration = this.registrations.find(this.actualizar());
+    const registration = this.registrations().find((candidate) => candidate.id === this.actualizar());
 
     return registration &&
       registration.applicant.uid === this.auth.user()?.uid &&
@@ -349,20 +364,7 @@ export class RegisterVehicle {
       return;
     }
 
-    try {
-      const registration = this.registrations.submit({
-        owner: this.buildOwner(),
-        vehicle: this.buildVehicle(),
-        documents: Object.values(this.documents()),
-      });
-
-      this.submitted.set(registration);
-      this.goTo('done');
-    } catch (error) {
-      this.submitError.set(
-        error instanceof RegistrationError ? error.message : 'No pudimos enviar la solicitud. Inténtalo de nuevo.',
-      );
-    }
+    this.submitError.set(NO_BACKEND);
   }
 
   /** Empieza de cero para registrar otro vehículo. */
@@ -382,27 +384,14 @@ export class RegisterVehicle {
 
   // ---- Archivos ------------------------------------------------------------------------------------
 
-  protected async onFileSelected(event: Event, kind: DocumentKind): Promise<void> {
+  protected onFileSelected(event: Event, kind: DocumentKind): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    // Permite volver a elegir el mismo archivo después de quitarlo.
+    // Permite volver a elegir el mismo archivo.
     input.value = '';
 
-    if (!file) {
-      return;
-    }
-
-    this.uploading.set(kind);
-    this.uploadErrors.update((errors) => ({ ...errors, [kind]: undefined }));
-
-    try {
-      const document = await this.uploads.prepare(file, kind);
-      this.documents.update((documents) => ({ ...documents, [kind]: document }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo adjuntar el archivo.';
-      this.uploadErrors.update((errors) => ({ ...errors, [kind]: message }));
-    } finally {
-      this.uploading.set(null);
+    if (file) {
+      this.uploadErrors.update((errors) => ({ ...errors, [kind]: NO_BACKEND }));
     }
   }
 
@@ -502,20 +491,8 @@ export class RegisterVehicle {
   // ---- Internos ------------------------------------------------------------------------------------
 
   private resubmit(): void {
-    const target = this.updateTarget();
-
-    if (!target) {
-      return;
-    }
-
-    try {
-      this.registrations.resubmit(target.id, Object.values(this.documents()));
-      this.submitted.set(this.registrations.find(target.id) ?? target);
-      this.goTo('done');
-    } catch (error) {
-      this.submitError.set(
-        error instanceof RegistrationError ? error.message : 'No pudimos enviar el documento. Inténtalo de nuevo.',
-      );
+    if (this.updateTarget()) {
+      this.submitError.set(NO_BACKEND);
     }
   }
 
@@ -590,9 +567,13 @@ export class RegisterVehicle {
     this.form.updateValueAndValidity();
   }
 
+  /** Otra solicitud vigente (no rechazada) ya usa esa placa. */
   private plateTaken(control: AbstractControl): ValidationErrors | null {
     const value = String(control.value ?? '');
-    return value && this.registrations.isPlateTaken(value) ? { plateTaken: true } : null;
+    const taken = this.registrations().some(
+      (registration) => registration.status !== 'rejected' && registration.vehicle.plate === value,
+    );
+    return value && taken ? { plateTaken: true } : null;
   }
 
   private rewrite(field: 'plate' | 'documentNumber' | 'frameSerial', transform: (value: string) => string): void {

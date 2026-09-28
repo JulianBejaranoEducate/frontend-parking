@@ -6,8 +6,7 @@ import { AuthService, type AuthUser, type UserRole } from '../services/auth.serv
  * Barreras de navegación por rol (ADR-010 en planeacion-desarrollo.md).
  *
  * Evitan que la interfaz muestre lo que no le toca a cada persona, pero no
- * protegen los datos: esa protección vive en las reglas de Firestore, que leen
- * el rol de los claims del token (PEN-002).
+ * protegen los datos: esa protección le corresponde al backend (PEN-002).
  */
 
 /** Pantalla de inicio de cada rol. */
@@ -15,7 +14,6 @@ export const ROLE_HOME: Record<UserRole, string> = {
   user: '/inicio',
   admin: '/admin/resumen',
   security: '/seguridad/resumen',
-  visitor: '/visitantes',
 };
 
 /**

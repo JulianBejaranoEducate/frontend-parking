@@ -35,30 +35,7 @@
     </header>
 
     <div class="actions">
-      <button
-        type="button"
-        class="btn btn--primary"
-        [disabled]="loading()"
-        [attr.aria-busy]="loading()"
-        (click)="signInWithMicrosoft()"
-      >
-        @if (loading()) {
-          <span class="btn__spinner" aria-hidden="true"></span>
-          <span>Conectando con Microsoft…</span>
-        } @else {
-          <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M2 2h9.5v9.5H2z" fill="#F25022" />
-            <path d="M12.5 2H22v9.5h-9.5z" fill="#7FBA00" />
-            <path d="M2 12.5h9.5V22H2z" fill="#00A4EF" />
-            <path d="M12.5 12.5H22V22h-9.5z" fill="#FFB900" />
-          </svg>
-          <span>Iniciar sesión</span>
-        }
-      </button>
-
-      <span class="actions__divider"><span>o</span></span>
-
-      <button type="button" class="btn btn--secondary" [disabled]="loading()" (click)="goToVisitors()">
+      <button type="button" class="btn btn--primary" (click)="goToVisitors()">
         <svg class="btn__icon" viewBox="0 0 24 24" aria-hidden="true">
           <path
             d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9m0 2c-4.4 0-8 2.4-8 5.4V21h16v-1.6c0-3-3.6-5.4-8-5.4"
@@ -69,25 +46,15 @@
       </button>
     </div>
 
-    @if (demoMode) {
-      <!-- Desaparece en cuanto Firebase esté configurado: el rol vendrá del token. -->
-      <div class="demo" role="group" aria-labelledby="demo-label">
-        <span class="demo__tag">Demostración</span>
-        <span class="demo__label" id="demo-label">Entrar como:</span>
-        @for (shortcut of demoShortcuts; track shortcut.profile) {
-          <button type="button" class="demo__link" [disabled]="loading()" (click)="signInAsDemo(shortcut.profile)">
-            {{ shortcut.label }}
-          </button>
-        }
-      </div>
-    }
-
-    @if (error(); as message) {
-      <div class="alert" role="alert">
-        <span>{{ message }}</span>
-        <button type="button" class="alert__close" aria-label="Cerrar aviso" (click)="dismissError()">&times;</button>
-      </div>
-    }
+    <div class="demo" role="group" aria-labelledby="demo-label">
+      <span class="demo__tag">Demostración</span>
+      <span class="demo__label" id="demo-label">Entrar como:</span>
+      @for (shortcut of demoShortcuts; track shortcut.profile) {
+        <button type="button" class="demo__link" (click)="signInAsDemo(shortcut.profile)">
+          {{ shortcut.label }}
+        </button>
+      }
+    </div>
 
     <footer class="panel__foot">
       <p>Uso exclusivo de la comunidad {{ brand.organizationName }}.</p>

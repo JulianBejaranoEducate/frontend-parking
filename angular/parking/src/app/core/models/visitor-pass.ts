@@ -27,12 +27,3 @@ export interface VisitorRegistration {
   vehicle: Vehicle;
   reason: string;
 }
-
-/** Nombres y apellidos del visitante, tal como los escribió. */
-export function visitorFullName(visitor: VisitorRegistration): string {
-  return `${visitor.firstName} ${visitor.lastName}`.trim();
-}
-
-export function documentLabel(value: DocumentType): string {
-  return DOCUMENT_TYPES.find((type) => type.value === value)?.label ?? value;
-}

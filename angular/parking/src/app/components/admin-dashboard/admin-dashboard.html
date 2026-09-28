@@ -122,12 +122,14 @@
           </article>
           <article class="tile">
             <p class="tile__label">Hora pico</p>
-            <p class="tile__value">{{ hourLabel(summary().peakHour) }}</p>
+            <p class="tile__value">{{ summary().totalEntries ? hourLabel(summary().peakHour) : '—' }}</p>
             <p class="tile__note">La franja con más ocupación.</p>
           </article>
           <article class="tile">
             <p class="tile__label">Permanencia promedio</p>
-            <p class="tile__value">{{ durationLabel(summary().averageStayMinutes) }}</p>
+            <p class="tile__value">
+              {{ summary().totalEntries ? durationLabel(summary().averageStayMinutes) : '—' }}
+            </p>
             <p class="tile__note">De la entrada a la salida.</p>
           </article>
         </section>

@@ -1,29 +1,22 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { timeAgo } from '../../core/models/notification';
-import type { DemoProfile } from '../../core/services/auth.service';
-import { NotificationService } from '../../core/services/notification.service';
-import { signInForTest } from '../../testing/demo-session';
 import { Notifications } from './notifications';
 
 describe('Notifications', () => {
   let component: Notifications;
   let fixture: ComponentFixture<Notifications>;
-  let service: NotificationService;
 
-  const create = async (profile: DemoProfile | null) => {
+  beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Notifications],
       providers: [provideRouter([])],
     }).compileComponents();
 
-    signInForTest(profile);
-
-    service = TestBed.inject(NotificationService);
     fixture = TestBed.createComponent(Notifications);
     component = fixture.componentInstance;
     await fixture.whenStable();
-  };
+  });
 
   const host = () => fixture.nativeElement as HTMLElement;
   const trigger = () => host().querySelector<HTMLButtonElement>('.bell__trigger')!;
@@ -34,117 +27,51 @@ describe('Notifications', () => {
     await fixture.whenStable();
   };
 
-  describe('como estudiante', () => {
-    beforeEach(() => create('user'));
-
-    it('should create', () => {
-      expect(component).toBeTruthy();
-    });
-
-    it('la campana muestra cuántas notificaciones hay pendientes', () => {
-      expect(host().querySelector('.bell__badge')?.textContent?.trim()).toBe('3');
-      expect(trigger().getAttribute('aria-label')).toBe('Notificaciones, 3 pendientes');
-    });
-
-    it('el panel está cerrado hasta pulsar la campana', async () => {
-      expect(panel()).toBeNull();
-
-      await openPanel();
-
-      expect(panel()).toBeTruthy();
-      expect(trigger().getAttribute('aria-expanded')).toBe('true');
-      expect(host().querySelector('.panel__title')?.textContent?.trim()).toBe('Notificaciones');
-    });
-
-    it('incluye el botón de configuración de notificaciones', async () => {
-      await openPanel();
-
-      expect(host().querySelector('[aria-label="Configuración de notificaciones"]')).toBeTruthy();
-    });
-
-    it('lista solo sus avisos, del más reciente al más antiguo', async () => {
-      await openPanel();
-
-      const titles = [...host().querySelectorAll('.note__title')].map((t) => t.textContent?.trim());
-      expect(titles).toEqual(['Zona de scooters casi llena', 'Ingreso registrado', 'Vehículo en revisión']);
-    });
-
-    it('descartar un aviso lo quita sin cerrar el panel', async () => {
-      await openPanel();
-
-      host().querySelector<HTMLButtonElement>('.note__dismiss')?.click();
-      await fixture.whenStable();
-
-      expect(panel()).toBeTruthy();
-      expect(host().querySelectorAll('.note')).toHaveLength(2);
-      expect(host().querySelector('.bell__badge')?.textContent?.trim()).toBe('2');
-    });
-
-    it('sin notificaciones muestra el mensaje y oculta la insignia', async () => {
-      for (const item of service.items()) {
-        service.dismiss(item.id);
-      }
-      await openPanel();
-
-      expect(host().querySelector('.panel__empty')?.textContent?.trim()).toBe(
-        'No tiene notificaciones pendientes',
-      );
-      expect(host().querySelector('.bell__badge')).toBeNull();
-      expect(trigger().getAttribute('aria-label')).toBe('Notificaciones');
-    });
-
-    it('se cierra con Escape', async () => {
-      await openPanel();
-
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-      await fixture.whenStable();
-
-      expect(panel()).toBeNull();
-    });
-
-    it('se cierra al pulsar fuera del panel', async () => {
-      await openPanel();
-
-      document.body.click();
-      await fixture.whenStable();
-
-      expect(panel()).toBeNull();
-    });
+  it('should create', () => {
+    expect(component).toBeTruthy();
   });
 
-  describe('como administración', () => {
-    beforeEach(() => create('admin'));
-
-    it('recibe los avisos del equipo y cada uno enlaza a la solicitud', async () => {
-      await openPanel();
-
-      const link = host().querySelector<HTMLAnchorElement>('a.note__link');
-      expect(link?.textContent?.trim()).toBe('Nueva solicitud de registro');
-      expect(link?.getAttribute('href')).toBe('/admin/pendientes?solicitud=reg-mnb67c');
-    });
-
-    it('no ve los avisos del personal de seguridad', async () => {
-      await openPanel();
-
-      expect(host().textContent).not.toContain('Vehículo con ingreso de ayer');
-    });
-  });
-
-  describe('como personal de seguridad', () => {
-    beforeEach(() => create('security'));
-
-    it('recibe los avisos de portería, no los de administración ni los de usuarios', async () => {
-      await openPanel();
-
-      const titles = [...host().querySelectorAll('.note__title')].map((t) => t.textContent?.trim());
-      expect(titles).toEqual(['Vehículo con ingreso de ayer']);
-    });
-  });
-
-  it('sin sesión no hay avisos', async () => {
-    await create(null);
-
+  it('todavía no hay avisos: sin insignia y con el mensaje de vacío', async () => {
     expect(host().querySelector('.bell__badge')).toBeNull();
+    expect(trigger().getAttribute('aria-label')).toBe('Notificaciones');
+
+    await openPanel();
+
+    expect(host().querySelector('.panel__empty')?.textContent?.trim()).toBe('No tiene notificaciones pendientes');
+  });
+
+  it('el panel está cerrado hasta pulsar la campana', async () => {
+    expect(panel()).toBeNull();
+
+    await openPanel();
+
+    expect(panel()).toBeTruthy();
+    expect(trigger().getAttribute('aria-expanded')).toBe('true');
+    expect(host().querySelector('.panel__title')?.textContent?.trim()).toBe('Notificaciones');
+  });
+
+  it('incluye el botón de configuración de notificaciones', async () => {
+    await openPanel();
+
+    expect(host().querySelector('[aria-label="Configuración de notificaciones"]')).toBeTruthy();
+  });
+
+  it('se cierra con Escape', async () => {
+    await openPanel();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    await fixture.whenStable();
+
+    expect(panel()).toBeNull();
+  });
+
+  it('se cierra al pulsar fuera del panel', async () => {
+    await openPanel();
+
+    document.body.click();
+    await fixture.whenStable();
+
+    expect(panel()).toBeNull();
   });
 });
 

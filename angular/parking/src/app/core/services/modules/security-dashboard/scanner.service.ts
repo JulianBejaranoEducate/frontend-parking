@@ -1,6 +1,29 @@
 import { Injectable } from '@angular/core';
 import type { IScannerControls } from '@zxing/browser';
 
+/**
+ * Lado mayor, en píxeles, al que se reduce una foto antes de buscar el QR, en
+ * orden de intento. Una foto de celular trae 12 MP o más, y a ese tamaño la
+ * rejilla de píxeles de una pantalla fotografiada confunde a ZXing: reducirla
+ * con suavizado la borra y además lee más rápido.
+ */
+const PHOTO_SIDES = [1024, 1600, 640];
+
+/** Copia la imagen en un lienzo nuevo del tamaño pedido, con suavizado de alta calidad. */
+function drawScaled(source: CanvasImageSource, width: number, height: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+
+  if (context) {
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(source, 0, 0, width, height);
+  }
+
+  return canvas;
+}
+
 /** Configuración con la que una pantalla enciende la cámara. */
 export interface ScanOptions {
   /** Elemento donde se ve la cámara mientras busca el código. */
@@ -100,16 +123,48 @@ export class ScannerService {
    * @throws Error si la foto no tiene un código QR legible.
    */
   async decodeImage(image: Blob): Promise<string> {
-    const url = URL.createObjectURL(image);
+    const [{ BrowserQRCodeReader }, { DecodeHintType }] = await Promise.all([
+      import('@zxing/browser'),
+      import('@zxing/library'),
+    ]);
+    const reader = new BrowserQRCodeReader(new Map([[DecodeHintType.TRY_HARDER, true]]));
+    // null si el formato no se puede abrir (p. ej. HEIC): termina en el mismo aviso.
+    const photo = await createImageBitmap(image).catch(() => null);
 
-    try {
-      const reader = await this.createReader();
-      return (await reader.decodeFromImageUrl(url)).getText();
-    } catch {
-      throw new Error('No encontramos un código QR legible en la foto. Acércate más y evita reflejos.');
-    } finally {
-      URL.revokeObjectURL(url);
+    if (photo) {
+      try {
+        for (const side of PHOTO_SIDES) {
+          try {
+            return reader.decodeFromCanvas(this.shrink(photo, side)).getText();
+          } catch {
+            // Sin código a este tamaño: se prueba el siguiente.
+          }
+        }
+      } finally {
+        photo.close();
+      }
     }
+
+    throw new Error('No encontramos un código QR legible en la foto. Acércate más y evita reflejos.');
+  }
+
+  /**
+   * Reduce la foto para que su lado mayor mida `maxSide`. Va a la mitad
+   * mientras sobre el doble: así el suavizado promedia la imagen en vez de
+   * saltarse píxeles, que es lo que dejaría la rejilla de la pantalla.
+   */
+  private shrink(photo: ImageBitmap, maxSide: number): HTMLCanvasElement {
+    let current: CanvasImageSource = photo;
+    let { width, height } = photo;
+
+    while (Math.max(width, height) / 2 >= maxSide) {
+      width = Math.round(width / 2);
+      height = Math.round(height / 2);
+      current = drawScaled(current, width, height);
+    }
+
+    const scale = Math.min(1, maxSide / Math.max(width, height));
+    return drawScaled(current, Math.round(width * scale), Math.round(height * scale));
   }
 
   private async createReader() {

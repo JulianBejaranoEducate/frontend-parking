@@ -1,9 +1,9 @@
+import type { VehicleType } from './vehicle';
 import {
+  DOCUMENT_REQUIREMENTS,
   type VehicleRegistration,
   compareNames,
-  missingRequiredDocuments,
   nameTokens,
-  statusNote,
   wasResubmitted,
 } from './vehicle-registration';
 
@@ -28,18 +28,20 @@ describe('comparación de nombres', () => {
 });
 
 describe('documentos requeridos', () => {
+  const required = (type: VehicleType) =>
+    DOCUMENT_REQUIREMENTS[type].filter((requirement) => requirement.required).map((requirement) => requirement.kind);
+
   it('la moto exige la cara frontal de la tarjeta de propiedad', () => {
-    expect(missingRequiredDocuments('moto', []).map((item) => item.kind)).toEqual(['property-card-front']);
-    expect(missingRequiredDocuments('moto', [{ kind: 'property-card-front' }])).toEqual([]);
+    expect(required('moto')).toEqual(['property-card-front']);
   });
 
   it('bicicleta y scooter no exigen documentos', () => {
-    expect(missingRequiredDocuments('bicicleta', [])).toEqual([]);
-    expect(missingRequiredDocuments('scooter', [])).toEqual([]);
+    expect(required('bicicleta')).toEqual([]);
+    expect(required('scooter')).toEqual([]);
   });
 });
 
-describe('estado para el usuario', () => {
+describe('reenvío de una solicitud', () => {
   const base: VehicleRegistration = {
     id: 'r',
     applicant: { uid: 'u', displayName: 'Ana', email: 'a@x', affiliation: null, program: null },
@@ -52,24 +54,6 @@ describe('estado para el usuario', () => {
     reviews: [],
   };
 
-  it('explica qué documento volver a enviar', () => {
-    const registration: VehicleRegistration = {
-      ...base,
-      status: 'needs-update',
-      reviews: [
-        {
-          outcome: 'needs-update',
-          reviewer: 'Laura',
-          decidedAt: new Date(),
-          documentKind: 'purchase-proof',
-          note: 'Está borrosa.',
-        },
-      ],
-    };
-
-    expect(statusNote(registration)).toBe('Vuelve a enviar: Factura o certificado. Está borrosa.');
-  });
-
   it('una solicitud que vuelve de actualizar se reconoce como reenviada', () => {
     const resubmitted: VehicleRegistration = {
       ...base,
@@ -78,6 +62,5 @@ describe('estado para el usuario', () => {
 
     expect(wasResubmitted(resubmitted)).toBe(true);
     expect(wasResubmitted(base)).toBe(false);
-    expect(statusNote(base)).toBeUndefined();
   });
 });

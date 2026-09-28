@@ -33,7 +33,6 @@ class VisitorApiServiceStub {
       type_vehicle: visitor.vehicle.type,
       model_vehicle: visitor.vehicle.modelYear ?? new Date().getFullYear(),
       created_at: new Date().toISOString(),
-      exited_at: null,
     });
   }
 
@@ -165,7 +164,7 @@ describe('Visitor', () => {
     expect(api().form.controls.documentNumber.value).toBe('10123456');
   });
 
-  it('registrar la visita la envía al backend real: eso ya es el ingreso', async () => {
+  it('registrar la visita la envía al backend y muestra el QR con su id (el ingreso lo valida portería)', async () => {
     fillPersonalData();
     chooseType('moto');
     api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC123' });
@@ -181,9 +180,7 @@ describe('Visitor', () => {
       vehicle: { type: 'moto', brand: 'Yamaha', color: 'Negro', plate: 'ABC123' },
     });
 
-    const visitor = api().visitor();
-    expect(visitor.id).toBe(1);
-    expect(visitor.exited_at).toBeNull();
+    expect(api().visitor().id).toBe(1);
     expect(api().qrDataUrl()).toContain('data:image');
   });
 

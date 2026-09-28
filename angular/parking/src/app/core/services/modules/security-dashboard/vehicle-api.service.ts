@@ -1,28 +1,26 @@
 /**
- * Habla con el módulo de vehículos del backend real para el ingreso y la
- * salida de usuarios institucionales (fase de conexión; ver "Conexión
- * frontend-backend" en planeacion-desarrollo.md).
+ * Consulta los vehículos de la comunidad en el backend real (rama
+ * `camilo-dev`).
  *
- * El backend usa `is_authorized` como "está dentro ahora mismo": autorizar
- * (`PATCH /:plate`) es el ingreso y desautorizar (`DELETE /:plate`, que pese
- * al verbo no borra nada) es la salida. `GET /vehicles` solo devuelve los que
- * están dentro; `GET /vehicles/deauthorized`, los que están afuera.
+ * `is_authorized` es el permiso para entrar al parqueadero, no dice si el
+ * vehículo está dentro: el ingreso y la salida son registros de acceso, que
+ * maneja `ParkingApiService` (ADR-021).
  *
- * No se puede modificar el backend: `GET /:plate` solo encuentra el vehículo
- * si está dentro, así que para ubicarlo sin importar dónde esté, `findByPlate`
- * revisa también la lista de los que están afuera.
+ * No se puede modificar el backend: `GET /vehicles/:plate` solo encuentra los
+ * vehículos autorizados, así que para ubicar uno sin permiso, `findByPlate`
+ * revisa también la lista de los no autorizados.
  */
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../../environments/environments';
 
-/** Dueño del vehículo, tal como lo devuelve el backend (relación completa, no solo el id). */
+/** Dueño del vehículo, tal como lo devuelve el backend (el `User` de dominio, no la fila de la tabla). */
 export interface BackendVehicleOwner {
-  id_user: string;
-  name_user: string;
-  email_user: string;
-  role_id_user: string;
+  id: string;
+  name: string;
+  email: string;
+  roleId: number;
   status_user: boolean;
 }
 
@@ -32,15 +30,11 @@ export interface BackendVehicle {
   model: number;
   color: string;
   type: string;
-  /** true = está dentro del parqueadero ahora mismo. */
+  /** Permiso para entrar al parqueadero. */
   is_authorized: boolean;
-  owner: BackendVehicleOwner;
-}
-
-/** El vehículo, y si la búsqueda lo encontró dentro o afuera. */
-export interface VehicleLookup {
-  vehicle: BackendVehicle;
-  inside: boolean;
+  id_owner: string;
+  /** El backend lo omite si no pudo cargar al usuario dueño. */
+  owner?: BackendVehicleOwner;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -48,39 +42,22 @@ export class VehicleApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/vehicles`;
 
-  /** Vehículos institucionales dentro del parqueadero ahora mismo. */
-  inside(): Promise<BackendVehicle[]> {
+  /** Vehículos con permiso para entrar: de ahí sale el dueño de los que están dentro. */
+  authorized(): Promise<BackendVehicle[]> {
     return firstValueFrom(this.http.get<BackendVehicle[]>(this.baseUrl));
   }
 
-  /** Vehículos institucionales afuera: nunca entraron, o ya salieron. */
-  outside(): Promise<BackendVehicle[]> {
-    return firstValueFrom(this.http.get<BackendVehicle[]>(`${this.baseUrl}/deauthorized`));
-  }
-
   /**
-   * Busca el vehículo por placa, esté dentro o afuera.
+   * Busca el vehículo por placa, tenga o no permiso para entrar.
    *
-   * @returns El vehículo y dónde se encontró, o null si esa placa no existe.
+   * @returns El vehículo, o null si esa placa no existe.
    */
-  async findByPlate(plate: string): Promise<VehicleLookup | null> {
+  async findByPlate(plate: string): Promise<BackendVehicle | null> {
     try {
-      const vehicle = await firstValueFrom(this.http.get<BackendVehicle>(`${this.baseUrl}/${plate}`));
-      return { vehicle, inside: true };
+      return await firstValueFrom(this.http.get<BackendVehicle>(`${this.baseUrl}/${plate}`));
     } catch {
-      const outside = await this.outside();
-      const vehicle = outside.find((candidate) => candidate.plate === plate);
-      return vehicle ? { vehicle, inside: false } : null;
+      const unauthorized = await firstValueFrom(this.http.get<BackendVehicle[]>(`${this.baseUrl}/deauthorized`));
+      return unauthorized.find((candidate) => candidate.plate === plate) ?? null;
     }
-  }
-
-  /** Registra el ingreso. */
-  authorize(plate: string): Promise<void> {
-    return firstValueFrom(this.http.patch<void>(`${this.baseUrl}/${plate}`, {}));
-  }
-
-  /** Registra la salida. */
-  registerExit(plate: string): Promise<void> {
-    return firstValueFrom(this.http.delete<void>(`${this.baseUrl}/${plate}`));
   }
 }

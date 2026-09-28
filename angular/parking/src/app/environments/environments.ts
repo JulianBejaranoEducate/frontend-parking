@@ -15,5 +15,5 @@
 export const environment = {
   production: false,
   /** Backend Express del proyecto `Backend_Uni-Parking`, corriendo en local. */
-  apiUrl: 'http://localhost:3000',
+  apiUrl: 'http://localhost:3000', /* 'http://192.168.10.9:3000' */
 };

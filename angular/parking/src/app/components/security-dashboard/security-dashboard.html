@@ -23,18 +23,31 @@
     @case ('control') {
       @if (result(); as current) {
         <section class="card" aria-labelledby="result-title">
-          @if (current.kind === 'visitante') {
-            <div class="card__head">
-              <h2 class="card__title" id="result-title" tabindex="-1">
+          <div class="card__head">
+            <h2 class="card__title" id="result-title" tabindex="-1">
+              @if (current.kind === 'visitante') {
                 {{ current.visitor.first_name }} {{ current.visitor.last_name }}
-                @if (current.visitor.exited_at) {
-                  <span class="chip chip--neutral">Ya salió</span>
+                <span class="chip chip--neutral">Visitante</span>
+              } @else {
+                <span class="plate">{{ current.vehicle.plate }}</span>
+                @if (current.vehicle.is_authorized) {
+                  <span class="chip chip--success">Autorizado</span>
                 } @else {
-                  <span class="chip chip--success">Dentro</span>
+                  <span class="chip chip--warning">Sin autorización</span>
                 }
-              </h2>
-            </div>
-            <dl class="facts">
+              }
+              @if (current.outcome; as outcome) {
+                @if (outcome.direction === 'ingreso') {
+                  <span class="chip chip--success">Dentro</span>
+                } @else {
+                  <span class="chip chip--neutral">Salió</span>
+                }
+              }
+            </h2>
+          </div>
+
+          <dl class="facts">
+            @if (current.kind === 'visitante') {
               <div>
                 <dt>Documento</dt>
                 <dd>{{ current.visitor.document_type }} {{ current.visitor.document_number }}</dd>
@@ -62,38 +75,13 @@
                 <dd>{{ current.visitor.color_vehicle }}</dd>
               </div>
               <div>
-                <dt>Entró</dt>
+                <dt>Se registró</dt>
                 <dd>{{ dayAndTime(asDate(current.visitor.created_at)) }}</dd>
               </div>
-            </dl>
-
-            @if (actionError(); as message) {
-              <p class="notice notice--critical" role="alert">{{ message }}</p>
-            }
-
-            <div class="card__actions">
-              @if (!current.visitor.exited_at) {
-                <button type="button" class="small-btn small-btn--primary" (click)="confirm()">
-                  Marcar salida
-                </button>
-              }
-              <button type="button" class="small-btn small-btn--ghost" (click)="closeResult()">Cerrar</button>
-            </div>
-          } @else {
-            <div class="card__head">
-              <h2 class="card__title" id="result-title" tabindex="-1">
-                {{ current.vehicle.plate }}
-                @if (current.inside) {
-                  <span class="chip chip--success">Dentro</span>
-                } @else {
-                  <span class="chip chip--warning">Afuera</span>
-                }
-              </h2>
-            </div>
-            <dl class="facts">
+            } @else {
               <div>
                 <dt>Dueño</dt>
-                <dd>{{ current.vehicle.owner.name_user }}</dd>
+                <dd>{{ ownerName(current.vehicle) }}</dd>
               </div>
               <div>
                 <dt>Vehículo</dt>
@@ -107,44 +95,55 @@
                 <dt>Color</dt>
                 <dd>{{ current.vehicle.color }}</dd>
               </div>
-            </dl>
-
-            @if (actionError(); as message) {
-              <p class="notice notice--critical" role="alert">{{ message }}</p>
             }
+            @if (current.outcome; as outcome) {
+              <div>
+                <dt>{{ outcome.direction === 'ingreso' ? 'Ingreso' : 'Salida' }}</dt>
+                <dd>{{ dayAndTime(outcome.at) }}</dd>
+              </div>
+            }
+          </dl>
 
-            <div class="card__actions">
-              @if (current.inside) {
-                <button type="button" class="small-btn small-btn--primary" (click)="confirm()">
-                  Registrar salida
-                </button>
-              } @else {
-                <button type="button" class="small-btn small-btn--primary" (click)="confirm()">
+          @if (current.kind === 'institucional' && !current.vehicle.is_authorized && !current.outcome) {
+            <p class="notice notice--warning">La administración todavía no le ha dado permiso para entrar al parqueadero.</p>
+          }
+
+          @if (actionError(); as message) {
+            <p class="notice notice--critical" role="alert">{{ message }}</p>
+          }
+
+          <div class="card__actions">
+            @if (!current.outcome) {
+              @if (current.kind === 'visitante' || current.vehicle.is_authorized) {
+                <button type="button" class="small-btn small-btn--primary" [disabled]="acting()" (click)="registerEntry()">
                   Registrar ingreso
                 </button>
               }
-              <button type="button" class="small-btn small-btn--ghost" (click)="closeResult()">Cerrar</button>
-            </div>
-          }
+              <button type="button" class="small-btn small-btn--primary" [disabled]="acting()" (click)="registerExit()">
+                Registrar salida
+              </button>
+            }
+            <button type="button" class="small-btn small-btn--ghost" (click)="closeResult()">Cerrar</button>
+          </div>
         </section>
       } @else {
         <section class="card" aria-labelledby="qr-title">
           <h2 class="card__title" id="qr-title">Escanear código</h2>
           <p class="card__lead">
-            Sirve tanto para el código del formulario de visitantes como para el de un vehículo institucional.
+            Sirve tanto para el código del formulario de visitantes como para el de un vehículo de la comunidad.
           </p>
           <app-lector-codigo-qr (read)="onQrRead($event)" />
 
           <form class="form" (submit)="submitManualCode($event)">
             <div class="field">
-              <label class="field__label" for="manual-code">O escribe el código o la placa</label>
+              <label class="field__label" for="manual-code">O escribe el documento, la placa o el código</label>
               <input
                 id="manual-code"
                 class="field__control"
                 type="text"
                 autocomplete="off"
                 spellcheck="false"
-                placeholder="Ej. 5 o ABC123"
+                placeholder="Ej. 1012345678 o ABC123"
                 [value]="manualCode()"
                 (input)="setManualCode($event)"
               />
@@ -162,43 +161,143 @@
     }
 
     @default {
-      <section class="tiles" aria-label="Estado del parqueadero">
-        <article class="tile">
-          <p class="tile__label">Vehículos dentro</p>
-          <p class="tile__value">{{ insideItems().length }}</p>
-          <p class="tile__note">{{ institutionalInside() }} de la comunidad · {{ visitorsInside() }} visitantes</p>
-        </article>
+      @if (insideLoaded() || zones().length) {
+        <section class="tiles" aria-label="Estado del parqueadero">
+          @if (insideLoaded()) {
+            <article class="tile">
+              <p class="tile__label">Vehículos dentro</p>
+              <p class="tile__value">{{ insideItems().length }}</p>
+              <p class="tile__note">
+                {{ institutionalInside() }} de la comunidad · {{ visitorsInside() }}
+                {{ visitorsInside() === 1 ? 'visitante' : 'visitantes' }}
+              </p>
+            </article>
+          }
+          @if (zones().length) {
+            <article class="tile">
+              <p class="tile__label">Puestos disponibles</p>
+              <p class="tile__value">{{ freeSpots() }}</p>
+              <p class="tile__note">de {{ totalCapacity() }} · {{ occupiedSpots() }} en uso</p>
+            </article>
+          }
+        </section>
+      }
+
+      <section class="card" aria-labelledby="zones-title">
+        <div class="card__head">
+          <h2 class="card__title" id="zones-title">Ocupación por tipo de vehículo</h2>
+          <button type="button" class="link-btn" (click)="refresh()">Actualizar</button>
+        </div>
+
+        @if (zonesError(); as message) {
+          <p class="notice notice--critical" role="alert">{{ message }}</p>
+        } @else if (zones().length) {
+          <app-zone-availability [zones]="zones()" [showOccupied]="true" />
+        } @else if (zonesLoading()) {
+          <p class="empty">Consultando el backend…</p>
+        } @else {
+          <p class="empty">El parqueadero todavía no tiene zonas configuradas.</p>
+        }
       </section>
 
       <section class="card" aria-labelledby="inside-title">
         <div class="card__head">
           <h2 class="card__title" id="inside-title">Dentro ahora</h2>
-          <button type="button" class="link-btn" (click)="loadInside()">Actualizar</button>
+          <button type="button" class="link-btn" (click)="refresh()">Actualizar</button>
         </div>
 
-        @if (insideLoading()) {
-          <p class="empty">Consultando el backend…</p>
-        } @else if (insideError(); as message) {
+        <div class="filters">
+          <div class="field">
+            <label class="field__label" for="search-filter">Buscar</label>
+            <input
+              id="search-filter"
+              class="field__control"
+              type="text"
+              autocomplete="off"
+              placeholder="Placa, documento o nombre"
+              [value]="searchQuery()"
+              (input)="setSearchQuery($event)"
+            />
+          </div>
+          <div class="field">
+            <label class="field__label" for="owner-filter">Quién</label>
+            <div class="field__select">
+              <select id="owner-filter" class="field__control" [value]="ownerFilter()" (change)="setOwnerFilter($event)">
+                <option value="all">Todos</option>
+                <option value="visitante">Visitantes</option>
+                <option value="institucional">Comunidad</option>
+              </select>
+              <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+              </svg>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label" for="vehicle-type-filter">Vehículo</label>
+            <div class="field__select">
+              <select
+                id="vehicle-type-filter"
+                class="field__control"
+                [value]="vehicleTypeFilter()"
+                (change)="setVehicleTypeFilter($event)"
+              >
+                <option value="all">Todos</option>
+                @for (type of vehicleTypeOptions; track type.value) {
+                  <option [value]="type.value">{{ type.label }}</option>
+                }
+              </select>
+              <svg class="field__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.4 9.6 12 14.2l4.6-4.6 1.4 1.4-6 6-6-6z" fill="currentColor" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        @if (insideError(); as message) {
           <p class="notice notice--critical" role="alert">{{ message }}</p>
-        } @else if (insideItems().length) {
+        } @else if (filteredItems().length) {
           <ul class="stays">
-            @for (item of insideItems(); track item.key) {
+            @for (item of pagedItems(); track item.key) {
               <li class="stay">
                 <div class="stay__main">
                   <p class="movement__title">
-                    <span [class.plate]="item.kind === 'institucional'">{{ item.title }}</span>
+                    <span [class.plate]="item.title !== item.vehicleLabel">{{ item.title }}</span>
                     @if (item.kind === 'visitante') {
                       <span class="chip chip--neutral">Visitante</span>
                     }
                   </p>
                   <p class="movement__meta">{{ item.vehicleLabel }} · {{ item.personLabel }}</p>
-                  @if (item.enteredAt) {
-                    <p class="movement__meta movement__meta--muted">Entró {{ dayAndTime(item.enteredAt) }}</p>
-                  }
+                  <p class="movement__meta movement__meta--muted">Entró {{ dayAndTime(item.enteredAt) }}</p>
                 </div>
               </li>
             }
           </ul>
+
+          @if (totalPages() > 1) {
+            <div class="pagination">
+              <button
+                type="button"
+                class="small-btn small-btn--ghost"
+                [disabled]="currentPage() === 1"
+                (click)="previousPage()"
+              >
+                Anterior
+              </button>
+              <span class="pagination__label">Página {{ currentPage() }} de {{ totalPages() }}</span>
+              <button
+                type="button"
+                class="small-btn small-btn--ghost"
+                [disabled]="currentPage() === totalPages()"
+                (click)="nextPage()"
+              >
+                Siguiente
+              </button>
+            </div>
+          }
+        } @else if (insideItems().length) {
+          <p class="empty">Nadie dentro ahora mismo cumple estos filtros.</p>
+        } @else if (insideLoading()) {
+          <p class="empty">Consultando el backend…</p>
         } @else {
           <p class="empty">No hay nadie dentro en este momento.</p>
         }

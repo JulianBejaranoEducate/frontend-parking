@@ -1,23 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { DocumentKind, RegistrationDocument } from '../../core/models/vehicle-registration';
-import { UploadService } from '../../core/services/upload.service';
-import { VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
+import type { DocumentKind } from '../../core/models/vehicle-registration';
 import { signInForTest } from '../../testing/demo-session';
 import { RegisterVehicle } from './register-vehicle';
-
-/** Evita el canvas de jsdom: la foto "se procesa" al instante. */
-class UploadServiceStub extends UploadService {
-  override prepare(file: File, kind: DocumentKind): Promise<RegistrationDocument> {
-    return Promise.resolve({
-      kind,
-      fileName: file.name,
-      mimeType: 'image/jpeg',
-      dataUrl: 'data:image/jpeg;base64,AAAA',
-      uploadedAt: new Date(),
-    });
-  }
-}
 
 type Api = {
   step: () => string;
@@ -29,23 +14,24 @@ type Api = {
   continueFromDocuments: () => void;
   toggleDeclaration: (event: Event) => void;
   submit: () => void;
-  onFileSelected: (event: Event, kind: DocumentKind) => Promise<void>;
-  submitted: () => { id: string } | null;
+  onFileSelected: (event: Event, kind: DocumentKind) => void;
+  submitted: () => unknown;
 };
+
+/** Parte del aviso que dan adjuntar y enviar mientras no haya backend. */
+const NO_BACKEND = 'no está conectado al backend';
 
 describe('RegisterVehicle', () => {
   let component: RegisterVehicle;
   let fixture: ComponentFixture<RegisterVehicle>;
-  let registrations: VehicleRegistrationService;
 
   const configure = async () => {
     await TestBed.configureTestingModule({
       imports: [RegisterVehicle],
-      providers: [provideRouter([]), { provide: UploadService, useClass: UploadServiceStub }],
+      providers: [provideRouter([])],
     }).compileComponents();
 
     signInForTest('user');
-    registrations = TestBed.inject(VehicleRegistrationService);
   };
 
   const create = async (actualizar?: string) => {
@@ -138,30 +124,20 @@ describe('RegisterVehicle', () => {
       expect(host().querySelector('#plate-error')?.textContent).toContain('Escribe la placa');
     });
 
-    it('compara en el acto los nombres escritos con la cuenta institucional', async () => {
+    it('compara en el acto los nombres escritos con la cuenta de la sesión', async () => {
       api().chooseType('moto');
       api().continueFromType();
 
-      api().form.patchValue({ firstName: 'Julian Andrés', lastName: 'Bejarano Rojas' });
+      api().form.patchValue({ firstName: 'Estudiante Andrés', lastName: 'Prueba Rojas' });
       expect(api().nameCheck()).toBe('match');
 
-      api().form.patchValue({ firstName: 'Carlos', lastName: 'Bejarano' });
+      api().form.patchValue({ firstName: 'Carlos', lastName: 'Prueba' });
       await render();
       expect(api().nameCheck()).toBe('partial');
-      expect(host().querySelector('.name-check--warning')?.textContent).toContain('Julian Bejarano');
+      expect(host().querySelector('.name-check--warning')?.textContent).toContain('Estudiante de prueba');
     });
 
-    it('avisa si la placa ya tiene un registro vigente', async () => {
-      api().chooseType('moto');
-      api().continueFromType();
-      api().form.patchValue({ plate: 'KZT45F' });
-      api().form.controls.plate.markAsTouched();
-      await render();
-
-      expect(host().querySelector('#plate-error')?.textContent).toContain('ya tiene un registro vigente');
-    });
-
-    it('una moto completa llega a la administración como pendiente', async () => {
+    it('una moto completa llega a documentos, pero adjuntar avisa que falta el backend', async () => {
       api().chooseType('moto');
       api().continueFromType();
       api().form.patchValue({
@@ -177,37 +153,17 @@ describe('RegisterVehicle', () => {
       api().continueFromDetails();
       expect(api().step()).toBe('documents');
 
-      // Sin la tarjeta de propiedad no se puede seguir.
-      api().continueFromDocuments();
-      expect(api().step()).toBe('documents');
-
-      await attach('property-card-front');
-      api().continueFromDocuments();
-      expect(api().step()).toBe('review');
-
-      // La declaración es obligatoria.
-      api().submit();
-      expect(api().step()).toBe('review');
-
-      acceptDeclaration();
-      api().submit();
+      attach('property-card-front');
       await render();
 
-      expect(api().step()).toBe('done');
-      const created = registrations.find(api().submitted()?.id);
-      expect(created?.status).toBe('pending');
-      expect(created?.vehicle).toEqual({
-        type: 'moto',
-        plate: 'QAZ12W',
-        brand: 'Honda',
-        line: 'CB 125F',
-        modelYear: 2023,
-        color: 'Rojo',
-      });
-      expect(created?.documents.map((document) => document.kind)).toEqual(['property-card-front']);
+      expect(host().querySelector('.upload .field__error')?.textContent).toContain(NO_BACKEND);
+
+      // La tarjeta de propiedad no quedó adjunta, así que no se puede seguir.
+      api().continueFromDocuments();
+      expect(api().step()).toBe('documents');
     });
 
-    it('la bicicleta se envía sin fotos, con el documento del dueño y el serial', async () => {
+    it('la bicicleta llega a confirmar, pero enviar avisa que falta el backend', async () => {
       api().chooseType('bicicleta');
       api().continueFromType();
       api().form.patchValue({
@@ -225,13 +181,20 @@ describe('RegisterVehicle', () => {
       api().form.patchValue({ documentNumber: '1012345678' });
       api().continueFromDetails();
       api().continueFromDocuments();
+      expect(api().step()).toBe('review');
+
+      // La declaración es obligatoria.
+      api().submit();
+      await render();
+      expect(host().querySelector('.alert')).toBeNull();
+
       acceptDeclaration();
       api().submit();
+      await render();
 
-      const created = registrations.find(api().submitted()?.id);
-      expect(created?.vehicle).toEqual({ type: 'bicicleta', brand: 'Trek', color: 'Verde', frameSerial: 'WTU123456' });
-      expect(created?.owner).toMatchObject({ documentType: 'CC', documentNumber: '1012345678' });
-      expect(created?.documents).toEqual([]);
+      expect(api().step()).toBe('review');
+      expect(api().submitted()).toBeNull();
+      expect(host().querySelector('.alert')?.textContent).toContain(NO_BACKEND);
     });
 
     it('el scooter sin marca avanza y se describe solo con su color', async () => {
@@ -255,39 +218,10 @@ describe('RegisterVehicle', () => {
   });
 
   describe('actualizar un documento pedido', () => {
-    beforeEach(async () => {
-      await configure();
+    beforeEach(configure);
 
-      // La administración pide actualizar el serial de la bicicleta de Julian.
-      signInForTest('admin');
-      registrations.requestUpdate('reg-bianchi', 'frame-serial', 'No se lee el serial.');
-      signInForTest('user');
-    });
-
-    it('muestra lo que pidió la administración y solo ese documento', async () => {
-      await create('reg-bianchi');
-
-      expect(host().querySelector('.request-note')?.textContent).toContain('No se lee el serial.');
-      expect(host().querySelectorAll('.upload')).toHaveLength(1);
-      expect(host().querySelector('.upload__label')?.textContent).toContain('serial del marco');
-    });
-
-    it('reenviar el documento devuelve la solicitud a la fila de revisión', async () => {
-      await create('reg-bianchi');
-
-      api().continueFromDocuments();
-      expect(registrations.find('reg-bianchi')?.status).toBe('needs-update');
-
-      await attach('frame-serial');
-      api().continueFromDocuments();
-      await render();
-
-      expect(api().step()).toBe('done');
-      expect(registrations.find('reg-bianchi')?.status).toBe('pending');
-    });
-
-    it('no deja actualizar solicitudes ajenas', async () => {
-      await create('reg-camila');
+    it('sin solicitudes guardadas no hay nada que actualizar', async () => {
+      await create('reg-cualquiera');
 
       expect(host().querySelector('#step-title')?.textContent).toContain('No hay nada que actualizar');
     });

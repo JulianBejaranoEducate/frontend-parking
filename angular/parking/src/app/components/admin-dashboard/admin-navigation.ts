@@ -1,7 +1,5 @@
-import { computed, inject } from '@angular/core';
+import { signal } from '@angular/core';
 import type { DashboardNavigation } from '../../core/navigation/dashboard-navigation';
-import { IncidentService } from '../../core/services/incident.service';
-import { VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
 
 /** Secciones del dashboard de administración, en el orden del menú. */
 export const ADMIN_SECTIONS = [
@@ -30,40 +28,20 @@ const ICONS = {
 } satisfies Record<AdminSection, string>;
 
 /**
- * Menú del dashboard de administración.
- *
- * Solo lleva contador lo que espera a la administración: solicitudes por
- * revisar e incidencias sin resolver. Las actualizaciones esperan a la persona,
- * así que no suman.
+ * Menú del dashboard de administración. Los contadores de solicitudes por
+ * revisar e incidencias sin resolver vuelven cuando haya datos del backend.
  */
 export function adminNavigation(): DashboardNavigation {
-  const registrations = inject(VehicleRegistrationService);
-  const incidents = inject(IncidentService);
-
   return {
     context: 'Administración',
-    items: computed(() => [
+    items: signal([
       { id: 'resumen', label: 'Resumen', icon: ICONS.resumen, route: '/admin/resumen' },
-      {
-        id: 'pendientes',
-        label: 'Pendientes',
-        icon: ICONS.pendientes,
-        route: '/admin/pendientes',
-        badge: registrations.pending().length,
-        badgeLabel: 'por revisar',
-      },
+      { id: 'pendientes', label: 'Pendientes', icon: ICONS.pendientes, route: '/admin/pendientes' },
       { id: 'aprobados', label: 'Aprobados', icon: ICONS.aprobados, route: '/admin/aprobados' },
       { id: 'rechazados', label: 'Rechazados', icon: ICONS.rechazados, route: '/admin/rechazados' },
       { id: 'actualizaciones', label: 'Actualizaciones', icon: ICONS.actualizaciones, route: '/admin/actualizaciones' },
       { id: 'estadisticas', label: 'Estadísticas', icon: ICONS.estadisticas, route: '/admin/estadisticas' },
-      {
-        id: 'incidencias',
-        label: 'Incidencias',
-        icon: ICONS.incidencias,
-        route: '/admin/incidencias',
-        badge: incidents.unresolved().length,
-        badgeLabel: 'sin resolver',
-      },
-    ]),
+      { id: 'incidencias', label: 'Incidencias', icon: ICONS.incidencias, route: '/admin/incidencias' },
+    ]).asReadonly(),
   };
 }

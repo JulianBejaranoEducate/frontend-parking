@@ -5,26 +5,29 @@ import {
   HISTORY_RANGES,
   type HistoryRange,
   type ParkingStay,
+  type ParkingZone,
   formatDuration,
+  freeSpots,
   stayDurationMs,
   staysWithinDays,
 } from '../../core/models/parking';
 import {
   APPROVAL_LABELS,
+  MAX_VEHICLES_PER_USER,
   type RegisteredVehicle,
   vehicleDetails,
   vehicleTitle,
 } from '../../core/models/vehicle';
 import { AuthService } from '../../core/services/auth.service';
-import { ParkingService } from '../../core/services/parking.service';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
 
 /**
  * Inicio de los usuarios institucionales: estado de su vehículo, disponibilidad
  * del parqueadero, "Mis vehículos" e historial de entradas y salidas.
  *
- * El header y el menú los pone `DashboardLayout`; este componente solo pinta el
- * contenido de la página.
+ * Por ahora solo es el diseño: no hay inicio de sesión de la comunidad ni datos
+ * del backend para estas secciones, así que cada una muestra su estado vacío.
+ * El header y el menú los pone `DashboardLayout`.
  */
 @Component({
   imports: [RouterLink, ZoneAvailability],
@@ -34,7 +37,6 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 })
 export class MainDashboard {
   private readonly auth = inject(AuthService);
-  private readonly parking = inject(ParkingService);
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
 
@@ -42,20 +44,30 @@ export class MainDashboard {
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
 
-  protected readonly vehicles = this.parking.vehicles;
-  protected readonly maxVehicles = this.parking.maxVehicles;
-  protected readonly canAddVehicle = this.parking.canAddVehicle;
-  protected readonly zones = this.parking.zones;
-  protected readonly currentStay = this.parking.currentStay;
-  protected readonly totalFreeSpots = this.parking.totalFreeSpots;
-  protected readonly totalCapacity = this.parking.totalCapacity;
-  protected readonly entriesThisMonth = this.parking.entriesThisMonth;
+  // Sin backend todavía: estas fuentes están vacías y el resto se calcula a partir de ellas.
+  protected readonly vehicles = signal<RegisteredVehicle[]>([]);
+  protected readonly zones = signal<ParkingZone[]>([]);
+  /** Estancias de la persona, la más reciente primero. */
+  private readonly stays = signal<ParkingStay[]>([]);
+
+  protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
+  protected readonly canAddVehicle = computed(() => this.vehicles().length < MAX_VEHICLES_PER_USER);
+  /** Estancia sin salida registrada: el vehículo sigue dentro. */
+  protected readonly currentStay = computed(() => this.stays().find((item) => item.exitedAt === null) ?? null);
+  protected readonly totalFreeSpots = computed(() => this.zones().reduce((total, zone) => total + freeSpots(zone), 0));
+  protected readonly totalCapacity = computed(() => this.zones().reduce((total, zone) => total + zone.capacity, 0));
+  /** Cuántas veces entró la persona en el mes corriente. */
+  protected readonly entriesThisMonth = computed(() => {
+    const now = new Date();
+
+    return this.stays().filter(
+      (item) => item.enteredAt.getMonth() === now.getMonth() && item.enteredAt.getFullYear() === now.getFullYear(),
+    ).length;
+  });
 
   protected readonly historyRanges = HISTORY_RANGES;
   protected readonly historyRange = signal<HistoryRange>(7);
-  protected readonly filteredStays = computed(() =>
-    staysWithinDays(this.parking.stays(), this.historyRange()),
-  );
+  protected readonly filteredStays = computed(() => staysWithinDays(this.stays(), this.historyRange()));
 
   /** Vehículo cuya eliminación espera confirmación. Solo uno a la vez. */
   protected readonly pendingDeleteId = signal<string | null>(null);
@@ -100,7 +112,7 @@ export class MainDashboard {
   }
 
   protected confirmDelete(vehicle: RegisteredVehicle): void {
-    this.parking.removeVehicle(vehicle.id);
+    this.vehicles.update((vehicles) => vehicles.filter((candidate) => candidate.id !== vehicle.id));
     this.pendingDeleteId.set(null);
     this.announcement.set(`${vehicleTitle(vehicle)} se eliminó de tus vehículos.`);
     // La fila ya no existe: el foco vuelve a la acción natural siguiente.

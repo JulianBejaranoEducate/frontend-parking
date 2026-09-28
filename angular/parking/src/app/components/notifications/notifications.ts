@@ -1,11 +1,13 @@
 import { Component, ElementRef, computed, inject, signal } from '@angular/core';
 import { type Params, RouterLink } from '@angular/router';
 import { type AppNotification, timeAgo } from '../../core/models/notification';
-import { NotificationService } from '../../core/services/notification.service';
 
 /**
  * Campana de notificaciones con su panel desplegable. Es autónoma: abre, cierra
  * y descarta por su cuenta, así que cualquier barra superior puede incluirla.
+ *
+ * Todavía no hay avisos: llegarán del backend. Mientras tanto el panel muestra
+ * su estado vacío.
  */
 @Component({
   imports: [RouterLink],
@@ -18,12 +20,13 @@ import { NotificationService } from '../../core/services/notification.service';
   },
 })
 export class Notifications {
-  private readonly notifications = inject(NotificationService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
+  /** true mientras el panel está desplegado. */
   protected readonly open = signal(false);
-  protected readonly items = this.notifications.items;
-  protected readonly pendingCount = this.notifications.pendingCount;
+  /** Avisos pendientes. Sin backend todavía: vacía. */
+  protected readonly items = signal<AppNotification[]>([]);
+  protected readonly pendingCount = computed(() => this.items().length);
 
   /** Más de nueve se resume, como hacen las apps: el número exacto está dentro. */
   protected readonly badgeText = computed(() => {
@@ -42,16 +45,19 @@ export class Notifications {
     return count === 1 ? 'Notificaciones, 1 pendiente' : `Notificaciones, ${count} pendientes`;
   });
 
+  /** Abre o cierra el panel desde la campana. */
   protected toggle(): void {
     this.open.update((open) => !open);
   }
 
+  /** Cierra el panel (también con Escape). */
   protected close(): void {
     this.open.set(false);
   }
 
+  /** Quita un aviso de la lista. */
   protected dismiss(item: AppNotification): void {
-    this.notifications.dismiss(item.id);
+    this.items.update((items) => items.filter((candidate) => candidate.id !== item.id));
   }
 
   /** TODO: llevará al panel de configuración de notificaciones. */

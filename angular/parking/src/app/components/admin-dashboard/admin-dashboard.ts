@@ -8,7 +8,8 @@ import {
   type IncidentStatus,
 } from '../../core/models/incident';
 import { timeAgo } from '../../core/models/notification';
-import { formatDuration } from '../../core/models/parking';
+import { type ParkingZone, formatDuration } from '../../core/models/parking';
+import type { DailyEntries, HourlyOccupancy, StatsSummary, TypeUsage } from '../../core/models/parking-stats';
 import { type VehicleType, vehicleDetails, vehicleLabel, vehicleTitle } from '../../core/models/vehicle';
 import {
   DOCUMENT_LABELS,
@@ -27,11 +28,10 @@ import {
 } from '../../core/models/vehicle-registration';
 import { DOCUMENT_TYPES } from '../../core/models/visitor-pass';
 import { AFFILIATION_LABELS } from '../../core/services/auth.service';
-import { IncidentService } from '../../core/services/incident.service';
-import { ParkingStatsService } from '../../core/services/parking-stats.service';
-import { ParkingService } from '../../core/services/parking.service';
-import { RegistrationError, VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
 import { ADMIN_SECTIONS, type AdminSection } from './admin-navigation';
+
+/** Las decisiones de revisión se guardan en el backend, que todavía no existe para este módulo. */
+const NO_BACKEND = 'Todavía no se pueden guardar decisiones: la revisión de vehículos no está conectada al backend.';
 
 type ListSection = Extract<AdminSection, 'pendientes' | 'aprobados' | 'rechazados' | 'actualizaciones'>;
 
@@ -88,8 +88,9 @@ function niceMax(value: number): number {
  * Dashboard de administración: revisión de solicitudes de registro,
  * estadísticas de uso e incidencias.
  *
- * El header y el menú (con sus contadores) los pone `DashboardLayout` a partir
- * de `adminNavigation`; este componente solo pinta la sección activa.
+ * Por ahora solo es el diseño: no hay inicio de sesión de la administración ni
+ * datos del backend para este módulo, así que cada sección muestra su estado
+ * vacío. El header y el menú los pone `DashboardLayout`.
  */
 @Component({
   imports: [NgTemplateOutlet, RouterLink],
@@ -104,10 +105,11 @@ export class AdminDashboard {
   readonly solicitud = input<string>();
 
   private readonly router = inject(Router);
-  private readonly registrations = inject(VehicleRegistrationService);
-  private readonly incidents = inject(IncidentService);
-  private readonly stats = inject(ParkingStatsService);
-  private readonly parking = inject(ParkingService);
+
+  // Sin backend todavía: estas fuentes están vacías y el resto se calcula a partir de ellas.
+  private readonly registrations = signal<VehicleRegistration[]>([]);
+  private readonly incidents = signal<Incident[]>([]);
+  private readonly zones = signal<ParkingZone[]>([]);
 
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
@@ -123,9 +125,16 @@ export class AdminDashboard {
 
   protected readonly copy = computed(() => SECTION_COPY[this.activeSection()]);
 
-  protected readonly pending = this.registrations.pending;
-  protected readonly needsUpdate = this.registrations.needsUpdate;
-  protected readonly unresolvedIncidents = this.incidents.unresolved;
+  /** Por revisar, de la que más tiempo lleva esperando a la más reciente. */
+  protected readonly pending = computed(() =>
+    this.byStatus('pending').sort((a, b) => a.submittedAt.getTime() - b.submittedAt.getTime()),
+  );
+  protected readonly needsUpdate = computed(() => this.byStatus('needs-update'));
+  private readonly approved = computed(() => this.byStatus('approved'));
+  private readonly rejected = computed(() => this.byStatus('rejected'));
+  protected readonly unresolvedIncidents = computed(() =>
+    this.incidents().filter((incident) => incident.status !== 'resolved'),
+  );
 
   /** Mensaje tras resolver una solicitud; también lo anuncia el lector de pantalla. */
   protected readonly flash = signal<string | null>(null);
@@ -133,11 +142,11 @@ export class AdminDashboard {
   // ---- Resumen ---------------------------------------------------------------------------
 
   protected readonly oldestPending = computed(() => this.pending()[0] ?? null);
+  protected readonly totalOccupied = computed(() => this.zones().reduce((total, zone) => total + zone.occupied, 0));
+  protected readonly totalCapacity = computed(() => this.zones().reduce((total, zone) => total + zone.capacity, 0));
   protected readonly occupancyPercent = computed(() =>
-    Math.round((this.parking.totalOccupied() / Math.max(1, this.parking.totalCapacity())) * 100),
+    Math.round((this.totalOccupied() / Math.max(1, this.totalCapacity())) * 100),
   );
-  protected readonly totalOccupied = this.parking.totalOccupied;
-  protected readonly totalCapacity = this.parking.totalCapacity;
 
   // ---- Listas de solicitudes ----------------------------------------------------------------
 
@@ -147,8 +156,8 @@ export class AdminDashboard {
   protected readonly listItems = computed(() => {
     const source: Record<ListSection, readonly VehicleRegistration[]> = {
       pendientes: this.pending(),
-      aprobados: this.registrations.approved(),
-      rechazados: this.registrations.rejected(),
+      aprobados: this.approved(),
+      rechazados: this.rejected(),
       actualizaciones: this.needsUpdate(),
     };
 
@@ -184,7 +193,9 @@ export class AdminDashboard {
 
   // ---- Revisión ---------------------------------------------------------------------------------
 
-  protected readonly selected = computed(() => this.registrations.find(this.solicitud()) ?? null);
+  protected readonly selected = computed(
+    () => this.registrations().find((registration) => registration.id === this.solicitud()) ?? null,
+  );
 
   private readonly reviewKey = computed(() => this.selected()?.id ?? '');
 
@@ -230,10 +241,18 @@ export class AdminDashboard {
       : null;
   });
 
+  /** Otra solicitud vigente (no rechazada) con la misma placa. */
   protected readonly duplicatePlate = computed(() => {
     const registration = this.selected();
     const plate = registration?.vehicle.plate;
-    return Boolean(registration && plate && this.registrations.isPlateTaken(plate, registration.id));
+
+    return Boolean(
+      registration &&
+        plate &&
+        this.registrations().some(
+          (other) => other.id !== registration.id && other.status !== 'rejected' && other.vehicle.plate === plate,
+        ),
+    );
   });
 
   /** Segunda validación, humana: qué comparar contra la foto del documento. */
@@ -311,10 +330,11 @@ export class AdminDashboard {
   // ---- Estadísticas ---------------------------------------------------------------------------
 
   protected readonly statsDays = signal<number>(14);
-  protected readonly daily = computed(() => this.stats.dailyEntries(this.statsDays()));
-  protected readonly hourly = computed(() => this.stats.hourlyOccupancy(this.statsDays()));
-  protected readonly typeUsage = computed(() => this.stats.typeUsage(this.statsDays()));
-  protected readonly summary = computed(() => this.stats.summary(this.statsDays()));
+  // Saldrán de agregar los registros de acceso del periodo elegido.
+  protected readonly daily = signal<DailyEntries[]>([]);
+  protected readonly hourly = signal<HourlyOccupancy[]>([]);
+  protected readonly typeUsage = signal<TypeUsage[]>([]);
+  protected readonly summary = signal<StatsSummary>({ totalEntries: 0, dailyAverage: 0, peakHour: 0, averageStayMinutes: 0 });
 
   protected readonly dailyMax = computed(() => niceMax(Math.max(...this.daily().map((day) => day.entries))));
   protected readonly dailyTicks = computed(() => [0, 0.5, 1].map((ratio) => Math.round(this.dailyMax() * ratio)));
@@ -330,7 +350,7 @@ export class AdminDashboard {
 
   protected readonly filteredIncidents = computed(() => {
     const filter = this.incidentFilter();
-    const items = this.incidents.items();
+    const items = this.incidents();
 
     return filter === 'all'
       ? items
@@ -380,42 +400,31 @@ export class AdminDashboard {
   }
 
   protected approve(): void {
-    const registration = this.selected();
-
-    if (!registration || !this.allChecked()) {
+    if (!this.selected() || !this.allChecked()) {
       return;
     }
 
-    this.runDecision(() => this.registrations.approve(registration.id), `${vehicleTitle(registration.vehicle)} quedó aprobado.`);
+    this.actionError.set(NO_BACKEND);
   }
 
   protected confirmReject(): void {
-    const registration = this.selected();
     this.decisionAttempted.set(true);
 
-    if (!registration || !this.rejectReason()) {
+    if (!this.selected() || !this.rejectReason()) {
       return;
     }
 
-    this.runDecision(
-      () => this.registrations.reject(registration.id, this.rejectReason(), this.decisionNote().trim() || undefined),
-      `${vehicleTitle(registration.vehicle)} quedó rechazado.`,
-    );
+    this.actionError.set(NO_BACKEND);
   }
 
   protected confirmRequestUpdate(): void {
-    const registration = this.selected();
     this.decisionAttempted.set(true);
-    const documentKind = this.updateDocument();
 
-    if (!registration || !documentKind || !this.decisionNote().trim()) {
+    if (!this.selected() || !this.updateDocument() || !this.decisionNote().trim()) {
       return;
     }
 
-    this.runDecision(
-      () => this.registrations.requestUpdate(registration.id, documentKind, this.decisionNote().trim()),
-      `Se pidió a ${registration.applicant.displayName} actualizar un documento.`,
-    );
+    this.actionError.set(NO_BACKEND);
   }
 
   // ---- Visor de documentos -----------------------------------------------------------------------
@@ -445,7 +454,7 @@ export class AdminDashboard {
   }
 
   protected setIncidentStatus(incident: Incident, status: IncidentStatus): void {
-    this.incidents.setStatus(incident.id, status);
+    this.incidents.update((items) => items.map((item) => (item.id === incident.id ? { ...item, status } : item)));
   }
 
   /** La gravedad usa los colores de estado; siempre acompañada de icono y texto. */
@@ -543,13 +552,7 @@ export class AdminDashboard {
     return formatDuration(minutes * 60_000);
   }
 
-  private runDecision(action: () => void, message: string): void {
-    try {
-      action();
-      this.flash.set(message);
-      this.closeReview();
-    } catch (error) {
-      this.actionError.set(error instanceof RegistrationError ? error.message : 'No se pudo guardar la decisión.');
-    }
+  private byStatus(status: RegistrationStatus): VehicleRegistration[] {
+    return this.registrations().filter((registration) => registration.status === status);
   }
 }

@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
-import type { DemoProfile } from './core/services/auth.service';
+import type { TestProfile } from './testing/demo-session';
 import { signInForTest } from './testing/demo-session';
 
 /**
@@ -13,7 +13,7 @@ import { signInForTest } from './testing/demo-session';
 describe('rutas por rol', () => {
   let harness: RouterTestingHarness;
 
-  const as = async (profile: DemoProfile | null) => {
+  const as = async (profile: TestProfile | null) => {
     // provideHttpClient: security-dashboard consulta el backend real al entrar
     // (ver loadInside()). Sin sesión real de red, esas llamadas simplemente
     // fallan y el resumen muestra su propio aviso de error; no afecta estas

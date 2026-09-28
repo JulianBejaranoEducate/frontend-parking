@@ -3,16 +3,10 @@
  * `Backend_Uni-Parking`; ver "Conexión frontend-backend" en
  * planeacion-desarrollo.md).
  *
- * El modelo cambió respecto a como se pensó al principio: los datos del
- * vehículo ya no se guardan en la tabla de vehículos (esa es solo para
- * usuarios institucionales) — viven directo en la fila del visitante, sin
- * duplicar nada. Y ya no existe un paso de "autorizar el ingreso": crear el
- * registro (llenar el formulario y generar el QR) **es** el ingreso; lo único
- * que confirma el personal de seguridad, con un botón, es la salida.
- *
- * No se puede modificar el backend, así que este servicio se adapta tal cual
- * a lo que expone hoy `Visitor.routes.ts`: crear, consultar por id (lo que
- * lleva el QR), listar y registrar la salida. No hay endpoint de autorizar.
+ * Los datos del vehículo del visitante viven en su propia fila, no en la tabla
+ * de vehículos (esa es solo de la comunidad). Crear el registro no es el
+ * ingreso: el ingreso y la salida son registros de acceso que abre y cierra
+ * portería con `ParkingApiService` (ADR-021).
  */
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
@@ -33,9 +27,8 @@ export interface BackendVisitor {
   color_vehicle: string;
   type_vehicle: string;
   model_vehicle: number;
+  /** Cuándo llenó el formulario; no es la hora de ingreso. */
   created_at: string;
-  /** Null mientras el visitante sigue dentro; lo llena `registerExit`. */
-  exited_at: string | null;
 }
 
 interface CreateVisitorPayload {
@@ -53,15 +46,14 @@ export class VisitorApiService {
   private readonly baseUrl = `${environment.apiUrl}/visitors`;
 
   /**
-   * Registra la visita. Esto **es** el ingreso: no hay confirmación aparte del
-   * personal de seguridad. El `id` que devuelve el backend es lo que codifica
-   * el QR, y es lo que después usa portería para registrar la salida.
+   * Registra la visita. El `id` que devuelve el backend es lo que codifica el
+   * QR con el que portería valida el ingreso.
    */
   create(visitor: VisitorRegistration): Promise<BackendVisitor> {
     return firstValueFrom(this.http.post<BackendVisitor>(this.baseUrl, this.toPayload(visitor)));
   }
 
-  /** Todos los visitantes, para el resumen de seguridad. */
+  /** Todos los registros de visita: con ellos se muestra quién es cada visitante que está dentro. */
   findAll(): Promise<BackendVisitor[]> {
     return firstValueFrom(this.http.get<BackendVisitor[]>(this.baseUrl));
   }
@@ -71,9 +63,22 @@ export class VisitorApiService {
     return firstValueFrom(this.http.get<BackendVisitor>(`${this.baseUrl}/${id}`));
   }
 
-  /** Única acción del guardia sobre un visitante: marcar que ya salió. */
-  registerExit(id: number): Promise<BackendVisitor> {
-    return firstValueFrom(this.http.patch<BackendVisitor>(`${this.baseUrl}/${id}/exit`, {}));
+  /**
+   * Para cuando el visitante no tiene el QR a mano. Una persona puede
+   * registrarse varias veces: vale su registro más reciente.
+   */
+  findLatestByDocument(documentNumber: string): Promise<BackendVisitor | null> {
+    return this.findLatest((visitor) => visitor.document_number === documentNumber);
+  }
+
+  findLatestByPlate(plate: string): Promise<BackendVisitor | null> {
+    return this.findLatest((visitor) => visitor.plate_vehicle_visitor === plate);
+  }
+
+  private async findLatest(matches: (visitor: BackendVisitor) => boolean): Promise<BackendVisitor | null> {
+    const visitors = await this.findAll();
+    // El id lo asigna la base de datos en orden: el mayor es el registro más reciente.
+    return visitors.filter(matches).reduce<BackendVisitor | null>((latest, visitor) => (!latest || visitor.id > latest.id ? visitor : latest), null);
   }
 
   /**
