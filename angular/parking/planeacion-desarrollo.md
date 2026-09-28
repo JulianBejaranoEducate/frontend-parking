@@ -1,7 +1,7 @@
 # Uni-parking · Planeación y registro de desarrollo
 
 > **Fase actual:** Fase 8 (módulo Parking: el QR valida el ingreso) **pendiente**: ingreso, salida y «Dentro ahora» ya funcionan contra el backend real; faltan «Movimientos de hoy» y la dirección automática en Control de acceso. Ver ADR-021. Las Fases 4, 5 y 6 (foto de placa, integración con el usuario, PWA en portería) siguen sin iniciar. Fuera de Visitantes y Seguridad ya no hay datos de demostración: esas pantallas conservan su diseño, sin datos (ADR-022).
-> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-27
+> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-28
 > **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 536 kB, límite de 500 kB; ver MEJ-001) · 133 pruebas unitarias pasando (2026-09-27; eran 186 antes de retirar el modo demostración, ADR-022)
 
 Este documento es la fuente única para saber en qué va el proyecto: qué está hecho, qué se decidió y por qué, qué falta y qué hay que corregir. Se actualiza en el mismo commit que el cambio que registra (ver [Cómo actualizar este documento](#cómo-actualizar-este-documento)).
@@ -61,7 +61,7 @@ Estados (ver [Estados](#estados)):
 | Lector de QR (`lector-codigo-qr`) | — | Completado | Julian | 2026-09-15 | ZXing en la PWA, con linterna y lectura desde una foto (ADR-019). Probado con la foto de un pase real en computador; la cámara en vivo se prueba en celulares en la Fase 6 (PEN-010) |
 | Accesibilidad y footer | — | Sin iniciar | — | 2026-09-26 | Los componentes vacíos se borraron el 2026-09-26; se crean de nuevo cuando se diseñen (PEN-008) |
 | Inicio de sesión real | — | Sin iniciar | — | 2026-09-27 | Para la comunidad, la administración y los guardias. El código de Firebase se retiró (ADR-022) y el paquete sigue instalado (PEN-026); falta definir con el equipo cómo será |
-| Ionic / Capacitor | — | Pendiente | Julian | 2026-09-27 | Capacitor 8 agregado para probar en Android (`capacitor.config.ts`, carpeta `android/`, permiso de cámara). Falta acordarlo con el equipo antes de subirlo (ADR-015). Ionic sigue sin instalar |
+| Ionic / Capacitor | — | Pendiente | Julian | 2026-09-28 | Capacitor 8 para probar en Android (`capacitor.config.ts`). La carpeta `android/` no se sube: cada quien la genera con los pasos de [dependencias.md](dependencias.md), incluido el permiso de cámara. Falta acordarlo con el equipo (ADR-015). Ionic sigue sin instalar |
 
 ---
 
@@ -368,6 +368,9 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | PEN-024 | Media | Backend | En `camilo-dev` la carpeta `dist/` sigue versionada aunque `.gitignore` la excluye (en `master` y `nico_dev` ya se sacó): cada `npm run build` modifica unos 190 archivos versionados. Se arregla sacándola del índice (`git rm -r --cached dist`). | Por decidir (backend) |
 | PEN-025 | Media | Seguridad | En el celular, «Leer desde una foto» todavía falla en algunas fotos reales de la pantalla (Julian, 2026-09-27), aunque con las fotos simuladas lee 16 de 16. La cámara en vivo sí funciona. Si hace falta, la opción más robusta es el lector nativo ML Kit, como en `lector-codigo`. | Sin iniciar |
 | PEN-026 | Baja | Dependencias | El paquete `firebase` sigue en `package.json`, aunque desde el 2026-09-27 ningún archivo lo importa (Julian decidió dejarlo instalado). No pesa en la app, porque no entra en el build, pero conviene quitarlo si el inicio de sesión real no lo usa. | Por decidir |
+| PEN-027 | Alta | Seguridad | Desde el 2026-09-28, en `master` del backend todas las rutas piden un token de Firebase con permiso, salvo `POST /visitors` (ADR-023). El panel de seguridad todavía usa la sesión simulada y no envía token, así que contra `master` recibe 401 en todo. Hace falta el inicio de sesión real con Firebase (PEN-013) y un interceptor que agregue `Authorization: Bearer <token>`; el claim `rolId` se traduce a los roles del frontend (2 → `security`, 3 y 4 → `admin`, 1 → `user`). Desde el merge de `nico_dev` (2026-09-28), el inicio de sesión debe usar el proyecto de Firebase de Nico y cuentas `@uniempresarial.edu.co`: `POST /users` rechaza otros correos, incluido `test@test.com`. El formulario de visitantes sigue funcionando. | Sin iniciar |
+| PEN-028 | Alta | Visitantes | El formulario de visitantes solo acepta placas `ABC123` (formato de carro), así que rechaza las de moto. El backend (`master`, 2026-09-28) ya acepta `ABC12D`, las antiguas `ABC12` y `ABC123` (`/^[A-Z]{3}[0-9]{2}[A-Z0-9]?$/`); falta alinear `PLATE_PATTERN` en `visitor.ts` y su mensaje. | Sin iniciar |
+| PEN-029 | Media | Backend | Observaciones para el líder de backend al agregar roles (2026-09-28): **(1)** el backend no comprueba que un vehículo, historial o usuario sea de quien lo pide; por eso userEstandar solo tiene permisos que no exponen datos ajenos. **(2)** `POST /vehicles` toma el dueño del cuerpo y no del token. **(3)** Un rol nuevo llega al token cuando este se renueva (hasta 1 hora). **(4)** `role_id_user` es texto y no es llave foránea a `Role`. **(5)** Restaurar un usuario reactiva en Firebase un uid fijo (`testRestoreUser.ts`), no el del usuario. **(6)** El `.env` sigue versionado aunque está en el `.gitignore`: la contraseña de la base y la llave de Firebase quedaron en el repositorio; hay que sacarlo del índice y cambiar la llave. **(7)** El dominio `@uniempresarial.edu.co` que exige `POST /users` está escrito en el código; para vender el producto a otras instituciones (ADR-001) debería venir del `.env`. | Por decidir (backend) |
 | PEN-020 | Baja | Seguridad | En «Dentro ahora», un vehículo institucional no tenía hora de ingreso real (el backend solo guardaba `is_authorized`), así que el orden por hora lo dejaba al final. Con los registros de acceso (ADR-021) cada ingreso tiene su hora: se resuelve al reconstruir «Dentro ahora» sobre ellos (PEN-021). | **Completado** (2026-09-27): «Dentro ahora» ordena por la hora real de ingreso de todos |
 | MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista lo usa. Por eso el paquete inicial pesa 536 kB (límite de 500 kB) y sus clases chocan con `.card`, `.table` y `.btn`. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
 | MEJ-002 | Baja | Estilos | El límite de estilos por componente se subió a 12 kB (aviso) por `admin-dashboard` y `register-vehicle`. Revisarlo al separar componentes. | Sin iniciar |
@@ -405,6 +408,7 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 | ADR-020 | 2026-09-26 | Conexión al backend real (`camilo-dev`): nuevo modelo de visitantes y reducción del dashboard de seguridad | Reemplazado en parte por ADR-021 (ingreso del visitante) |
 | ADR-021 | 2026-09-27 | Módulo Parking: el QR valida el ingreso y la ocupación sale de las zonas | Aceptado |
 | ADR-022 | 2026-09-27 | Retiro del modo demostración: quedan Visitantes, Seguridad y el acceso simulado de los guardias | Aceptado |
+| ADR-023 | 2026-09-28 | Roles y permisos en el backend: cada ruta exige su permiso | Aceptado |
 
 ### ADR-001 · Marca personalizable desde un solo archivo
 
@@ -658,6 +662,21 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
   - La suite de pruebas baja de 186 a 133: salen las de los servicios borrados y las que dependían de datos de ejemplo. Las pantallas vacías se prueban con sus estados vacíos y sus validaciones.
   - Las pruebas de rutas por rol siguen cubriendo a la comunidad y la administración con cuentas que solo existen en las pruebas (`testing/demo-session.ts`).
 
+### ADR-023 · Roles y permisos en el backend: cada ruta exige su permiso
+
+- **Estado:** Aceptado · **Fecha:** 2026-09-28
+- **Contexto:** el líder de backend pidió, para la rama `master` del backend: registrar todas las rutas como permisos, crear los roles, relacionarlos por la tabla `RolePermission`, un endpoint para cambiar el rol de un usuario en Firebase y en la base de datos, y exigir permiso en todas las rutas. La base de datos de pruebas estaba vacía.
+- **Decisión:**
+  - Cuatro roles con ids fijos, porque Firebase guarda el id en el claim `rolId` del token: 1 userEstandar, 2 vigilante, 3 administrador y 4 superadmin.
+  - Un permiso por ruta (32), con nombre `módulo:acción` (p. ej. `access-record:visitor-entry`). `shared/config/seedPermission.ts` es la fuente de verdad: en cada arranque la base queda igual a sus listas de permisos, roles y asignaciones.
+  - Qué puede cada rol: el vigilante tiene lo que usa el panel de seguridad (zonas, quién está dentro, ingresos y salidas, vehículos, visitantes, historial) y reportar incidencias; userEstandar solo consulta las zonas, registra vehículos y ve un usuario; administrador y superadmin tienen todo.
+  - Dos rutas quedan públicas a propósito: `POST /visitors` (el visitante no tiene cuenta) y `POST /users` (quien se registra todavía no tiene rol; la ruta sí exige token y le asigna userEstandar).
+  - `PATCH /users/:userId/role` cambia el rol en Firebase y en la base, y deshace el cambio en la base si Firebase falla. Nadie asigna un rol igual o superior al suyo: el administrador solo mueve usuarios entre userEstandar y vigilante; el superadmin puede todo. El primer superadmin se crea desde la consola con `scripts/setRol.ts <correo> <rolId>`.
+- **Alternativas descartadas:** exigir permiso también en `POST /visitors` y `POST /users`. Nadie podría registrarse: el visitante no tiene cuenta y el usuario nuevo todavía no tiene rol.
+- **Consecuencias:**
+  - El frontend tiene que enviar el token de Firebase en cada petición al backend (PEN-027); hasta entonces, el panel de seguridad no funciona contra `master`.
+  - La matriz de permisos es una propuesta: la confirma el líder de backend. Hasta que el backend compruebe a quién pertenece cada dato, userEstandar tiene lo mínimo (PEN-029).
+
 ---
 
 ## 7. Bitácora de cambios
@@ -668,6 +687,8 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Agregado
 
+- 2026-09-28 · [dependencias.md](dependencias.md): todas las librerías del frontend, para qué sirve cada una, si se usa y cómo se instala, con los pasos de Capacitor (incluido el permiso de cámara, que se agrega a mano al generar `android/`) y de la PWA.
+- 2026-09-28 · Backend (rama `master`, pedido por el líder de backend): roles y permisos (ADR-023). Seed con 32 permisos, uno por ruta, los 4 roles con ids fijos y sus asignaciones; `authorize` en todas las rutas salvo `POST /visitors` y `POST /users`; `PATCH /users/:userId/role`; y `scripts/setRol.ts` recibe el correo y el rol. Verificado contra la base local: el seed deja siempre 4 roles, 32 permisos y 85 asignaciones, y las 32 rutas responden 401 sin token.
 - 2026-09-27 · «Dentro ahora» vuelve al resumen de seguridad, ahora con los registros de acceso abiertos: la búsqueda (placa, documento o nombre), los filtros de quién y de vehículo, el orden por hora real de ingreso y la paginación de siete en siete. La tarjeta «Vehículos dentro» vuelve a decir cuántos son de la comunidad y cuántos visitantes.
 - 2026-09-27 · Backend (autorizado por el líder de backend): `GET /parking/records/open`, los registros de acceso sin salida.
 - 2026-09-27 · `ParkingApiService` (módulo Parking del backend, ADR-021): zonas de parqueo e ingreso y salida en `access_record`, para visitantes y para la comunidad.
@@ -705,6 +726,9 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Cambiado
 
+- 2026-09-28 · Backend (`master`, merge de `nico_dev`): `POST /users` exige correo `@uniempresarial.edu.co` y, si el usuario ya existe, no le cambia el rol: solo copia a Firebase el de la base de datos (201 si es nuevo, 200 si ya existía). El backend usa ahora el proyecto de Firebase de Nico, y `synchronize` se apaga con `NODE_ENV=production`. El merge automático había dejado `app.ts` con marcadores de conflicto escondidos (el merge tenía dos bases comunes); se corrigió antes del commit.
+- 2026-09-28 · `.gitignore` ignora la carpeta `android/` de Capacitor: cada quien la genera en su equipo (ver [dependencias.md](dependencias.md)).
+- 2026-09-28 · Backend (rama `master`, pedido por un sublíder de backend): la marca acepta números, varias palabras y guiones («Mazda 3», «Harley-Davidson»); el color acepta espacios («Azul oscuro»); en bicicleta y scooter la marca y el color pueden quedar vacíos; la placa del visitante acepta `ABC12D`, `ABC12` y `ABC123` (falta el frontend, PEN-028). Al registrarse, el rol por defecto pasa de 3 (hoy administrador) a 1 (userEstandar), y registrarse otra vez responde 409 en lugar de reiniciar el rol.
 - 2026-09-27 · Revisión de `core/` y `testing/` antes de integrar: todo lo que queda tiene uso (ver [Estructura de `core/` y `testing/`](#estructura-de-core-y-testing)). Se corrigieron comentarios que todavía hablaban de Firestore, de Firebase Storage y del conteo de ocupación anterior.
 - 2026-09-27 · El login queda con «Visitantes» y el acceso simulado de los dos guardias; salen «Iniciar sesión con Microsoft» y el acceso de administración (ADR-022). `AuthService` ya no usa Firebase: solo abre y cierra la sesión simulada del guardia, guardada en `sessionStorage` mientras la pestaña esté abierta.
 - 2026-09-27 · El dashboard de usuarios, el registro de vehículos, la administración y las notificaciones quedan como componentes vacíos: el mismo diseño, sin servicios ni datos, y cada sección con su estado vacío. Adjuntar, enviar, aprobar, rechazar y pedir actualización avisan que el módulo no está conectado al backend; el menú de administración ya no muestra contadores (ADR-022).
@@ -731,6 +755,7 @@ Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más r
 
 #### Corregido
 
+- 2026-09-28 · Backend (rama `master`): el seed de permisos insertaba otra vez los mismos permisos en cada arranque, y dos rutas pedían el permiso de la otra (`GET /parking/status/:plate` y `GET /parkingZone`). El middleware `authorize` consultaba dos veces el permiso en cada petición.
 - 2026-09-27 · Backend (autorizado por el líder de backend): la salida ya no libera el puesto antes de cerrar el registro; el contador de puestos ya no se descuadra con ingresos simultáneos; `npm run build` vuelve a compilar (PEN-022).
 - 2026-09-27 · App Android (Capacitor): la cámara no abría porque el manifiesto no declaraba el permiso `CAMERA`, y sin declararlo Android lo niega sin preguntar. Agregado en `android/app/src/main/AndroidManifest.xml`.
 - 2026-09-27 · «Leer desde una foto» no reconocía el QR en fotos de celular tomadas a una pantalla: ZXing recibía la foto completa (12 MP o más) y la rejilla de píxeles del monitor lo confundía. Ahora la foto se reduce con suavizado (1024, 1600 o 640 px de lado) y se lee con `TRY_HARDER`. En 16 fotos simuladas de pantalla, el lector anterior leyó 4 y el nuevo las 16.
