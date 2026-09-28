@@ -34,7 +34,7 @@ export interface BackendStudent {
   id: string;
   name: string;
   email: string;
-  roleId: string;
+  roleId: number;
   vehicles: BackendUserVehicle[];
   status_user: boolean;
 }

@@ -47,7 +47,7 @@ class VehiclesApiServiceStub {
       model: input.model,
       color: input.color,
       type: input.type,
-      owner: input.ownerUid,
+      id_owner: input.ownerUid,
     });
   }
 }
@@ -72,7 +72,7 @@ class StudentsApiServiceStub {
       id,
       name: 'test s',
       email: 'test@test.com',
-      roleId: '3',
+      roleId: 3,
       status_user: true,
       vehicles: this.vehicles,
     });

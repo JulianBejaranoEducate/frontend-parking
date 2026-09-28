@@ -39,7 +39,7 @@ class StudentsApiServiceStub {
     id: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
     name: 'test s',
     email: 'test@test.com',
-    roleId: '3',
+    roleId: 3,
     status_user: true,
     vehicles: [vehicle('KZT45F', 'moto'), vehicle('uuid-bici', 'bicicleta')],
   };

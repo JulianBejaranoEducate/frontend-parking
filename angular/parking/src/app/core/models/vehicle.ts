@@ -47,19 +47,6 @@ export const VEHICLE_REQUIREMENTS: Record<VehicleType, VehicleRequirements> = {
   bicicleta: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' },
 };
 
-/** Requisitos mientras todavía no se elige el tipo de vehículo: no se pide nada. */
-export const NO_VEHICLE_REQUIREMENTS: VehicleRequirements = {
-  brand: 'none',
-  color: 'none',
-  plate: 'none',
-  frameSerial: 'none',
-};
-
-/** true si el dato se pide, sea obligatorio u opcional. */
-export function isAsked(requirement: FieldRequirement): boolean {
-  return requirement !== 'none';
-}
-
 /** Datos de un vehículo; cuáles lleva según su tipo lo decide `VEHICLE_REQUIREMENTS`. */
 export interface Vehicle {
   type: VehicleType;
@@ -81,40 +68,10 @@ export function vehicleLabel(value: VehicleType): string {
   return VEHICLE_TYPES.find((type) => type.value === value)?.label ?? value;
 }
 
-/**
- * Requisitos del tipo elegido.
- *
- * @param type Tipo de vehículo, o cadena vacía si todavía no se eligió.
- */
-export function requirementsFor(type: VehicleType | ''): VehicleRequirements {
-  return type ? VEHICLE_REQUIREMENTS[type] : NO_VEHICLE_REQUIREMENTS;
-}
-
 // ---- Vehículos registrados por usuarios institucionales ----------------------
 
 /** Tope de vehículos que un usuario institucional puede tener registrados. */
 export const MAX_VEHICLES_PER_USER = 5;
-
-/**
- * La administración revisa cada vehículo antes de dejarlo entrar.
- * needs-update: le pidió al usuario volver a enviar algún documento.
- */
-export type VehicleApproval = 'approved' | 'pending' | 'rejected' | 'needs-update';
-
-export const APPROVAL_LABELS: Record<VehicleApproval, string> = {
-  approved: 'Aprobado',
-  pending: 'Pendiente',
-  rejected: 'Rechazado',
-  'needs-update': 'Actualizar documentos',
-};
-
-export interface RegisteredVehicle extends Vehicle {
-  id: string;
-  approval: VehicleApproval;
-  registeredAt: Date;
-  /** Explicación de la administración cuando rechazó o pidió actualizar. */
-  statusNote?: string;
-}
 
 /**
  * Identificador principal de un vehículo: la placa cuando la tiene; si no
