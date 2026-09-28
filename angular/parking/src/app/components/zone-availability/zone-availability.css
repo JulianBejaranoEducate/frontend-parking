@@ -53,6 +53,13 @@
   color: var(--brand-text);
 }
 
+.zones__disclaimer {
+  margin: 0.875rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--brand-text-muted);
+}
+
 @media (min-width: 48rem) {
   .zones {
     grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));

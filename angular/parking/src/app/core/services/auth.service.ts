@@ -100,6 +100,16 @@ export const DEMO_ACCOUNTS: Record<DemoProfile, AuthUser> = {
   },
 };
 
+/**
+ * uid real, sembrado en la base de datos del backend, para poder probar
+ * llamadas ya conectadas (registro de vehículos, "Mis vehículos") mientras no
+ * hay login con Firebase: la sesión de demostración usa `demo-uid`, que no
+ * existe en la base de datos real, así que el backend rechazaría cualquier
+ * llamada que lo use como dueño. Cada consumidor decide con `demoMode` entre
+ * este valor y el uid de verdad; quitar cuando haya login real.
+ */
+export const SEEDED_OWNER_UID = 'Ctj1W2XEcKVNxKt7seae8xvR8fR2';
+
 const DEMO_SESSION_KEY = 'session';
 
 @Injectable({ providedIn: 'root' })

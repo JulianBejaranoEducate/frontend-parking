@@ -1,6 +1,8 @@
 import {
   type MovementAnnulment,
   type ParkingStay,
+  averageStayDurationMs,
+  entriesByVehicle,
   formatDuration,
   isInside,
   isLongStay,
@@ -74,6 +76,20 @@ describe('modelo de parqueadero', () => {
     expect(isLongStay(stay('a', 13, null), 12, now)).toBe(true);
     expect(isLongStay(stay('b', 11, null), 12, now)).toBe(false);
     expect(isLongStay(stay('c', 30, 25), 12, now)).toBe(false);
+  });
+
+  it('promedia la duración de las estancias dadas; 0 si no hay ninguna', () => {
+    expect(averageStayDurationMs([], now)).toBe(0);
+    expect(formatDuration(averageStayDurationMs([stay('a', 2, null), stay('b', 4, 2)], now))).toBe('2 h 0 min');
+  });
+
+  it('reparte las entradas por vehículo, de más a menos', () => {
+    const counts = entriesByVehicle([stay('a', 1, null), stay('b', 3, 2), stay('c', 1, null, 'bicicleta')]);
+
+    expect(counts).toEqual([
+      { vehicle: { type: 'moto', plate: 'KZT45F' }, label: 'KZT45F', count: 2 },
+      { vehicle: { type: 'bicicleta' }, label: 'Bicicleta', count: 1 },
+    ]);
   });
 
   describe('anulaciones (ADR-018)', () => {

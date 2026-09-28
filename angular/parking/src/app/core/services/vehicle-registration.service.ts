@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { loadDemo, saveDemo } from '../demo/demo-storage';
 import { seedRegistrations } from '../demo/seed-registrations';
-import { MAX_VEHICLES_PER_USER, type Vehicle } from '../models/vehicle';
+import type { Vehicle } from '../models/vehicle';
 import {
   DOCUMENT_LABELS,
   type DeclaredOwner,
@@ -26,7 +26,6 @@ export type RegistrationErrorCode =
   | 'not-signed-in'
   | 'forbidden'
   | 'not-found'
-  | 'limit-reached'
   | 'plate-taken'
   | 'missing-documents'
   | 'invalid-state';
@@ -52,7 +51,15 @@ export function vehiclePhrase(vehicle: Vehicle): string {
 
 /**
  * Solicitudes de registro de vehículos: las crea el usuario y las resuelve la
- * administración. Es la única fuente de verdad de "Mis vehículos".
+ * administración. Es la cola de aprobación con documentos (pendiente,
+ * aprobado, rechazado, actualizar), que el backend real todavía no tiene
+ * (PEN-020) — "Mis vehículos" en el dashboard ya no sale de aquí, sale de
+ * verdad de `StudentsApiService` (`GET /users/:id`).
+ *
+ * No impone un tope de vehículos por persona: ese tope (`MAX_VEHICLES_PER_USER`
+ * en `core/models/vehicle.ts`) se evalúa contra los vehículos reales del
+ * backend, no contra cuántas solicitudes de demostración existan — antes las
+ * dos cosas eran el mismo número y ya no lo son.
  *
  * TODO: en demostración vive en el navegador. Con Firebase, cada método será
  * una escritura en Firestore protegida por reglas: el cliente nunca debe poder
@@ -86,9 +93,6 @@ export class VehicleRegistrationService {
       : [];
   });
 
-  readonly maxPerUser = MAX_VEHICLES_PER_USER;
-  readonly canRegisterMore = computed(() => this.mine().length < MAX_VEHICLES_PER_USER);
-
   constructor() {
     effect(() => saveDemo(STORAGE_KEY, this._items()));
   }
@@ -117,13 +121,6 @@ export class VehicleRegistrationService {
 
     if (!user) {
       throw new RegistrationError('not-signed-in', 'Inicia sesión para registrar un vehículo.');
-    }
-
-    if (!this.canRegisterMore()) {
-      throw new RegistrationError(
-        'limit-reached',
-        `Ya tienes ${MAX_VEHICLES_PER_USER} vehículos registrados. Elimina uno para registrar otro.`,
-      );
     }
 
     if (input.vehicle.plate && this.isPlateTaken(input.vehicle.plate)) {

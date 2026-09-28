@@ -21,6 +21,7 @@ import { RouterLink } from '@angular/router';
 import { map } from 'rxjs';
 import { BRAND } from '../../core/config/branding.config';
 import {
+  MAX_VEHICLES_PER_USER,
   VEHICLE_REQUIREMENTS,
   type Vehicle,
   type VehicleType,
@@ -34,14 +35,13 @@ import {
   type DeclaredOwner,
   type DocumentKind,
   type DocumentRequirement,
-  type NameMatch,
   type RegistrationDocument,
   type VehicleRegistration,
-  compareNames,
   latestReview,
 } from '../../core/models/vehicle-registration';
-import { DOCUMENT_TYPES, type DocumentType } from '../../core/models/visitor-pass';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService, SEEDED_OWNER_UID } from '../../core/services/auth.service';
+import { StudentsApiService } from '../../core/services/modules/students-student-panel/students-api.sp.service';
+import { VehiclesApiService } from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
 import { UploadService } from '../../core/services/upload.service';
 import { RegistrationError, VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
 
@@ -56,59 +56,27 @@ const STEPS: readonly { id: Exclude<Step, 'done'>; label: string }[] = [
 
 const TYPE_OPTIONS: readonly { value: VehicleType; description: string }[] = [
   { value: 'moto', description: 'Datos del vehículo y foto de la tarjeta de propiedad.' },
-  { value: 'bicicleta', description: 'Tu documento, marca, color y, si lo tiene, el serial del marco.' },
-  { value: 'scooter', description: 'Tu documento, el color y, si la tienes, la factura de compra.' },
+  { value: 'bicicleta', description: 'Marca, color y, si lo tiene, el serial del marco.' },
+  { value: 'scooter', description: 'Marca, color y, si la tienes, la factura de compra.' },
 ];
 
-type FieldName =
-  | 'firstName'
-  | 'lastName'
-  | 'documentType'
-  | 'documentNumber'
-  | 'plate'
-  | 'brand'
-  | 'line'
-  | 'modelYear'
-  | 'color'
-  | 'frameSerial';
+type FieldName = 'plate' | 'brand' | 'line' | 'modelYear' | 'color' | 'frameSerial';
 
-/**
- * Qué campos pide cada vehículo. Los demás se deshabilitan y no cuentan.
- *
- * Todos piden documento: portería busca bicicletas y scooters por documento
- * (ADR-007). Qué es opcional lo decide `VEHICLE_REQUIREMENTS`.
- */
+/** Qué campos pide cada vehículo. Los demás se deshabilitan y no cuentan. */
 const FIELDS_BY_TYPE: Record<VehicleType, readonly FieldName[]> = {
-  moto: ['firstName', 'lastName', 'documentType', 'documentNumber', 'plate', 'brand', 'line', 'modelYear', 'color'],
-  bicicleta: ['firstName', 'lastName', 'documentType', 'documentNumber', 'brand', 'color', 'frameSerial'],
-  scooter: ['firstName', 'lastName', 'documentType', 'documentNumber', 'brand', 'color'],
+  moto: ['plate', 'brand', 'line', 'modelYear', 'color'],
+  bicicleta: ['brand', 'color', 'frameSerial'],
+  scooter: ['brand', 'color'],
 };
 
-const ALL_FIELDS: readonly FieldName[] = [
-  'firstName',
-  'lastName',
-  'documentType',
-  'documentNumber',
-  'plate',
-  'brand',
-  'line',
-  'modelYear',
-  'color',
-  'frameSerial',
-];
+const ALL_FIELDS: readonly FieldName[] = ['plate', 'brand', 'line', 'modelYear', 'color', 'frameSerial'];
 
 /** Placa de moto colombiana. La letra final es opcional en motos antiguas. */
 const PLATE_PATTERN = /^[A-Z]{3}\d{2}[A-Z]?$/;
-const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
-const NAME_PATTERN = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]+$/;
 const SERIAL_PATTERN = /^[A-Z0-9-]{4,30}$/;
 const CURRENT_YEAR = new Date().getFullYear();
 
 const REQUIRED_MESSAGES: Record<FieldName, string> = {
-  firstName: 'Escribe tus nombres.',
-  lastName: 'Escribe tus apellidos.',
-  documentType: 'Selecciona el tipo de documento.',
-  documentNumber: 'Escribe tu número de documento.',
   plate: 'Escribe la placa.',
   brand: 'Escribe la marca.',
   line: 'Escribe la línea, como aparece en la tarjeta.',
@@ -118,13 +86,37 @@ const REQUIRED_MESSAGES: Record<FieldName, string> = {
 };
 
 const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
-  firstName: 'Usa solo letras y espacios.',
-  lastName: 'Usa solo letras y espacios.',
-  documentNumber: 'Debe tener entre 6 y 11 dígitos, sin puntos ni espacios.',
   plate: 'Usa el formato de placa de moto: ABC12D.',
   frameSerial: 'Usa solo letras, números y guiones (4 a 30 caracteres).',
 };
 
+/**
+ * Registro de vehículos institucionales, en cuatro pasos (tipo, datos,
+ * documentos, confirmar). El dueño sale de la cuenta con sesión, no de un
+ * formulario (ya no se pide "Tus datos").
+ *
+ * La solicitud —con su cola de aprobación y sus documentos— sigue viviendo en
+ * `VehicleRegistrationService` (demostración): el backend real no tiene
+ * ninguna de las dos cosas todavía (PEN-020 en planeacion-desarrollo.md). Al
+ * enviarla, `submit()` además crea el vehículo de verdad en el backend real
+ * (`VehiclesApiService.postCreate`, mismo servicio y mismo patrón que
+ * `VisitorApiService`), con los campos que hoy acepta: tipo, marca, color,
+ * modelo (año) y placa. Esa segunda llamada es "best effort": si falla, no
+ * bloquea ni muestra error, para no depender de que el backend esté
+ * disponible en ese momento.
+ *
+ * El dueño que se manda en esa llamada es `SEEDED_OWNER_UID` mientras la
+ * sesión sea de demostración (`auth.demoMode`): el uid simulado no existe en
+ * la base de datos real. Con login de Firebase, pasa solo a usar el uid real.
+ *
+ * El tope de {@link MAX_VEHICLES_PER_USER} vehículos se evalúa contra los
+ * vehículos reales del usuario (`StudentsApiService.findById`, el mismo
+ * `GET /users/:id` que alimenta "Mis vehículos" en el dashboard) — no contra
+ * cuántas solicitudes de demostración existan en `VehicleRegistrationService`.
+ * Antes eran el mismo número; ahora que "Mis vehículos" sale del backend real,
+ * comparar contra la demo bloqueaba (o dejaba pasar) según datos que ya no
+ * tienen relación con lo que el usuario ve en su propio dashboard.
+ */
 @Component({
   imports: [NgTemplateOutlet, ReactiveFormsModule, RouterLink],
   selector: 'app-register-vehicle',
@@ -137,6 +129,8 @@ export class RegisterVehicle {
 
   private readonly auth = inject(AuthService);
   private readonly registrations = inject(VehicleRegistrationService);
+  private readonly vehicleApi = inject(VehiclesApiService);
+  private readonly studentsApi = inject(StudentsApiService);
   private readonly uploads = inject(UploadService);
   private readonly injector = inject(Injector);
   private readonly fb = inject(FormBuilder);
@@ -144,15 +138,17 @@ export class RegisterVehicle {
   protected readonly brand = BRAND;
   protected readonly steps = STEPS;
   protected readonly typeOptions = TYPE_OPTIONS;
-  protected readonly documentTypes = DOCUMENT_TYPES;
   protected readonly vehicleLabel = vehicleLabel;
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
   protected readonly documentLabels = DOCUMENT_LABELS;
   protected readonly maxYear = CURRENT_YEAR + 1;
-  protected readonly maxVehicles = this.registrations.maxPerUser;
-  protected readonly canRegisterMore = this.registrations.canRegisterMore;
-  protected readonly accountName = computed(() => this.auth.user()?.displayName ?? '');
+
+  // ---- Tope de vehículos (contra el backend real, no contra la demo) -----------
+  protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
+  protected readonly vehiclesCountLoading = signal(true);
+  protected readonly vehiclesCount = signal(0);
+  protected readonly canRegisterMore = computed(() => this.vehiclesCount() < this.maxVehicles);
 
   // ---- Modo actualización ------------------------------------------------------------
 
@@ -188,10 +184,6 @@ export class RegisterVehicle {
   // ---- Datos -----------------------------------------------------------------------------
 
   protected readonly form = this.fb.nonNullable.group({
-    firstName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(60), Validators.pattern(NAME_PATTERN)]],
-    lastName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(60), Validators.pattern(NAME_PATTERN)]],
-    documentType: ['CC' as DocumentType, Validators.required],
-    documentNumber: ['', [Validators.required, Validators.pattern(DOCUMENT_NUMBER_PATTERN)]],
     plate: [
       '',
       [Validators.required, Validators.pattern(PLATE_PATTERN), (control: AbstractControl) => this.plateTaken(control)],
@@ -212,18 +204,6 @@ export class RegisterVehicle {
   });
 
   protected readonly detailsAttempted = signal(false);
-
-  /** Primera validación: lo escrito frente a la cuenta institucional. */
-  protected readonly nameCheck = computed<NameMatch | null>(() => {
-    const { firstName, lastName } = this.formValue();
-    const account = this.accountName();
-
-    if (!account || firstName.trim().length < 2 || lastName.trim().length < 2) {
-      return null;
-    }
-
-    return compareNames(`${firstName} ${lastName}`, account);
-  });
 
   // ---- Documentos --------------------------------------------------------------------------
 
@@ -261,12 +241,6 @@ export class RegisterVehicle {
   protected readonly submitError = signal<string | null>(null);
   protected readonly submitted = signal<VehicleRegistration | null>(null);
 
-  /** Lo declarado, tal como lo verá la administración. */
-  protected readonly summaryOwner = computed(() => {
-    this.formValue();
-    return this.buildOwner();
-  });
-
   protected readonly summaryVehicle = computed(() => {
     this.formValue();
     return this.vehicleType() ? this.buildVehicle() : null;
@@ -274,6 +248,30 @@ export class RegisterVehicle {
 
   constructor() {
     this.syncEnabledFields(null);
+    void this.loadVehiclesCount();
+  }
+
+  /**
+   * Cuántos vehículos institucionales tiene de verdad el usuario, según el
+   * backend real (`GET /users/:id`, sin Firebase — mismo `SEEDED_OWNER_UID`
+   * que usa `MainDashboard`). Decide si se puede seguir con el registro.
+   *
+   * Falla abierto: si la consulta falla, no bloquea el registro por un
+   * problema de red — el tope de {@link MAX_VEHICLES_PER_USER} es una regla
+   * del frontend, el backend no la exige todavía (PEN-020).
+   */
+  private async loadVehiclesCount(): Promise<void> {
+    this.vehiclesCountLoading.set(true);
+
+    try {
+      const uid = this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? '');
+      const student = await this.studentsApi.findById(uid);
+      this.vehiclesCount.set(student.vehicles.length);
+    } catch {
+      // Falla abierto: ver doc de arriba.
+    } finally {
+      this.vehiclesCountLoading.set(false);
+    }
   }
 
   // ---- Navegación ----------------------------------------------------------------------------------
@@ -341,7 +339,7 @@ export class RegisterVehicle {
     this.declarationAccepted.set((event.target as HTMLInputElement).checked);
   }
 
-  protected submit(): void {
+  protected async submit(): Promise<void> {
     this.declarationAttempted.set(true);
     this.submitError.set(null);
 
@@ -349,10 +347,12 @@ export class RegisterVehicle {
       return;
     }
 
+    const vehicle = this.buildVehicle();
+
     try {
       const registration = this.registrations.submit({
         owner: this.buildOwner(),
-        vehicle: this.buildVehicle(),
+        vehicle,
         documents: Object.values(this.documents()),
       });
 
@@ -362,7 +362,30 @@ export class RegisterVehicle {
       this.submitError.set(
         error instanceof RegistrationError ? error.message : 'No pudimos enviar la solicitud. Inténtalo de nuevo.',
       );
+      return;
     }
+
+    // La solicitud (con su aprobación y sus documentos) sigue siendo la fuente
+    // de verdad de esta pantalla: el backend real todavía no tiene ninguna de
+    // las dos cosas (PEN-020). Además de eso, se crea el vehículo de verdad
+    // con lo que el backend sí acepta hoy — sin bloquear ni mostrar error si
+    // falla, para no depender de que el backend esté disponible en este momento.
+    try {
+      await this.vehicleApi.postCreate({
+        type: vehicle.type,
+        brand: vehicle.brand ?? '',
+        model: vehicle.modelYear ?? CURRENT_YEAR,
+        color: vehicle.color ?? '',
+        ownerUid: this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? ''),
+        ...(vehicle.plate ? { plate: vehicle.plate } : {}),
+      });
+    } catch (error) {
+      console.error('No se pudo crear el vehículo en el backend real (la solicitud sí quedó guardada):', error);
+    }
+
+    // Se acaba de crear (o al menos intentar) un vehículo real: el tope de la
+    // próxima vez que se entre a este formulario debe reflejarlo.
+    void this.loadVehiclesCount();
   }
 
   /** Empieza de cero para registrar otro vehículo. */
@@ -433,10 +456,6 @@ export class RegisterVehicle {
     this.rewrite('plate', (value) => value.toUpperCase().replace(/[\s-]/g, ''));
   }
 
-  protected normalizeDocumentNumber(): void {
-    this.rewrite('documentNumber', (value) => value.replace(/\D/g, ''));
-  }
-
   protected normalizeSerial(): void {
     this.rewrite('frameSerial', (value) => value.toUpperCase().replace(/\s/g, ''));
   }
@@ -495,10 +514,6 @@ export class RegisterVehicle {
     return 'Revisa este dato.';
   }
 
-  protected documentTypeLabel(value: DocumentType | undefined): string {
-    return DOCUMENT_TYPES.find((type) => type.value === value)?.label ?? '';
-  }
-
   // ---- Internos ------------------------------------------------------------------------------------
 
   private resubmit(): void {
@@ -519,16 +534,14 @@ export class RegisterVehicle {
     }
   }
 
+  /**
+   * Ya no se le pide a la persona que vuelva a escribir su nombre: sale tal
+   * cual de la cuenta con la que inició sesión (se quitó el paso "Tus datos",
+   * que lo pedía y lo comparaba contra la cuenta a mano).
+   */
   private buildOwner(): DeclaredOwner {
-    const value = this.form.getRawValue();
-    const owner: DeclaredOwner = { firstName: value.firstName.trim(), lastName: value.lastName.trim() };
-
-    if (this.shows('documentNumber')) {
-      owner.documentType = value.documentType;
-      owner.documentNumber = value.documentNumber;
-    }
-
-    return owner;
+    const [firstName, ...rest] = (this.auth.user()?.displayName ?? '').trim().split(/\s+/);
+    return { firstName: firstName ?? '', lastName: rest.join(' ') };
   }
 
   private buildVehicle(): Vehicle {
@@ -595,7 +608,7 @@ export class RegisterVehicle {
     return value && this.registrations.isPlateTaken(value) ? { plateTaken: true } : null;
   }
 
-  private rewrite(field: 'plate' | 'documentNumber' | 'frameSerial', transform: (value: string) => string): void {
+  private rewrite(field: 'plate' | 'frameSerial', transform: (value: string) => string): void {
     const control = this.form.controls[field];
     const next = transform(control.value);
 
@@ -612,7 +625,7 @@ export class RegisterVehicle {
 
   private focusFirstInvalid(): void {
     afterNextRender(
-      () => document.querySelector<HTMLElement>('.register [aria-invalid="true"]')?.focus(),
+      () => document.querySelector<HTMLElement>('.page [aria-invalid="true"]')?.focus(),
       { injector: this.injector },
     );
   }

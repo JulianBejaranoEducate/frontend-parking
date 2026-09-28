@@ -5,7 +5,7 @@
  * ocupación se calcula contando los vehículos con ingreso abierto
  * (ADR-008 en planeacion-desarrollo.md).
  */
-import type { Vehicle, VehicleType } from './vehicle';
+import { type Vehicle, type VehicleType, vehicleTitle } from './vehicle';
 
 // ---- Cupos y ocupación ----------------------------------------------------------------
 
@@ -322,4 +322,45 @@ export function formatDuration(ms: number): string {
   const hours = Math.floor(totalMinutes / 60);
 
   return hours > 0 ? `${hours} h ${totalMinutes % 60} min` : `${totalMinutes} min`;
+}
+
+/** Cuánto duran en promedio las estancias dadas; 0 si no hay ninguna. */
+export function averageStayDurationMs(stays: readonly ParkingStay[], now: Date = new Date()): number {
+  if (stays.length === 0) {
+    return 0;
+  }
+
+  const total = stays.reduce((sum, stay) => sum + stayDurationMs(stay, now), 0);
+  return total / stays.length;
+}
+
+/** Cuántas veces entró cada vehículo, agrupado por su título (placa o tipo). */
+export interface VehicleEntriesCount {
+  vehicle: Vehicle;
+  label: string;
+  count: number;
+}
+
+/**
+ * Reparte las estancias por vehículo, de más a menos entradas.
+ *
+ * Agrupa por {@link vehicleTitle} (la placa, o el tipo si no tiene) en vez de
+ * por id: es lo mismo que ya usa el resto del historial para identificar un
+ * vehículo de un vistazo.
+ */
+export function entriesByVehicle(stays: readonly ParkingStay[]): VehicleEntriesCount[] {
+  const byLabel = new Map<string, VehicleEntriesCount>();
+
+  for (const stay of stays) {
+    const label = vehicleTitle(stay.vehicle);
+    const existing = byLabel.get(label);
+
+    if (existing) {
+      existing.count += 1;
+    } else {
+      byLabel.set(label, { vehicle: stay.vehicle, label, count: 1 });
+    }
+  }
+
+  return [...byLabel.values()].sort((a, b) => b.count - a.count);
 }

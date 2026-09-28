@@ -29,7 +29,7 @@ describe('Sidebar', () => {
   it('lista las opciones que recibe', () => {
     const labels = [...host().querySelectorAll('.menu__label')].map((item) => item.textContent?.trim());
 
-    expect(labels).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
+    expect(labels).toEqual(['Dashboard', 'Registrar vehículo', 'Vehículos', 'Parqueaderos', 'Estadísticas']);
   });
 
   it('sin opciones no muestra ningún menú, ni siquiera el de otro rol', async () => {
@@ -42,11 +42,16 @@ describe('Sidebar', () => {
   it('las opciones con ruta son enlaces reales', () => {
     const link = host().querySelector<HTMLAnchorElement>('a.menu__item');
 
-    expect(link?.textContent).toContain('Registrar vehículo');
-    expect(link?.getAttribute('href')).toBe('/vehiculos/registrar');
+    expect(link?.textContent).toContain('Dashboard');
+    expect(link?.getAttribute('href')).toBe('/inicio');
   });
 
   it('una opción sin ruta marca la selección y avisa para que el cajón se cierre en móvil', async () => {
+    // Ninguna opción del usuario queda sin ruta hoy: se prueba con una propia,
+    // como ya hace la prueba de "contadores" más abajo.
+    fixture.componentRef.setInput('items', [{ id: 'ajustes', label: 'Ajustes', icon: 'M0 0h24v24H0z' }]);
+    await fixture.whenStable();
+
     let closedCount = 0;
     component.closed.subscribe(() => (closedCount += 1));
 

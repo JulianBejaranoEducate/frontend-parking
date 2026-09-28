@@ -1,8 +1,8 @@
 # Uni-parking · Planeación y registro de desarrollo
 
-> **Fase actual:** Fase 7 (conexión a backend real de Visitantes y Seguridad) **completada** el 2026-09-26 (ver ADR-020). Para estos dos módulos reemplaza el diseño de demostración de la sección 4. Las Fases 4, 5 y 6 (foto de placa, integración con el usuario, PWA en portería) siguen sin iniciar.
-> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-26
-> **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 541 kB, límite de 500 kB; ver MEJ-001) · 176 pruebas unitarias pasando (2026-09-26; bajó de 250 al retirar turnos, movimientos, `access-result` y dos componentes huérfanos, ver ADR-020)
+> **Fase actual:** Fase 7 (conexión a backend real de Visitantes y Seguridad) **completada** el 2026-09-26 (ver ADR-020). Para estos dos módulos reemplaza el diseño de demostración de la sección 4. En `frontend-juanjose`, Parqueaderos ya conecta al backend real (2026-09-27); registro de vehículos, Estadísticas y el resto del panel de usuario siguen en demo. Las Fases 4 y 6 (foto de placa, PWA en portería) siguen sin iniciar.
+> **Rama de trabajo:** `frontend-julian` (Fases 0-7) y `frontend-juanjose` (panel de usuario) · **Última actualización:** 2026-09-27
+> **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 541 kB, límite de 500 kB; ver MEJ-001) · en `frontend-juanjose`, 185 de 188 pruebas unitarias pasando (2026-09-27; las 3 que fallan son preexistentes, no relacionadas con el trabajo del panel de usuario — ver PEN-021)
 
 Este documento es la fuente única para saber en qué va el proyecto: qué está hecho, qué se decidió y por qué, qué falta y qué hay que corregir. Se actualiza en el mismo commit que el cambio que registra (ver [Cómo actualizar este documento](#cómo-actualizar-este-documento)).
 
@@ -51,7 +51,9 @@ Estados (ver [Estados](#estados)):
 | Login | `/login` | Completado (demo) | Julian | 2026-09-15 | Inicio con Microsoft vía Firebase implementado, sin probar aún con credenciales reales. En demostración: accesos a administración y a los dos guardias |
 | Visitantes | `/visitantes` | Completado | Julian | 2026-09-26 | Conectado al backend real del equipo (rama `camilo-dev`), sin datos quemados. Enviar el formulario **es** el ingreso: no hay paso de autorización aparte. El QR lleva el id numérico que asigna el backend (ADR-020) |
 | Dashboard de usuarios | `/inicio` | Completado (demo) | Julian | 2026-09-15 | Usa el layout común; disponibilidad e historial salen de las mismas estancias que registra portería |
-| Registro de vehículos | `/vehiculos/registrar` | Completado (demo) | Julian | 2026-09-15 | Las bicicletas piden documento (PEN-009) y los scooters color y marca opcional |
+| Parqueaderos | `/parqueaderos` | Completado | Juanjose | 2026-09-27 | Disponibilidad completa conectada al backend real: combina `GET /vehicles` (institucionales) y `GET /visitors` (filtrando `exited_at`), agrupados por tipo. Mismo componente `zone-availability` que `/inicio`, con el aviso de HU-16 ("no garantiza reserva"). "Estado de tu vehículo" sigue en demo (`ParkingService`) |
+| Estadísticas | `/estadisticas` | Completado (demo) | Juanjose | 2026-09-27 | Historial completo (HU-21) + duración promedio y entradas por vehículo. No es un servicio HTTP: el backend no tiene módulo de estancias/movimientos, así que sigue en `ParkingService` honestamente, sin simular una conexión que no existe (PEN-020) |
+| Registro de vehículos | `/vehiculos/registrar` | Completado (parcial) | Juanjose | 2026-09-27 | Al enviar la solicitud (demo, con aprobación y documentos), también crea el vehículo real en el backend con `VehiclesApiService.postCreate` (best effort, no bloquea si falla). Verificado de punta a punta con un uid sembrado real: `201 Created`. Con la sesión de demostración falla siempre (uid no existe en la BD real — PEN-001/PEN-013), sin romper el flujo. La marca ya es obligatoria en los tres tipos, alineada con el backend (antes era opcional en scooter) |
 | Dashboard de administración | `/admin/:section` | Completado (demo) | Julian | 2026-09-15 | Usa el layout común; la revisión del scooter incluye color y marca. Faltan cuentas de guardias e historial de turnos |
 | Notificaciones | Panel del header | Completado (demo) | Julian | 2026-09-15 | Avisos por persona, para administración y para seguridad. Botón de configuración sin función (PEN-004) |
 | Layout común por rol | — | Completado | Julian | 2026-09-15 | ADR-010. Cada rol solo ve y descarga su grupo de rutas; cada rol puede aportar su buscador del header |
@@ -333,7 +335,7 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | PEN-003 | Media | Registro de vehículos | Subir los documentos a Storage; hoy quedan comprimidos en el navegador. | Sin iniciar |
 | PEN-004 | Baja | Notificaciones | El botón de configuración no hace nada. | Sin iniciar |
 | PEN-005 | Baja | Header | El buscador ya funciona en seguridad (lleva a Control de acceso), pero en usuarios y administración no hace nada. «Configuración» del menú de cuenta no tiene función. | Pendiente |
-| PEN-006 | Baja | Dashboard de usuarios | «Parqueaderos» y «Estadísticas» del menú no llevan a ninguna parte. | Sin iniciar |
+| PEN-006 | Baja | Dashboard de usuarios | «Parqueaderos» y «Estadísticas» del menú no llevan a ninguna parte. | **Completado** (2026-09-27): ambas tienen ruta y vista propia; ver `docs-claude/06-propuesta-parqueaderos-estadisticas.md` (Opción A) |
 | PEN-007 | Media | Administración | Las estadísticas usan datos simulados (generador con semilla). | Sin iniciar |
 | PEN-008 | Baja | Componentes | `accessibility` y `footer` están creados, pero vacíos. | Sin iniciar |
 | PEN-009 | Alta | Registro de vehículos | El registro de bicicletas no pedía documento, y portería las busca por documento (ADR-007). Resuelto: tipo y número de documento obligatorios en bicicletas. | **Completado** (2026-09-15) |
@@ -347,6 +349,9 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | PEN-017 | Baja | Seguridad | Vibrar al registrar un movimiento en los celulares que lo permitan (4.2). | Sin iniciar |
 | PEN-018 | Alta | Seguridad | El QR de ingreso/salida de un usuario institucional se genera en otra parte del proyecto (ADR-020); acá se asumió que codifica la **placa** del vehículo, porque es el único identificador que expone el módulo de Vehículos. Falta confirmarlo con quien construya esa generación. | Por decidir |
 | PEN-019 | Media | Todo el proyecto | La limpieza de datos quemados solo se hizo en Visitantes y Seguridad (ADR-020). El dashboard de usuarios, administración y registro de vehículos siguen en modo demostración. Falta decidir si se aborda ahora para todo el proyecto o se deja para cuando el backend tenga esos módulos. | Por decidir |
+| PEN-020 | Alta | Registro de vehículos | El backend de Vehículos no tiene "listar por dueño" ni un estado de aprobación separado de `is_authorized` (solo dentro/fuera del parqueadero). "Mis vehículos", el límite real de 5, las solicitudes de baja/actualización y su aprobación siguen resolviéndose en el store de demostración (`VehicleRegistrationService`). | Parcial: el registro (`POST /vehicles`) ya se conecta (2026-09-27); lo demás sigue en demo |
+| PEN-022 | Media | Registro de vehículos | La respuesta real de `POST /vehicles` trajo `id_owner` en vez de `owner` (visto el 2026-09-27, con un uid sembrado real) — distinto a lo documentado en `uni-parking.openapi.yaml`. El backend parece seguir cambiando de forma. No rompe nada hoy porque no se lee ese campo de la respuesta, pero conviene confirmarlo con el equipo de backend antes de depender de él. | Por confirmar |
+| PEN-021 | Baja | Dashboard de usuarios | `main-dashboard.spec.ts › con 5 vehículos, agregar queda bloqueado y explica por qué` falla de forma intermitente, sin relación con los cambios del panel de usuario (reproducido también sin ellos). Parece depender del orden de ejecución sobre el store de demostración compartido. | Sin iniciar |
 | MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista lo usa. Por eso el paquete inicial pesa 541 kB (límite de 500 kB) y sus clases chocan con `.card`, `.table` y `.btn`. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
 | MEJ-002 | Baja | Estilos | El límite de estilos por componente se subió a 12 kB (aviso) por `admin-dashboard` y `register-vehicle`. Revisarlo al separar componentes. | Sin iniciar |
 | MEJ-003 | Baja | Documentación | Generar un sitio navegable con la documentación del código (p. ej. Compodoc). Hay que verificar antes su compatibilidad con Angular 22. | Por decidir |
@@ -604,6 +609,22 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 ## 7. Bitácora de cambios
 
 Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más reciente va arriba, las fechas en formato AAAA-MM-DD y los cambios se agrupan en **Agregado**, **Cambiado**, **Corregido**, **Eliminado** y **Seguridad**. Lo que aún no está en `main` va en **Sin publicar**.
+
+### [Sin publicar] · rama `frontend-juanjose`
+
+#### Agregado
+
+- 2026-09-27 · **Parqueaderos** (`/parqueaderos`): disponibilidad completa conectada al backend real, combinando `VehicleApiService.inside()` y `VisitorApiService.findAll()` (mismo patrón que `SecurityDashboard`), agrupada por tipo contra `parking.config.ts`. Reutiliza `zone-availability` a ancho completo.
+- 2026-09-27 · **Estadísticas** (`/estadisticas`): versión completa del historial de `/inicio`, más duración promedio y entradas por vehículo (`averageStayDurationMs`, `entriesByVehicle`, nuevos en `core/models/parking.ts`). Sigue en `ParkingService` (demo): el backend no tiene módulo de estancias.
+- 2026-09-27 · Nueva opción **Dashboard** en el menú de usuario, arriba de "Registrar vehículo", con ruta a `/inicio` — dos caminos para salir del registro de vehículo sin terminarlo (el botón "Cancelar" y el menú).
+- 2026-09-27 · Aviso de disponibilidad ("no garantiza un cupo reservado") en `zone-availability`, compartido por `/inicio` y `/parqueaderos` (resuelve el criterio de aceptación pendiente de HU-16).
+- 2026-09-27 · El registro de vehículos, además de guardar la solicitud (demo, con aprobación y documentos), crea el vehículo real en el backend (`VehiclesApiService.postCreate`, best effort). Verificado de punta a punta contra el backend real, con un uid sembrado de verdad: `POST /vehicles` responde `201`. Con la sesión de demostración falla siempre por diseño (uid inexistente en la BD real, PEN-001/PEN-013) sin romper el flujo ni mostrar error.
+
+#### Cambiado
+
+- 2026-09-27 · «Parqueaderos» y «Estadísticas» del menú de usuario ya llevan a algo (resuelve PEN-006).
+- 2026-09-27 · Se quitó el paso "Tus datos" (nombres, apellidos, documento) del registro de vehículos: el dueño sale de la cuenta con sesión, no de un formulario. Con eso se fue también la comparación de nombre contra la cuenta. El resto del asistente (tipo, datos del vehículo, documentos, confirmación) sigue igual, con `UploadService` y `VehicleRegistrationService` en demo, como ya estaba.
+- 2026-09-27 · La marca del scooter pasa de opcional a obligatoria (`VEHICLE_REQUIREMENTS`): el backend real la exige siempre, sin excepción por tipo — dejarla opcional habría hecho fallar la creación real.
 
 ### [Sin publicar] · rama `frontend-julian`
 

@@ -54,4 +54,10 @@ describe('ZoneAvailability', () => {
 
     expect(host().querySelector('.zone__count strong')?.textContent?.trim()).toBe('0');
   });
+
+  it('deja claro que el conteo no reserva cupo (HU-16)', async () => {
+    await render([zone('a', 10, 3)]);
+
+    expect(host().querySelector('.zones__disclaimer')?.textContent).toContain('no garantiza un cupo reservado');
+  });
 });

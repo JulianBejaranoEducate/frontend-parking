@@ -1,5 +1,5 @@
-import { Component, Injector, afterNextRender, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 import {
   HISTORY_RANGES,
@@ -10,12 +10,14 @@ import {
   staysWithinDays,
 } from '../../core/models/parking';
 import {
-  APPROVAL_LABELS,
-  type RegisteredVehicle,
+  MAX_VEHICLES_PER_USER,
+  type DashboardVehicle,
+  toDashboardVehicle,
   vehicleDetails,
   vehicleTitle,
 } from '../../core/models/vehicle';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService, SEEDED_OWNER_UID } from '../../core/services/auth.service';
+import { StudentsApiService } from '../../core/services/modules/students-student-panel/students-api.sp.service';
 import { ParkingService } from '../../core/services/parking.service';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
 
@@ -27,7 +29,7 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
  * contenido de la página.
  */
 @Component({
-  imports: [RouterLink, ZoneAvailability],
+  imports: [ZoneAvailability],
   selector: 'app-main-dashboard',
   styleUrl: './main-dashboard.css',
   templateUrl: './main-dashboard.html',
@@ -35,16 +37,19 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 export class MainDashboard {
   private readonly auth = inject(AuthService);
   private readonly parking = inject(ParkingService);
+  private readonly studentsApi = inject(StudentsApiService);
   private readonly router = inject(Router);
-  private readonly injector = inject(Injector);
 
   protected readonly brand = BRAND;
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
 
-  protected readonly vehicles = this.parking.vehicles;
-  protected readonly maxVehicles = this.parking.maxVehicles;
-  protected readonly canAddVehicle = this.parking.canAddVehicle;
+  protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
+  protected readonly vehiclesLoading = signal(true);
+  protected readonly vehiclesError = signal<string | null>(null);
+  protected readonly vehicles = signal<DashboardVehicle[]>([]);
+  protected readonly canAddVehicle = computed(() => this.vehicles().length < this.maxVehicles);
+
   protected readonly zones = this.parking.zones;
   protected readonly currentStay = this.parking.currentStay;
   protected readonly totalFreeSpots = this.parking.totalFreeSpots;
@@ -56,12 +61,6 @@ export class MainDashboard {
   protected readonly filteredStays = computed(() =>
     staysWithinDays(this.parking.stays(), this.historyRange()),
   );
-
-  /** Vehículo cuya eliminación espera confirmación. Solo uno a la vez. */
-  protected readonly pendingDeleteId = signal<string | null>(null);
-
-  /** Mensaje para lectores de pantalla tras una acción que cambia la lista. */
-  protected readonly announcement = signal('');
 
   protected readonly displayName = computed(() => this.auth.user()?.displayName ?? 'Invitado');
 
@@ -77,7 +76,34 @@ export class MainDashboard {
     return hour < 19 ? 'Buenas tardes' : 'Buenas noches';
   });
 
-  // ---- Mis vehículos ---------------------------------------------------------
+  // ---- Mis vehículos -----------------------------------------------------------
+
+  constructor() {
+    void this.loadVehicles();
+  }
+
+  /**
+   * Trae los vehículos institucionales de verdad del usuario con sesión
+   * (`GET /users/:id`, sin necesidad de Firebase: el backend solo pide el uid
+   * en la URL). No hay ni estado de aprobación ni eliminación en el backend
+   * real todavía — eso solo existe en la solicitud de demostración que arma el
+   * registro (PEN-020); aquí solo se lee y se muestra lo que de verdad quedó
+   * guardado, con `is_authorized` como único estado real (dentro/fuera).
+   */
+  protected async loadVehicles(): Promise<void> {
+    this.vehiclesLoading.set(true);
+    this.vehiclesError.set(null);
+
+    try {
+      const uid = this.auth.demoMode ? SEEDED_OWNER_UID : (this.auth.user()?.uid ?? '');
+      const student = await this.studentsApi.findById(uid);
+      this.vehicles.set(student.vehicles.map(toDashboardVehicle));
+    } catch {
+      this.vehiclesError.set('No pudimos consultar tus vehículos. Revisa tu conexión e inténtalo de nuevo.');
+    } finally {
+      this.vehiclesLoading.set(false);
+    }
+  }
 
   protected addVehicle(): void {
     if (this.canAddVehicle()) {
@@ -85,30 +111,8 @@ export class MainDashboard {
     }
   }
 
-  /**
-   * Eliminar es irreversible, así que la papelera no borra: pide confirmar en la
-   * misma fila. El foco pasa a "Cancelar", la opción segura.
-   */
-  protected requestDelete(vehicle: RegisteredVehicle): void {
-    this.pendingDeleteId.set(vehicle.id);
-    this.focusAfterRender(`cancel-delete-${vehicle.id}`);
-  }
-
-  protected cancelDelete(vehicle: RegisteredVehicle): void {
-    this.pendingDeleteId.set(null);
-    this.focusAfterRender(`delete-${vehicle.id}`);
-  }
-
-  protected confirmDelete(vehicle: RegisteredVehicle): void {
-    this.parking.removeVehicle(vehicle.id);
-    this.pendingDeleteId.set(null);
-    this.announcement.set(`${vehicleTitle(vehicle)} se eliminó de tus vehículos.`);
-    // La fila ya no existe: el foco vuelve a la acción natural siguiente.
-    this.focusAfterRender('add-vehicle');
-  }
-
-  protected approvalLabel(vehicle: RegisteredVehicle): string {
-    return APPROVAL_LABELS[vehicle.approval];
+  protected statusLabel(vehicle: DashboardVehicle): string {
+    return vehicle.isAuthorized ? 'Activo' : 'Inactivo';
   }
 
   // ---- Historial ---------------------------------------------------------------
@@ -134,9 +138,5 @@ export class MainDashboard {
   /** Ej. "1 h 36 min" — cuánto lleva el vehículo dentro del parqueadero. */
   protected elapsedSince(date: Date): string {
     return formatDuration(Date.now() - date.getTime());
-  }
-
-  private focusAfterRender(elementId: string): void {
-    afterNextRender(() => document.getElementById(elementId)?.focus(), { injector: this.injector });
   }
 }

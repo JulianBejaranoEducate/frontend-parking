@@ -33,12 +33,17 @@ export interface VehicleRequirements {
  * salen tanto los campos que se muestran como los validadores del formulario
  * de visitantes y del registro de vehículos.
  *
- * - Scooter: color obligatorio y marca opcional, porque no todos la conocen.
+ * La marca es obligatoria en los tres tipos: el backend real de Vehículos la
+ * exige siempre, sin excepción por tipo (`CreateVehicle.validation.ts`), así
+ * que el frontend no puede dejarla opcional para el scooter aunque antes lo
+ * fuera en el modelo de demostración — si se registrara así, el vehículo
+ * real fallaría al crearse.
+ *
  * - Bicicleta: serial del marco opcional, porque no todas lo tienen a la vista.
  */
 export const VEHICLE_REQUIREMENTS: Record<VehicleType, VehicleRequirements> = {
   moto: { brand: 'required', color: 'required', plate: 'required', frameSerial: 'none' },
-  scooter: { brand: 'optional', color: 'required', plate: 'none', frameSerial: 'none' },
+  scooter: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'none' },
   bicicleta: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' },
 };
 
@@ -126,4 +131,62 @@ export function vehicleDetails(vehicle: Vehicle): string {
   return [vehicle.plate ? vehicleLabel(vehicle.type) : null, model, vehicle.color]
     .filter(Boolean)
     .join(' · ');
+}
+
+// ---- Vehículos reales del backend, ya traducidos para pantalla ----------------
+
+/**
+ * Vehículo institucional tal como lo muestran "Mis vehículos" y "Vehículos":
+ * un `Vehicle` de pantalla más el identificador real y si está dentro del
+ * parqueadero ahora mismo. Lo arma {@link toDashboardVehicle} a partir de la
+ * respuesta del backend (`GET /users/:id`).
+ */
+export interface DashboardVehicle extends Vehicle {
+  /**
+   * El valor tal cual de la columna `plate` del backend: la llave primaria de
+   * la tabla, sea una placa real (moto) o el identificador que el backend le
+   * asigna a lo que no lleva placa (scooter, bicicleta). Es lo que hay que
+   * codificar en el QR — nunca `plate`, que aquí es solo para mostrar en pantalla.
+   */
+  id: string;
+  /** true = está dentro del parqueadero ahora mismo (no es un estado de aprobación). */
+  isAuthorized: boolean;
+}
+
+/**
+ * Datos mínimos que trae cada vehículo anidado en `GET /users/:id`
+ * (`BackendUserVehicle` en `students-api.sp.service.ts`). Se declara aquí,
+ * sin importar ese tipo, para que este archivo de modelos no dependa de un
+ * servicio.
+ */
+interface BackendVehicleLike {
+  plate: string;
+  brand: string;
+  model: number;
+  color: string;
+  type: string;
+  is_authorized: boolean;
+}
+
+/**
+ * Traduce un vehículo tal como lo devuelve el backend real a la forma que usa
+ * la pantalla. El backend le asigna su propio identificador (UUID) al
+ * vehículo que no lleva placa (scooter, bicicleta): no es una placa real, así
+ * que `plate` (el campo de pantalla) no se llena para esos casos — pero
+ * `id` sí guarda ese valor siempre, porque es el identificador real que hay
+ * que usar para buscar el vehículo (por ejemplo, en el QR).
+ */
+export function toDashboardVehicle(vehicle: BackendVehicleLike): DashboardVehicle {
+  const type = vehicle.type as VehicleType;
+  const hasRealPlate = VEHICLE_REQUIREMENTS[type]?.plate === 'required';
+
+  return {
+    id: vehicle.plate,
+    type,
+    brand: vehicle.brand,
+    color: vehicle.color,
+    modelYear: vehicle.model,
+    isAuthorized: vehicle.is_authorized,
+    ...(hasRealPlate ? { plate: vehicle.plate } : {}),
+  };
 }

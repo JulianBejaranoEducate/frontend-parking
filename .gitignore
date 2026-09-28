@@ -7,6 +7,7 @@
 /bazel-out
 
 **/.claude/
+**/docs-claude/
 
 # Node
 **/node_modules/

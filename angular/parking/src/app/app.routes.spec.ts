@@ -49,7 +49,7 @@ describe('rutas por rol', () => {
     expect(await open('/admin/pendientes')).toBe('/inicio');
     expect(await open('/seguridad/control')).toBe('/inicio');
     expect(await open('/inicio')).toBe('/inicio');
-    expect(menuLabels()).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
+    expect(menuLabels()).toEqual(['Dashboard', 'Registrar vehículo', 'Vehículos', 'Parqueaderos', 'Estadísticas']);
   });
 
   it('la administración no puede abrir el dashboard de usuarios ni el de seguridad', async () => {

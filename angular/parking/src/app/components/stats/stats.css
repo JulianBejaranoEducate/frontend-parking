@@ -1,67 +1,37 @@
-/* Dashboard del usuario: vehículos, cupos e historial.
-   El armazón (shell, tarjetas, botones pequeños, selector de periodo, tabla)
-   vive en styles.css porque lo comparte el dashboard de administración. */
+/* Estadísticas personales. El armazón (página, tarjetas, tiles, selector de
+   periodo, tabla) vive en styles.css porque lo comparte con /inicio. */
 
 :host {
   display: block;
 }
 
-/* ---------- Mis vehículos ---------- */
+/* ---------- Entradas por vehículo ---------- */
 
-.vehicles {
+.per-vehicle {
   display: grid;
-  gap: 0.625rem;
+  gap: 0.5rem;
   padding: 0;
   margin: 0;
   list-style: none;
 }
 
-.vehicle {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.5rem 0.875rem;
+.per-vehicle__row {
+  display: flex;
   align-items: center;
-  padding: 0.75rem 0.5rem 0.75rem 0.875rem;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 600;
   background: color-mix(in srgb, var(--brand-border) 30%, var(--brand-surface));
-  border: 1px solid var(--brand-border);
-  border-radius: 0.875rem;
-}
-
-.vehicle__icon {
-  display: inline-grid;
-  place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  color: var(--brand-primary);
-  background: var(--brand-primary-soft);
   border-radius: 0.75rem;
 }
 
-.vehicle__icon svg {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.vehicle__title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.5rem;
-  align-items: center;
-  margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--brand-text);
-}
-
-.vehicle__details {
-  margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
+.per-vehicle__count {
   color: var(--brand-text-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-/* La disponibilidad por zona vive en el componente zone-availability. */
-
-/* ---------- Historial ---------- */
+/* ---------- Historial (igual que /inicio) ---------- */
 
 .time {
   font-variant-numeric: tabular-nums;
@@ -114,8 +84,6 @@
 
 .stay__times {
   display: grid;
-  /* La tercera columna es más ancha: "Permanencia" es la etiqueta más larga y
-     a 375 px se partía por la mitad. */
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
   gap: 0.5rem;
   margin: 0.625rem 0 0;
@@ -135,8 +103,6 @@
   font-size: 0.875rem;
   font-weight: 600;
 }
-
-/* ---------- Adaptaciones por pantalla ---------- */
 
 @media (min-width: 48rem) {
   .history-table {
