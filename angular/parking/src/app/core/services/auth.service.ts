@@ -5,6 +5,7 @@ import { BRAND } from '../config/branding.config';
 import { isFirebaseConfigured } from '../config/firebase.config';
 import { PARKING } from '../config/parking.config';
 import { clearDemo, loadDemo, saveDemo } from '../demo/demo-storage';
+import { UserProfileService } from './user-profile.service';
 
 /**
  * Roles del sistema. El rol decide qué grupo de rutas existe para la persona
@@ -119,6 +120,9 @@ export const FIREBASE_CURRENT_USER = new InjectionToken<() => Promise<User | nul
 export class AuthService {
   private readonly subscribeFirebaseAuthState = inject(FIREBASE_AUTH_STATE_SUBSCRIBER);
   private readonly getFirebaseCurrentUser = inject(FIREBASE_CURRENT_USER);
+  private readonly userProfile = inject(UserProfileService);
+  private readonly syncedFirebaseUserIds = new Set<string>();
+  private readonly firebaseUserSyncs = new Map<string, Promise<void>>();
   /**
    * En demostración la sesión se guarda en la pestaña, para que recargar no
    * obligue a entrar de nuevo. Con Firebase, la sesión la restaura su SDK.
@@ -226,7 +230,7 @@ export class AuthService {
         return null;
       }
 
-      const user = await this.toAuthUser(account);
+      const user = await this.toAuthUserAfterProfileSync(account);
       this.assertAllowedAccount(user);
       this.setUser(user);
 
@@ -256,6 +260,7 @@ export class AuthService {
       await signOutUser();
     }
 
+    this.syncedFirebaseUserIds.clear();
     this.setUser(null);
     this._error.set(null);
   }
@@ -327,6 +332,7 @@ export class AuthService {
     const revision = ++this.authStateRevision;
 
     if (!firebaseUser) {
+      this.syncedFirebaseUserIds.clear();
       this.setUser(null);
       this._error.set(null);
       this.markAuthReady();
@@ -334,6 +340,7 @@ export class AuthService {
     }
 
     try {
+      await this.ensureProfileSynced(firebaseUser);
       const user = await this.toAuthUser(firebaseUser);
       this.assertAllowedAccount(user);
 
@@ -385,7 +392,50 @@ export class AuthService {
     const { signIn } = await import('./microsoft-auth');
     const account = await signIn(this.isNativeShell());
 
-    return account ? this.toAuthUser(account) : null;
+    if (!account) {
+      return null;
+    }
+
+    return this.toAuthUserAfterProfileSync(account);
+  }
+
+  private async toAuthUserAfterProfileSync(firebaseUser: User): Promise<AuthUser> {
+    await this.ensureProfileSynced(firebaseUser);
+    return this.toAuthUser(firebaseUser);
+  }
+
+  private async ensureProfileSynced(firebaseUser: User): Promise<void> {
+    const uid = firebaseUser.uid;
+
+    if (this.syncedFirebaseUserIds.has(uid)) {
+      return;
+    }
+
+    const pendingSync = this.firebaseUserSyncs.get(uid);
+    if (pendingSync) {
+      return pendingSync;
+    }
+
+    const sync = (async () => {
+      await this.userProfile.syncCurrentUser(firebaseUser.displayName);
+
+      const currentUser = await this.getFirebaseCurrentUser();
+      if (!currentUser) {
+        throw new Error('Firebase user unavailable after profile synchronization');
+      }
+
+      await currentUser.getIdToken(true);
+    })();
+    this.firebaseUserSyncs.set(uid, sync);
+
+    try {
+      await sync;
+      this.syncedFirebaseUserIds.add(uid);
+    } finally {
+      if (this.firebaseUserSyncs.get(uid) === sync) {
+        this.firebaseUserSyncs.delete(uid);
+      }
+    }
   }
 
   /**
@@ -400,7 +450,10 @@ export class AuthService {
     getIdTokenResult: () => Promise<{ claims: Record<string, unknown> }>;
   }): Promise<AuthUser> {
     const token = await account.getIdTokenResult();
-    const claimedRole = token.claims['role'];
+    const hasRoleId = Object.prototype.hasOwnProperty.call(token.claims, 'rolId');
+    const claimedRole = hasRoleId
+      ? this.toRoleId(token.claims['rolId'])
+      : this.toRole(token.claims['role']);
     const claimedAffiliation = token.claims['affiliation'];
     const claimedProgram = token.claims['program'];
 
@@ -409,7 +462,7 @@ export class AuthService {
       displayName: account.displayName ?? 'Usuario',
       email: account.email ?? '',
       photoUrl: account.photoURL,
-      role: this.toRole(claimedRole),
+      role: claimedRole,
       affiliation: this.toAffiliation(claimedAffiliation),
       program: typeof claimedProgram === 'string' ? claimedProgram : null,
     };
@@ -418,6 +471,19 @@ export class AuthService {
   /** Sin claim reconocible, la persona entra con los permisos básicos de usuario. */
   private toRole(value: unknown): UserRole {
     return USER_ROLES.includes(value as UserRole) ? (value as UserRole) : 'user';
+  }
+
+  private toRoleId(value: unknown): UserRole {
+    switch (value) {
+      case 1:
+        return 'user';
+      case 2:
+        return 'security';
+      case 3:
+        return 'admin';
+      default:
+        return 'user';
+    }
   }
 
   private toAffiliation(value: unknown): Affiliation | null {
