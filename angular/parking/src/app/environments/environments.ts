@@ -12,5 +12,5 @@ export const environment = {
    * celular o contra el servidor del equipo, cambiarla por su dirección
    * (p. ej. 'http://167.234.233.96:3000') sin subir ese cambio.
    */
-  apiUrl: 'http://localhost:3000',
+  apiUrl: 'http://167.234.233.96:3000',
 };

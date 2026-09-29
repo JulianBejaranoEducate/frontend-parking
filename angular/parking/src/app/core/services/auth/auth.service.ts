@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+﻿import { Injectable, computed, inject, signal } from '@angular/core';
 import type { User } from 'firebase/auth';
 import { BRAND } from '../../config/branding.config';
 import { UsersApiService } from '../api/users-api.service';
@@ -119,7 +119,7 @@ export class AuthService {
     this._error.set(null);
 
     try {
-      const account = await this.firebase.signInWithMicrosoft(this.isNativeShell());
+      const account = await this.firebase.signInWithMicrosoft();
 
       // En el flujo por redirección la app se recarga: aquí todavía no hay usuario.
       return account ? await this.openSession(account) : null;

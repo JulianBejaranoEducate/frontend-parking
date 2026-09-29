@@ -77,6 +77,7 @@ Son las que viajan dentro de la app (`dependencies` en `package.json`).
 | `rxjs` | ~7.8.0 | Lo usa Angular por dentro (peticiones HTTP) | En uso |
 | `tslib` | ^2.3.0 | Ayudantes de TypeScript que necesita el código compilado | En uso |
 | `firebase` | ^12.18.0 | Inicio de sesión con Microsoft y el token que se envía al backend (`services/auth/firebase-auth.ts`). Se carga solo al usarlo, no entra en el paquete inicial | En uso |
+| `@capacitor-firebase/authentication` | ^8.5.2 | Plugin nativo para manejar el inicio de sesión con Microsoft en Android, esquivando las restricciones del WebView | En uso (solo en la app nativa) |
 | `@zxing/browser` y `@zxing/library` | ^0.2.1 y ^0.23.0 | Leer el QR con la cámara o desde una foto (`services/scanner/qr-scanner.service.ts`) | En uso |
 | `qrcode` | ^1.5.4 | Dibujar el QR del visitante y el de cada vehículo (`utils/qr-code.ts`) | En uso |
 | `@capacitor/core` | ^8.5.2 | Base de la app de Android (sección 5) | En uso |
@@ -98,10 +99,10 @@ npx ng update @angular/core @angular/cli
 npm install @zxing/browser @zxing/library
 ```
 
-**Firebase** (inicio de sesión con Microsoft; la configuración del proyecto está en `core/config/firebase.config.ts`):
+**Firebase y Plugin Nativo** (inicio de sesión con Microsoft; la configuración del proyecto está en `core/config/firebase.config.ts`):
 
 ```bash
-npm install firebase
+npm install firebase @capacitor-firebase/authentication
 ```
 
 **Cámara y lectura de placas en la app de Android** (después de instalarlas hay que correr `npx cap sync android`):
@@ -163,7 +164,7 @@ Capacitor toma la app ya compilada (`dist/parking/browser`) y la mete en un proy
 
 - `appId: co.edu.ue.uniparking` y `appName: Uni-parking`.
 - `webDir: dist/parking/browser`: la carpeta que se empaqueta.
-- `server.androidScheme: 'http'` y `server.cleartext: true`: dejan que la app hable con el backend por `http` en la red local. Sin esto Android bloquea las peticiones.
+- `server.androidScheme: 'http'` y `server.cleartext: true`: configuran el WebView para que cargue la app en `http://localhost` y permita conexiones HTTP inseguras (Mixed Content). Sin esto el celular bloquea las peticiones a IPs locales como `http://167.234.233.96:3000`.
 
 La carpeta `android/` **no se sube al repositorio** (está en el `.gitignore`): cada quien la genera en su equipo con los pasos de abajo.
 
@@ -177,9 +178,32 @@ npm install @capacitor/core @capacitor/android
 npm install --save-dev @capacitor/cli
 ```
 
-`npx cap init` crea `capacitor.config.ts`; aquí ya existe, así que no hace falta correrlo otra vez.
+Si alguna vez necesitas crear el proyecto desde cero porque borraste el archivo de configuración, el comando completo para inicializarlo es:
 
-### Primera vez en un equipo
+```bash
+npx cap init parking co.edu.ue.uniparking --web-dir dist/parking/browser
+```
+*(Nota: Aquí ya existe el `capacitor.config.ts`, así que no hace falta correrlo a menos que lo borres).*
+
+> **⚠️ IMPORTANTE:** A veces, al instalar nuevas librerías o plugins de Capacitor, el terminal arroja un error que bloquea la instalación quejándose de que el archivo `capacitor.config.ts` ya existe o da un conflicto de módulos. Si te ocurre esto, **elimina temporalmente el archivo `capacitor.config.ts`**, ejecuta tu comando de instalación (`npm install...`), y luego vuelve a crear el archivo `capacitor.config.ts` pegando exactamente este código de respaldo:
+
+```typescript
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'co.edu.ue.uniparking',
+  appName: 'parking',
+  webDir: 'dist/parking/browser',
+  server: {
+    androidScheme: 'http',
+    cleartext: true
+  }
+};
+
+export default config;
+```
+
+### Primera vez en un equipo (Configuración Nativa y Firebase)
 
 1. Compilar la app:
 
@@ -187,19 +211,38 @@ npm install --save-dev @capacitor/cli
    npm run build
    ```
 
-2. Crear la carpeta `android/`:
+2. Crear la carpeta `android/` y acoplar el código nativo:
 
    ```bash
    npx cap add android
    ```
 
-3. **Paso manual, obligatorio:** abrir `android/app/src/main/AndroidManifest.xml` y agregar el permiso de cámara junto al de internet. Sin él, Android niega la cámara sin preguntar y el lector de QR no abre:
+3. **Copiar configuración de Firebase:** Descargar el archivo `google-services.json` desde la consola de Firebase (Proyecto -> Configuración -> App Android) y pegarlo dentro de la carpeta `android/app/`. Sin este archivo, la app nativa crasheará al intentar usar autenticación.
 
-   ```xml
-   <uses-permission android:name="android.permission.CAMERA" />
-   ```
+4. **Registrar la Huella Digital (SHA-1):** Para que el inicio de sesión de Microsoft (OAuth) funcione en el celular sin arrojar el error `auth/invalid-cert-hash`, debes registrar la firma de tu computadora en la consola de Firebase:
+   - Saca tu huella ejecutando en PowerShell: `keytool -list -v -keystore "$env:USERPROFILE\.android\debug.keystore" -alias androiddebugkey -storepass android -keypass android | Select-String -Pattern "SHA1:"`
+   - Ve a la Consola de Firebase -> Configuración del proyecto -> App Android -> Agregar huella digital.
+   - Pega tu huella SHA-1 y guarda.
 
-4. Abrir el proyecto en Android Studio y ejecutarlo en el celular o en el emulador:
+5. **Pasos manuales en el AndroidManifest.xml (`android/app/src/main/AndroidManifest.xml`), obligatorios:** 
+   - **Tráfico HTTP (Backend de pruebas):** A partir de Android 9, el SO bloquea a nivel de red cualquier conexión a un backend que no sea `https://` (arrojando ERR_CLEARTEXT_NOT_PERMITTED). Para permitir temporalmente la conexión al backend de desarrollo (`http://167.234.233.96:3000`), debes buscar la etiqueta `<application` casi al inicio del archivo y agregarle `android:usesCleartextTraffic="true"`, quedando así:
+     ```xml
+     <application
+         android:usesCleartextTraffic="true"
+         android:allowBackup="true"
+         <!-- ... resto de atributos ... -->
+     ```
+   - **Permisos de Cámara y Almacenamiento:** Para que la app nativa pueda usar el lector de QR y tomar fotos sin que el sistema la bloquee, debes agregar un bloque de permisos. Ve hasta el **final del archivo**, justo antes de la etiqueta de cierre `</manifest>`, y asegúrate de que estén estos permisos (puedes pegarlos debajo del de `INTERNET`):
+     ```xml
+     <uses-permission android:name="android.permission.INTERNET" />
+     <uses-permission android:name="android.permission.CAMERA" />
+     <uses-feature android:name="android.hardware.camera" android:required="false" />
+     
+     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+     ```
+
+6. Abrir el proyecto en Android Studio y ejecutarlo en el celular o en el emulador:
 
    ```bash
    npx cap open android

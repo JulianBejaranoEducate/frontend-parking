@@ -10,7 +10,8 @@ import { InjectionToken } from '@angular/core';
  * @param value Texto que codifica el QR.
  */
 export async function renderQrCode(value: string): Promise<string> {
-  const QRCode = await import('qrcode');
+  const mod = await import('qrcode');
+  const QRCode = mod.default || mod;
   return QRCode.toDataURL(value, { errorCorrectionLevel: 'M', margin: 1, width: 512 });
 }
 
