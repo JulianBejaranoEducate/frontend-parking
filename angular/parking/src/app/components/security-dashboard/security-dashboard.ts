@@ -315,6 +315,13 @@ export class SecurityDashboard {
    * Un número es un documento (6 a 11 dígitos) o el id que lleva el QR del
    * visitante; cualquier otra cosa es una placa, primero de la comunidad y
    * después de un visitante.
+   *
+   * La placa real se busca en mayúsculas, que es como queda guardada
+   * (`RegisterVehicle` la normaliza al registrarla). Pero el identificador
+   * que el backend le asigna a un vehículo sin placa real (scooter,
+   * bicicleta) es un UUID en minúsculas: si la versión en mayúsculas no
+   * encuentra nada, se prueba el código tal cual lo trajo el QR, o esos
+   * vehículos nunca hacían match.
    */
   private async lookup(code: string): Promise<void> {
     this.scanError.set(null);
@@ -322,7 +329,8 @@ export class SecurityDashboard {
     this.result.set(null);
     this.scanning.set(true);
 
-    const normalized = code.trim().toUpperCase();
+    const trimmed = code.trim();
+    const normalized = trimmed.toUpperCase();
 
     try {
       if (/^\d+$/.test(normalized)) {
@@ -333,7 +341,9 @@ export class SecurityDashboard {
         return;
       }
 
-      const vehicle = await this.vehicleApi.findByPlate(normalized);
+      const vehicle =
+        (await this.vehicleApi.findByPlate(normalized)) ??
+        (normalized === trimmed ? null : await this.vehicleApi.findByPlate(trimmed));
 
       if (vehicle) {
         this.result.set({ kind: 'institucional', vehicle, outcome: null });
