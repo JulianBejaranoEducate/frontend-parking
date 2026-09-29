@@ -1,6 +1,6 @@
 # Uni-parking · Planeación y registro de desarrollo
 
-> **Fase actual:** Fase 9 (integración de las ramas y orden del proyecto) **completada** el 2026-09-28, sin commit todavía: `frontend-miguel` y `frontend-julian` quedaron unidas en `frontend-integracion`, sin modo demostración y con los servicios ordenados por módulo del backend (ADR-024). Todas las pantallas trabajan con el backend real e inicio de sesión con Microsoft. Lo que sigue depende sobre todo del backend (PEN-030) y de la Fase 8 («Movimientos de hoy» y dirección automática).
+> **Fase actual:** Fase 9 (integración de las ramas y orden del proyecto) **completada** el 2026-09-28, sin commit todavía: `frontend-miguel` y `frontend-julian` quedaron unidas en `frontend-integracion`, sin modo demostración y con los servicios ordenados por módulo del backend (ADR-024). Todas las pantallas trabajan con el backend real e inicio de sesión con Microsoft. El historial y las estadísticas del usuario ya tienen su permiso (PEN-030, parte del historial resuelta el 2026-09-28); lo que sigue depende de «Vehículos dentro» de Parqueaderos (resto de PEN-030) y de la Fase 8 («Movimientos de hoy» y dirección automática).
 > **Rama de trabajo:** `frontend-integracion` · **Última actualización:** 2026-09-28
 > **Estado técnico:** compila con el aviso de tamaño de siempre (paquete inicial de 555 kB, límite de 500 kB; lo causa Bootstrap, MEJ-001) · 163 pruebas unitarias pasando (2026-09-28)
 
@@ -50,11 +50,11 @@ Estados (ver [Estados](#estados)):
 | --- | --- | --- | --- | --- | --- |
 | Login | `/login` | Completado | Miguel · Julian | 2026-09-28 | «Iniciar sesión» con Microsoft (Firebase) y «Visitantes». Al entrar, la cuenta se registra en el backend (`POST /users`) y el rol sale del claim `rolId` del token. Sin accesos de demostración (ADR-024) |
 | Visitantes | `/visitantes` | Completado | Julian | 2026-09-28 | Conectado al backend, sin datos quemados. Enviar el formulario solo registra la visita; el QR (el id que asigna el backend) es la llave con la que portería valida el ingreso (ADR-021). Acepta placas `ABC12D`, `ABC12` y `ABC123`, como el backend (PEN-028) |
-| Dashboard de usuarios | `/inicio` | Pendiente | Miguel | 2026-09-28 | «Mis vehículos» (`GET /users/:id`) y la disponibilidad por zona funcionan con el backend. El historial pide `GET /parking/historical/:plate`, que el rol userEstandar todavía no tiene permitido: hoy muestra el aviso de error (PEN-030) |
+| Dashboard de usuarios | `/inicio` | Completado | Miguel · Juan José | 2026-09-28 | «Mis vehículos» (`GET /users/:id`), la disponibilidad por zona y el historial (`GET /parking/historical/:plate`) funcionan con el backend: userEstandar ya tiene `access-record:historical`, validado contra el uid del token (PEN-030 resuelto para el historial) |
 | Registro de vehículos | `/vehiculos/registrar` | Completado | Miguel · Julian | 2026-09-28 | Tres pasos (vehículo, datos y confirmar). Crea el vehículo en el backend (`POST /vehicles`) sin permiso para entrar: lo aprueba la administración. Sin documentos: el backend no los recibe (PEN-003, ADR-024) |
 | Vehículos | `/vehiculos` | Completado | Miguel | 2026-09-28 | Lista los vehículos de la persona y muestra el QR de cada uno, con su identificador del backend (PEN-018) |
-| Parqueaderos | `/parqueaderos` | Pendiente | Miguel | 2026-09-28 | Disponibilidad por zona con el backend. «Vehículos dentro» pide `GET /parking/records/open`, que userEstandar no tiene permitido (PEN-030) |
-| Estadísticas | `/estadisticas` | Pendiente | Miguel | 2026-09-28 | Promedios e historial calculados del historial de cada vehículo; dependen del mismo permiso que el historial (PEN-030) |
+| Parqueaderos | `/parqueaderos` | Pendiente | Miguel · Juan José | 2026-09-28 | Disponibilidad por zona y «Estado de tu vehículo» (del historial) ya funcionan. Solo falta «Vehículos dentro»: pide `GET /parking/records/open`, que userEstandar sigue sin tener porque expone las placas de todo el mundo (PEN-030, parte pendiente) |
+| Estadísticas | `/estadisticas` | Completado | Miguel · Juan José | 2026-09-28 | Promedios e historial calculados del historial de cada vehículo, ya con el permiso concedido (PEN-030 resuelto para el historial) |
 | Dashboard de administración | `/admin/:section` | Completado | Miguel · Julian | 2026-09-28 | Resumen, vehículos pendientes (aprobar), aprobados (quitar el permiso), usuarios inactivos (reactivar) e incidencias, todo con el backend. Faltan cambiar el rol de una cuenta y marcar incidencias como resueltas (PEN-031) |
 | Notificaciones | — | Sin iniciar | — | 2026-09-28 | La campana del header se retiró el 2026-09-28: no había API y siempre salía vacía (ADR-024). Se recupera del historial de git (`b869f89`) cuando el backend tenga notificaciones |
 | Layout común por rol | — | Completado | Julian | 2026-09-15 | ADR-010. Cada rol solo ve y descarga su grupo de rutas; cada rol puede aportar su buscador del header |
@@ -125,7 +125,7 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 
 **Estado de la fase: Pendiente** (iniciada con la integración del 2026-09-28)
 
-- [ ] Disponibilidad e historial del usuario alimentados por los movimientos reales — Pendiente: la disponibilidad ya sale de `GET /parkingZone`; el historial usa `GET /parking/historical/:plate`, que el backend todavía no le permite a userEstandar (PEN-030)
+- [x] Disponibilidad e historial del usuario alimentados por los movimientos reales — **Completado** (2026-09-28): la disponibilidad sale de `GET /parkingZone`; el historial usa `GET /parking/historical/:plate`, que el backend ya le permite a userEstandar para su propia placa (PEN-030)
 - [ ] Notificar al usuario cada ingreso y salida (por confirmar, [pregunta 4](#9-preguntas-abiertas)) — Sin iniciar
 
 ### Fase 6 · PWA en portería y opción nativa
@@ -180,7 +180,7 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 ### Después
 
 - [x] Inicio de sesión real para la comunidad, la administración y los guardias — **Completado** (2026-09-28, Fase 9)
-- [x] Conectar al backend el dashboard de usuarios, el registro de vehículos y la administración — **Completado** (2026-09-28, Fase 9); el historial espera el permiso del backend (PEN-030)
+- [x] Conectar al backend el dashboard de usuarios, el registro de vehículos y la administración — **Completado** (2026-09-28, Fase 9); el historial ya tiene el permiso del backend, validado contra el dueño de la placa (PEN-030)
 - [ ] Administración: cambiar el rol de una cuenta (así se crean los guardias) y cerrar incidencias (PEN-031) — Sin iniciar
 - [x] Incidencias reportadas por seguridad desde su dashboard — **Completado** (2026-09-28, Fase 9)
 - [ ] Notificaciones, cuando el backend las tenga — Sin iniciar
@@ -388,7 +388,7 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | PEN-027 | Alta | Seguridad | Desde el 2026-09-28, en `master` del backend todas las rutas piden un token de Firebase con permiso, salvo `POST /visitors` y `POST /users` (ADR-023). Hacía falta el inicio de sesión real, un interceptor que agregue `Authorization: Bearer <token>` y traducir el claim `rolId` a los roles del frontend. | **Completado** (2026-09-28): `auth.interceptor.ts` agrega el token solo a las peticiones a `environment.apiUrl`; `rolId` 1 → `user`, 2 → `security`, 3 y 4 → `admin` (ADR-024). Las cuentas deben ser `@uniempresarial.edu.co`, también las de los guardias: `POST /users` rechaza otros correos |
 | PEN-028 | Alta | Visitantes | El formulario de visitantes solo acepta placas `ABC123` (formato de carro), así que rechaza las de moto. El backend (`master`, 2026-09-28) ya acepta `ABC12D`, las antiguas `ABC12` y `ABC123` (`/^[A-Z]{3}[0-9]{2}[A-Z0-9]?$/`). | **Completado** (2026-09-28): mismo patrón y mensaje «Usa el formato de placa de moto: ABC12D.» |
 | PEN-029 | Media | Backend | Observaciones para el líder de backend al agregar roles (2026-09-28): **(1)** el backend no comprueba que un vehículo, historial o usuario sea de quien lo pide; por eso userEstandar solo tiene permisos que no exponen datos ajenos. **(2)** `POST /vehicles` toma el dueño del cuerpo y no del token. **(3)** Un rol nuevo llega al token cuando este se renueva (hasta 1 hora). **(4)** `role_id_user` es texto y no es llave foránea a `Role`. **(5)** Restaurar un usuario reactiva en Firebase un uid fijo (`testRestoreUser.ts`), no el del usuario. **(6)** El `.env` sigue versionado aunque está en el `.gitignore`: la contraseña de la base y la llave de Firebase quedaron en el repositorio; hay que sacarlo del índice y cambiar la llave. **(7)** El dominio `@uniempresarial.edu.co` que exige `POST /users` está escrito en el código; para vender el producto a otras instituciones (ADR-001) debería venir del `.env`. | Por decidir (backend) |
-| PEN-030 | Alta | Backend | El rol userEstandar no tiene `access-record:historical` ni `access-record:read-open`, así que el historial y las estadísticas del usuario (`GET /parking/historical/:plate`) y «Vehículos dentro» de Parqueaderos (`GET /parking/records/open`) reciben 403 y muestran su aviso de error. No basta con darle los permisos: el backend no comprueba que la placa sea de quien pregunta (PEN-029), y los registros abiertos exponen las placas de todos. Propuesta: que el historial valide el dueño con el uid del token y que haya un conteo de ocupación sin placas. | Por decidir (backend) |
+| PEN-030 | Alta | Backend | El rol userEstandar no tenía `access-record:historical` ni `access-record:read-open`, así que el historial y las estadísticas del usuario (`GET /parking/historical/:plate`) y «Vehículos dentro» de Parqueaderos (`GET /parking/records/open`) recibían 403. No bastaba con darle los permisos: el backend no comprobaba que la placa fuera de quien pregunta (PEN-029), y los registros abiertos exponen las placas de todos. | **Parcial** (2026-09-28): `GethistoricalByPlateUseCase` ya valida que la placa sea del uid del token cuando quien pregunta es userEstandar (403 si no lo es); vigilancia y administración siguen sin esa restricción. Con eso, userEstandar ya tiene `access-record:historical`. `access-record:read-open` sigue sin dársele: expone las placas de todo el mundo y falta un conteo de ocupación sin placas (backend) |
 | PEN-031 | Media | Administración | Faltan en la administración: cambiar el rol de una cuenta (`PATCH /users/:userId/role`, que es como se crea un guardia: se registra con su correo institucional y la administración le asigna «vigilante»), dar de baja un usuario (`DELETE /users/:id`) y marcar una incidencia como resuelta. | Sin iniciar |
 | PEN-032 | Baja | Backend | `GET /parkingZone` responde 201 (Created) en lugar de 200; el frontend lo acepta igual, pero no es el código correcto para una consulta. | Por decidir (backend) |
 | PEN-020 | Baja | Seguridad | En «Dentro ahora», un vehículo institucional no tenía hora de ingreso real (el backend solo guardaba `is_authorized`), así que el orden por hora lo dejaba al final. Con los registros de acceso (ADR-021) cada ingreso tiene su hora: se resuelve al reconstruir «Dentro ahora» sobre ellos (PEN-021). | **Completado** (2026-09-27): «Dentro ahora» ordena por la hora real de ingreso de todos |
@@ -716,7 +716,7 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
   - Dejar el modo demostración apagado con una bandera: seguiría habiendo código y datos que nadie usa.
 - **Consecuencias:**
   - Resuelve PEN-013, PEN-026, PEN-027 y PEN-028. Todas las pantallas trabajan con el backend real.
-  - El historial, las estadísticas y «Vehículos dentro» del usuario reciben 403 hasta que el backend le dé esos permisos a userEstandar de forma segura (PEN-030).
+  - El historial, las estadísticas y «Vehículos dentro» del usuario recibían 403 hasta que el backend le diera esos permisos a userEstandar de forma segura (PEN-030); el historial y las estadísticas ya están resueltos (2026-09-28), «Vehículos dentro» sigue pendiente.
   - Todas las cuentas, también las de los guardias, deben ser `@uniempresarial.edu.co`: `POST /users` rechaza las demás.
   - Las pruebas usan cuentas ficticias por rol (`testing/test-session.ts`) y respuestas del backend fabricadas (`testing/backend-stubs.ts`). La suite queda en 163 pruebas.
 
@@ -751,6 +751,7 @@ Une `frontend-miguel` y `frontend-julian` (ADR-024). Salvo el merge (`b869f89`),
 
 #### Corregido
 
+- 2026-09-28 · Backend (rama `juanjose-develop-firebase`): el historial y las estadísticas del panel de estudiante recibían 403 desde que se endureció `authorize` en todas las rutas (PEN-030). `GethistoricalByPlateUseCase` ya comprueba que la placa consultada sea del uid del token cuando quien pregunta es userEstandar, y ese rol ya tiene `access-record:historical`. «Vehículos dentro» de Parqueaderos sigue pendiente: necesitaría exponer las placas de todo el mundo, y todavía no hay una versión que solo cuente.
 - 2026-09-28 · El superadmin (`rolId` 4) entraba como usuario común; ahora entra a la administración.
 - 2026-09-28 · Administración: «Aprobados» mostraba la lista de pendientes, y «Rechazar» y «Eliminar» llamaban rutas que no hacen eso; el contador de incidencias del menú nunca se actualizaba.
 - 2026-09-28 · Las novedades se enviaban con campos que el backend no conoce (gravedad, zona, placa) y sin quién las reportó.
