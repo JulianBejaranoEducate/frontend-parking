@@ -1,4 +1,4 @@
-﻿import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { formatDuration } from '../../core/models/parking';
 import { vehicleTitle } from '../../core/models/vehicle';
 import { ParkingService } from '../../core/services/parking.service';

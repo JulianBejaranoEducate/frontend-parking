@@ -1,9 +1,13 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.uniparking.app',
-  appName: 'parking',
-  webDir: 'dist/parking/browser'
+  appId: 'co.edu.ue.uniparking',
+  appName: 'Uni-parking',
+  webDir: 'dist/parking/browser',
+  server: {
+    androidScheme: 'http',
+    cleartext: true,
+  },
 };
 
 export default config;

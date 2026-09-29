@@ -1,4 +1,4 @@
-﻿<main class="page">
+<main class="page">
   <header class="page__head">
     <h1 class="page__title">{{ copy().title }}</h1>
     <p class="page__subtitle">{{ copy().subtitle }}</p>
@@ -147,7 +147,7 @@
                   fill="currentColor"
                 />
               </svg>
-              {{ scanningPlate() ? 'Escaneando placa...' : 'Escanear placa (Camara)' }}
+              {{ scanningPlate() ? 'Escaneando placa...' : 'Escanear placa con la cámara' }}
             </button>
           </div>
 
@@ -329,15 +329,15 @@
         <h2 id="incidents-title" class="card__title">Registrar Novedad (Incidencia)</h2>
         <form class="form" (submit)="submitIncident($event, incTitle.value, incDesc.value, incSev.value, incPlate.value); incTitle.value=''; incDesc.value=''; incPlate.value=''">
           <div class="field">
-            <label class="field__label" for="inc-title">Titulo de la novedad</label>
-            <input #incTitle id="inc-title" class="field__control" type="text" placeholder="Ej. Vehiculo mal parqueado" required />
+            <label class="field__label" for="inc-title">Título de la novedad</label>
+            <input #incTitle id="inc-title" class="field__control" type="text" placeholder="Ej. Vehículo mal parqueado" required />
           </div>
           <div class="field">
-            <label class="field__label" for="inc-desc">Descripcion</label>
+            <label class="field__label" for="inc-desc">Descripción</label>
             <textarea #incDesc id="inc-desc" class="field__control" rows="3" placeholder="Detalles completos..." required></textarea>
           </div>
           <div class="field">
-            <label class="field__label" for="inc-plate">Placa involucrada (Opcional)</label>
+            <label class="field__label" for="inc-plate">Placa involucrada (opcional)</label>
             <input #incPlate id="inc-plate" class="field__control" type="text" placeholder="Ej. ABC123" />
           </div>
           <div class="field">
@@ -351,7 +351,7 @@
             </div>
           </div>
           <div style="margin-top: 1rem;">
-            <button type="submit" class="btn btn--primary">Reportar a Administracion</button>
+            <button type="submit" class="btn btn--primary">Reportar a la administración</button>
           </div>
         </form>
       </section>

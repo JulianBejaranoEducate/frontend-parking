@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Habla con el módulo real de visitantes del backend (rama `camilo-dev` de
  * `Backend_Uni-Parking`; ver "Conexión frontend-backend" en
  * planeacion-desarrollo.md).

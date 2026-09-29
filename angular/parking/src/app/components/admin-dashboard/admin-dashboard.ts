@@ -1,4 +1,4 @@
-﻿import { NgTemplateOutlet, DatePipe } from '@angular/common';
+import { NgTemplateOutlet, DatePipe } from '@angular/common';
 import { Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { VehicleApiService, BackendVehicle } from '../../core/services/modules/security-dashboard/vehicle-api.service';

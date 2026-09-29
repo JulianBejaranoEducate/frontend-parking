@@ -38,8 +38,8 @@
     @if (visitor(); as v) {
       <div class="pass">
         <p class="pass__intro">
-          Tu ingreso ya quedó registrado. Muestra este código a la salida: el personal de seguridad lo escanea para
-          marcar que saliste.
+          Muestra este código en portería: el personal de seguridad lo escanea para darte el ingreso. Guárdalo, porque
+          también lo usan para registrar tu salida.
         </p>
 
         <div class="qr">
@@ -65,7 +65,7 @@
         </div>
       </div>
     } @else {
-      <p class="intro">Completa tus datos para registrar el ingreso del vehículo.</p>
+      <p class="intro">Completa tus datos para registrar tu visita.</p>
 
       @if (submitError(); as message) {
         <p class="field__error" role="alert">{{ message }}</p>
@@ -285,7 +285,7 @@
               <span class="btn__spinner" aria-hidden="true"></span>
               <span>Registrando…</span>
             } @else {
-              <span>Registrar ingreso</span>
+              <span>Registrar visita</span>
             }
           </button>
           <a class="btn btn--ghost" routerLink="/login">Cancelar</a>

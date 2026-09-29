@@ -1,4 +1,4 @@
-﻿import { signal } from '@angular/core';
+import { signal } from '@angular/core';
 import type { DashboardNavigation } from '../../core/navigation/dashboard-navigation';
 
 export const SECURITY_SECTIONS = ['resumen', 'control', 'incidencias'] as const;

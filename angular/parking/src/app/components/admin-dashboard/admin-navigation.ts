@@ -1,4 +1,4 @@
-﻿import { signal, inject } from '@angular/core';
+import { signal, inject } from '@angular/core';
 import type { DashboardNavigation } from '../../core/navigation/dashboard-navigation';
 import { IncidentService } from '../../core/services/incident.service';
 

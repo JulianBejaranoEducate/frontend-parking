@@ -1,4 +1,4 @@
-﻿import { PlateScannerService } from '../../core/services/modules/security-dashboard/plate-scanner.service';
+import { PlateScannerService } from '../../core/services/modules/security-dashboard/plate-scanner.service';
 import { IncidentService } from '../../core/services/incident.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, signal } from '@angular/core';
@@ -17,12 +17,12 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 import { SECURITY_SECTIONS, type SecuritySection } from './security-navigation';
 
 const SECTION_COPY: Record<SecuritySection, { title: string; subtitle: string }> = {
-  resumen: { title: 'Resumen', subtitle: 'Ocupacin del parqueadero en este momento.' },
+  resumen: { title: 'Resumen', subtitle: 'Ocupación del parqueadero en este momento.' },
   control: {
     title: 'Control de acceso',
-    subtitle: 'Escanea el cdigo del visitante o de la comunidad, o bscalo por documento o placa.',
+    subtitle: 'Escanea el código del visitante o de la comunidad, o búscalo por documento o placa.',
   },
-  incidencias: { title: 'Reportar Novedad', subtitle: 'Crea una incidencia para que sea revisada por administracin.' }
+  incidencias: { title: 'Reportar Novedad', subtitle: 'Crea una incidencia para que sea revisada por la administración.' }
 };
 
 /** Cómo se nombra cada tipo de vehículo en plural: "Zona de motos", "3 bicicletas". */
@@ -433,7 +433,7 @@ export class SecurityDashboard {
     this.manualCode.set('');
   }
 
-  // ---- Escaneo de placa con cA!mara y ML Kit ------------------------------------------
+  // ---- Escaneo de placa con cámara y ML Kit ------------------------------------------
 
   protected readonly scanningPlate = signal(false);
   protected readonly plateError = signal<string | null>(null);
@@ -454,7 +454,7 @@ export class SecurityDashboard {
 
       if (!plateResult) {
         this.plateError.set(
-          'No encontramos una placa legible en la foto. AcArcate mA!s, evita reflejos y que la placa ocupe la mayor parte de la imagen.',
+          'No encontramos una placa legible en la foto. Acércate más, evita reflejos y que la placa ocupe la mayor parte de la imagen.',
         );
         return;
       }

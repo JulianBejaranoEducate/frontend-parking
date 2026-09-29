@@ -53,10 +53,11 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
  * Registro de visitantes (fase de conexión; ver "Conexión frontend-backend" en
  * planeacion-desarrollo.md).
  *
- * Con el modelo actual del backend, enviar este formulario **es** el ingreso:
- * no hay un paso aparte donde el guardia lo autorice. El QR que se genera solo
- * lleva el id que el backend le asignó al registro; el personal de seguridad
- * lo escanea únicamente para marcar la salida cuando corresponda.
+ * Enviar este formulario solo registra la visita: todavía no es un ingreso
+ * (la persona puede registrarse y al final no entrar). El QR lleva el id que el
+ * backend le asignó al registro y es la llave de acceso: el ingreso queda
+ * validado cuando portería lo escanea, y la salida cuando el guardia la
+ * registra (ADR-021).
  *
  * El backend pide siempre marca, color y modelo del vehículo (sin excepción
  * por tipo) y no acepta serial de marco; la placa es la única opcional, y
