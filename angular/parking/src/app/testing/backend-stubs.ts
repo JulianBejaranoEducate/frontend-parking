@@ -4,7 +4,7 @@
  * Los stubs no extienden los servicios reales (que inyectan HttpClient): solo
  * implementan los métodos que usan las pantallas, con datos controlados.
  */
-import type { BackendAccessRecord, BackendParkingZone } from '../core/services/api/parking-api.service';
+import type { BackendAccessRecord, BackendOpenRecordsCount, BackendParkingZone } from '../core/services/api/parking-api.service';
 import type { BackendUser, BackendUserVehicle } from '../core/services/api/users-api.service';
 import { TEST_ACCOUNTS } from './test-session';
 
@@ -86,5 +86,15 @@ export class ParkingApiStub {
 
   openRecords(): Promise<BackendAccessRecord[]> {
     return this.openRecordsFail ? failure() : Promise.resolve(this.openRecordRows);
+  }
+
+  /** El conteo se calcula de `openRecordRows`, para no repetir la fixture en cada prueba. */
+  openRecordsCount(): Promise<BackendOpenRecordsCount> {
+    if (this.openRecordsFail) {
+      return failure();
+    }
+
+    const visitors = this.openRecordRows.filter((record) => record.visitorId !== null).length;
+    return Promise.resolve({ institutional: this.openRecordRows.length - visitors, visitors });
   }
 }

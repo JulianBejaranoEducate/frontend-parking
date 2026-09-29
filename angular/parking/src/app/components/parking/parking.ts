@@ -10,8 +10,10 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
  *
  * - Capacidad y puestos libres por zona: `StudentParkingService.zones`
  *   (`GET /parkingZone`), el mismo dato del widget "Disponibilidad" de `/inicio`.
- * - "Vehículos dentro", separados en comunidad y visitantes: los registros de
- *   acceso abiertos (`GET /parking/records/open`).
+ * - "Vehículos dentro", separados en comunidad y visitantes: el conteo de
+ *   registros de acceso abiertos (`GET /parking/records/open/count`), sin
+ *   placas — la versión completa (`GET /parking/records/open`) es solo para
+ *   vigilancia y administración.
  * - "Estado de tu vehículo": `StudentParkingService.currentStay`, que sale del
  *   historial de cada placa (`GET /parking/historical/:plate`).
  */
@@ -49,17 +51,14 @@ export class Parking {
     void this.parking.refreshZones();
   }
 
-  /** Cuenta los registros de acceso abiertos: los de visitantes traen su id, los de la comunidad no. */
   protected async loadInside(): Promise<void> {
     this.insideLoading.set(true);
     this.insideError.set(null);
 
     try {
-      const records = await this.parkingApi.openRecords();
-      const visitors = records.filter((record) => record.visitorId !== null).length;
-
-      this.institutionalInside.set(records.length - visitors);
-      this.visitorsInside.set(visitors);
+      const count = await this.parkingApi.openRecordsCount();
+      this.institutionalInside.set(count.institutional);
+      this.visitorsInside.set(count.visitors);
     } catch {
       this.insideError.set('No pudimos consultar quién está dentro ahora mismo.');
     } finally {

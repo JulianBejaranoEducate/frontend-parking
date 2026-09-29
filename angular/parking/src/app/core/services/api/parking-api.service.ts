@@ -38,6 +38,12 @@ interface AccessRecordResponse {
   data: BackendAccessRecord;
 }
 
+/** Cuántos vehículos están dentro ahora, sin las placas (`GET /parking/records/open/count`). */
+export interface BackendOpenRecordsCount {
+  institutional: number;
+  visitors: number;
+}
+
 const PLURALS: Record<VehicleType, string> = { moto: 'motos', bicicleta: 'bicicletas', scooter: 'scooters' };
 
 /** Nombre visible de la zona de un tipo de vehículo, p. ej. "Zona de motos". */
@@ -70,6 +76,15 @@ export class ParkingApiService {
   /** Quién está dentro ahora: registros sin salida, del ingreso más reciente al más antiguo. */
   openRecords(): Promise<BackendAccessRecord[]> {
     return firstValueFrom(this.http.get<BackendAccessRecord[]>(`${this.accessUrl}/records/open`));
+  }
+
+  /**
+   * Cuántos vehículos están dentro ahora, institucionales y visitantes, sin las placas: lo
+   * que puede pedir cualquier cuenta (`openRecords` solo pueden pedirlo vigilancia y
+   * administración, porque expone la placa de todo el mundo).
+   */
+  openRecordsCount(): Promise<BackendOpenRecordsCount> {
+    return firstValueFrom(this.http.get<BackendOpenRecordsCount>(`${this.accessUrl}/records/open/count`));
   }
 
   /** Todos los ingresos y salidas de una placa, del más antiguo al más reciente. */
