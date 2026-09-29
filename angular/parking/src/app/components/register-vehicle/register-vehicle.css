@@ -1,42 +1,15 @@
-/* Registro de vehículos: flujo por pasos, sin la barra lateral para no distraer.
+/* Registro de vehículos: flujo por pasos, dentro del mismo layout de dashboard
+   que /inicio (header + sidebar), no en pantalla completa aparte.
+   .page viene de styles.css, igual que en main-dashboard; aquí solo se angosta
+   porque es un formulario de una sola columna, no una grilla de tarjetas.
    Campos (.field), tarjetas (.card), chips y botones pequeños vienen de styles.css. */
 
 :host {
   display: block;
 }
 
-.register {
-  min-height: 100dvh;
-  padding-bottom: max(2rem, env(safe-area-inset-bottom));
-  background: var(--brand-background);
-}
-
-/* Misma altura que la barra superior de los dashboards. */
-.bar {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: calc(var(--app-topbar-height) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) clamp(0.5rem, 3vw, 1.5rem) 0;
-  background: color-mix(in srgb, var(--brand-surface) 88%, transparent);
-  border-bottom: 1px solid var(--brand-border);
-  backdrop-filter: blur(8px);
-}
-
-.bar__product {
-  font-family: var(--font-display);
-  font-size: 1.0625rem;
-  font-weight: 700;
-  color: var(--brand-primary);
-}
-
-.register__body {
+.page--narrow {
   max-width: 46rem;
-  padding: clamp(1.25rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem) 0;
-  margin-inline: auto;
 }
 
 /* ---------- Pasos ---------- */
@@ -242,8 +215,7 @@
   border: 0;
 }
 
-.block + .block,
-.info {
+.block + .block {
   margin-top: 1.5rem;
 }
 
@@ -267,42 +239,6 @@
   display: grid;
   gap: 1rem;
   align-items: start;
-}
-
-.info {
-  padding: 0.75rem 0.875rem;
-  font-size: 0.875rem;
-  line-height: 1.45;
-  color: var(--brand-text-muted);
-  background: var(--brand-primary-soft);
-  border-radius: 0.75rem;
-}
-
-.name-check {
-  display: flex;
-  gap: 0.5rem;
-  align-items: flex-start;
-  margin: 0.875rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-}
-
-.name-check svg {
-  flex: none;
-  width: 1.125rem;
-  height: 1.125rem;
-  margin-top: 0.0625rem;
-}
-
-.name-check--match {
-  color: var(--brand-success);
-}
-
-.name-check--warning {
-  padding: 0.625rem 0.75rem;
-  color: var(--brand-warning);
-  background: var(--brand-warning-soft);
-  border-radius: 0.625rem;
 }
 
 /* ---------- Documentos ---------- */

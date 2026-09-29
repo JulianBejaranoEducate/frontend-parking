@@ -1,0 +1,20 @@
+/* Disponibilidad del parqueadero. Lo común (página, tarjetas, chips, tiles) vive en styles.css. */
+
+:host {
+  display: block;
+}
+
+.notice {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.625rem 0.75rem;
+  margin: 1rem 0 0;
+  font-size: 0.875rem;
+  border-radius: 0.75rem;
+}
+
+.notice--critical {
+  color: var(--brand-secondary-dark);
+  background: var(--brand-secondary-soft);
+}

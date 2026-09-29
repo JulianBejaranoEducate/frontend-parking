@@ -1,0 +1,28 @@
+<div class="shell" [class.shell--menu-open]="menuOpen()">
+  <app-sidebar
+    [open]="menuOpen()"
+    [items]="navigation.items()"
+    [context]="navigation.context"
+    (closed)="closeMenu()"
+  />
+
+  <!-- Velo que oscurece el contenido mientras el cajón está abierto en móvil. -->
+  <button
+    type="button"
+    class="scrim"
+    [class.scrim--visible]="menuOpen()"
+    tabindex="-1"
+    aria-label="Cerrar menú"
+    (click)="closeMenu()"
+  ></button>
+
+  <div class="content">
+    <app-header
+      [menuOpen]="menuOpen()"
+      [searchPlaceholder]="navigation.search?.placeholder ?? 'Buscar'"
+      (menuToggled)="toggleMenu()"
+      (searched)="search($event)"
+    />
+    <router-outlet />
+  </div>
+</div>

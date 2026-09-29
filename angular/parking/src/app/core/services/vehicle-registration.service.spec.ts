@@ -63,17 +63,6 @@ describe('VehicleRegistrationService', () => {
     );
   });
 
-  it('respeta el máximo de 5 vehículos por persona', () => {
-    const { service } = setup('user');
-    const bike = { owner: { firstName: 'Julian', lastName: 'Bejarano' }, vehicle: { type: 'bicicleta' as const }, documents: [] };
-
-    service.submit(bike);
-    service.submit(bike);
-
-    expect(service.mine()).toHaveLength(5);
-    expect(() => service.submit(bike)).toThrowError(/Ya tienes 5 vehículos/);
-  });
-
   it('solo la administración puede aprobar, y la persona recibe el aviso', () => {
     const { service, auth, notifications } = setup('user');
 

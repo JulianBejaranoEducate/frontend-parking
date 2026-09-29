@@ -1,8 +1,11 @@
-/** Aviso dirigido a una persona o a todo el equipo de administración. */
-export type NotificationKind = 'vehicle' | 'availability' | 'access' | 'registration' | 'system';
+/** Aviso dirigido a una persona o a todo un equipo (administración o seguridad). */
+export type NotificationKind = 'vehicle' | 'availability' | 'access' | 'registration' | 'shift' | 'system';
 
-/** 'admins' llega a todo el equipo de administración; cualquier otro valor es un uid. */
-export type NotificationAudience = 'admins' | (string & {});
+/**
+ * 'admins' llega a todo el equipo de administración y 'security' a todo el
+ * personal de seguridad; cualquier otro valor es el uid de una persona.
+ */
+export type NotificationAudience = 'admins' | 'security' | (string & {});
 
 export interface AppNotification {
   id: string;

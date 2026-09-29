@@ -667,3 +667,14 @@ textarea.field__control {
     transition: none;
   }
 }
+
+.small-btn--accent {
+  background-color: var(--color-accent);
+  color: var(--color-surface);
+  border: 1px solid var(--color-accent);
+}
+
+.small-btn--accent:hover:not(:disabled) {
+  background-color: var(--color-accent-dark, #e65100);
+  border-color: var(--color-accent-dark, #e65100);
+}

@@ -1,0 +1,99 @@
+<section class="card" aria-labelledby="history-title">
+  <div class="card__head">
+    <h2 class="card__title" id="history-title">{{ title() }}</h2>
+
+    <div class="range" role="radiogroup" aria-label="Periodo del historial">
+      @for (option of historyRanges; track option.days) {
+        <label class="range__option">
+          <input
+            class="range__input"
+            type="radio"
+            name="history-range"
+            [value]="option.days"
+            [checked]="range() === option.days"
+            (change)="setHistoryRange(option.days)"
+          />
+          <span class="range__label">{{ option.label }}</span>
+        </label>
+      }
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="empty">Consultando tu historial…</p>
+  } @else if (error(); as message) {
+    <p class="empty">{{ message }}</p>
+  } @else if (filteredStays().length) {
+    <!-- Escritorio y tablet: tabla. -->
+    <div class="history-table">
+      <table class="data-table" aria-labelledby="history-title">
+        <thead>
+          <tr>
+            <th scope="col">Fecha</th>
+            <th scope="col">Placa</th>
+            <th scope="col">Entrada</th>
+            <th scope="col">Salida</th>
+            <th scope="col">Permanencia</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (stay of filteredStays(); track stay.id) {
+            <tr>
+              <td class="data-table__muted">{{ formatDate(stay.enteredAt) }}</td>
+              <td>
+                <span [class.plate]="!!stay.vehicle.plate">{{ vehicleTitle(stay.vehicle) }}</span>
+              </td>
+              <td>
+                <time class="time time--in" [attr.datetime]="stay.enteredAt.toISOString()">
+                  {{ formatTime(stay.enteredAt) }}
+                </time>
+              </td>
+              <td>
+                @if (stay.exitedAt; as exitedAt) {
+                  <time class="time time--out" [attr.datetime]="exitedAt.toISOString()">
+                    {{ formatTime(exitedAt) }}
+                  </time>
+                } @else {
+                  <span class="chip chip--inside">En curso</span>
+                }
+              </td>
+              <td class="data-table__muted">{{ stayDuration(stay) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Móvil: la tabla no cabe, cada estancia es una tarjeta. -->
+    <ul class="stays">
+      @for (stay of filteredStays(); track stay.id) {
+        <li class="stay">
+          <div class="stay__head">
+            <span class="stay__date">{{ formatDate(stay.enteredAt) }}</span>
+            <span [class.plate]="!!stay.vehicle.plate">{{ vehicleTitle(stay.vehicle) }}</span>
+          </div>
+          <dl class="stay__times">
+            <div>
+              <dt>Entrada</dt>
+              <dd class="time time--in">{{ formatTime(stay.enteredAt) }}</dd>
+            </div>
+            <div>
+              <dt>Salida</dt>
+              @if (stay.exitedAt; as exitedAt) {
+                <dd class="time time--out">{{ formatTime(exitedAt) }}</dd>
+              } @else {
+                <dd><span class="chip chip--inside">En curso</span></dd>
+              }
+            </div>
+            <div>
+              <dt>Permanencia</dt>
+              <dd>{{ stayDuration(stay) }}</dd>
+            </div>
+          </dl>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="empty">No hay movimientos en este periodo.</p>
+  }
+</section>

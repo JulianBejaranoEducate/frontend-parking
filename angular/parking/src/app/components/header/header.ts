@@ -21,7 +21,10 @@ import { Notifications } from '../notifications/notifications';
 export class Header {
   /** Estado del cajón lateral, para reflejarlo en el botón de hamburguesa. */
   readonly menuOpen = input(false);
+  /** Texto de ayuda del buscador; cada rol explica qué se puede buscar. */
+  readonly searchPlaceholder = input('Buscar');
   readonly menuToggled = output<void>();
+  /** Búsqueda enviada, ya recortada; nunca vacía. */
   readonly searched = output<string>();
 
   private readonly auth = inject(AuthService);

@@ -1,26 +1,16 @@
 /**
- * Modelo del pase de visitante.
+ * Datos que declara un visitante en el formulario.
  *
- * Decisión de diseño importante: el QR NO lleva dentro los datos personales,
- * solo un token opaco. Así una foto del código no filtra nombre, documento ni
- * motivo, y el detalle solo aparece cuando el personal de seguridad resuelve
- * ese token contra el sistema.
+ * El QR que se genera al enviarlo no lleva estos datos: lleva solo el id que
+ * el backend le asignó al registro (ver `VisitorApiService`). El detalle solo
+ * aparece cuando el personal de seguridad resuelve ese id contra el backend.
  */
 import type { Vehicle } from './vehicle';
 
 // La taxonomía de vehículos vive en ./vehicle porque el dashboard de usuarios
 // también la necesita; se reexporta para no romper a quien ya la importa de aquí.
-export {
-  NO_VEHICLE_REQUIREMENTS,
-  VEHICLE_REQUIREMENTS,
-  VEHICLE_TYPES,
-  requirementsFor,
-  vehicleLabel,
-} from './vehicle';
-export type { Vehicle, VehicleRequirements, VehicleType } from './vehicle';
-
-/** Un visitante declara el mismo vehículo que cualquier otro usuario. */
-export type VisitorVehicle = Vehicle;
+export { VEHICLE_TYPES, vehicleLabel } from './vehicle';
+export type { Vehicle, VehicleType } from './vehicle';
 
 export const DOCUMENT_TYPES = [
   { value: 'CC', label: 'Cédula de ciudadanía' },
@@ -38,19 +28,9 @@ export interface VisitorRegistration {
   reason: string;
 }
 
-/**
- * pending: emitido y sin usar. used: ya validado en portería, no sirve otra vez.
- * expired: se venció sin usarse. revoked: anulado a mano por seguridad.
- */
-export type PassStatus = 'pending' | 'used' | 'expired' | 'revoked';
-
-export interface VisitorPass {
-  /** Lo único que viaja dentro del código QR. */
-  token: string;
-  visitor: VisitorRegistration;
-  issuedAt: Date;
-  expiresAt: Date;
-  status: PassStatus;
+/** Nombres y apellidos del visitante, tal como los escribió. */
+export function visitorFullName(visitor: VisitorRegistration): string {
+  return `${visitor.firstName} ${visitor.lastName}`.trim();
 }
 
 export function documentLabel(value: DocumentType): string {

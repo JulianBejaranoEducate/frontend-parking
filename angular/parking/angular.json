@@ -30,7 +30,8 @@
             "allowedCommonJsDependencies": [
               "qrcode",
               "dijkstrajs"
-            ]
+            ],
+            "serviceWorker": "ngsw-config.json"
           },
           "configurations": {
             "production": {

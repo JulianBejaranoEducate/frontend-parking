@@ -1,9 +1,10 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { loadDemo, saveDemo } from '../demo/demo-storage';
 import { seedRegistrations } from '../demo/seed-registrations';
-import { MAX_VEHICLES_PER_USER, type Vehicle } from '../models/vehicle';
+import type { Vehicle } from '../models/vehicle';
 import {
   DOCUMENT_LABELS,
+  type BackendVehicleCreation,
   type DeclaredOwner,
   type DocumentKind,
   type RegistrationDocument,
@@ -26,7 +27,6 @@ export type RegistrationErrorCode =
   | 'not-signed-in'
   | 'forbidden'
   | 'not-found'
-  | 'limit-reached'
   | 'plate-taken'
   | 'missing-documents'
   | 'invalid-state';
@@ -44,7 +44,9 @@ const STORAGE_KEY = 'registrations';
 
 /** "una moto KZT45F", "una bicicleta Bianchi", "un scooter". */
 export function vehiclePhrase(vehicle: Vehicle): string {
-  const noun = { moto: 'una moto', bicicleta: 'una bicicleta', scooter: 'un scooter' }[vehicle.type];
+  const noun = { moto: 'una moto', bicicleta: 'una bicicleta', scooter: 'un scooter' }[
+    vehicle.type
+  ];
   const detail = vehicle.plate ?? vehicle.brand;
 
   return detail ? `${noun} ${detail}` : noun;
@@ -52,7 +54,15 @@ export function vehiclePhrase(vehicle: Vehicle): string {
 
 /**
  * Solicitudes de registro de vehículos: las crea el usuario y las resuelve la
- * administración. Es la única fuente de verdad de "Mis vehículos".
+ * administración. Es la cola de aprobación con documentos (pendiente,
+ * aprobado, rechazado, actualizar), que el backend real todavía no tiene
+ * (PEN-020) — "Mis vehículos" en el dashboard ya no sale de aquí, sale de
+ * verdad de `StudentsApiService` (`GET /users/:id`).
+ *
+ * No impone un tope de vehículos por persona: ese tope (`MAX_VEHICLES_PER_USER`
+ * en `core/models/vehicle.ts`) se evalúa contra los vehículos reales del
+ * backend, no contra cuántas solicitudes de demostración existan — antes las
+ * dos cosas eran el mismo número y ya no lo son.
  *
  * TODO: en demostración vive en el navegador. Con Firebase, cada método será
  * una escritura en Firestore protegida por reglas: el cliente nunca debe poder
@@ -86,9 +96,6 @@ export class VehicleRegistrationService {
       : [];
   });
 
-  readonly maxPerUser = MAX_VEHICLES_PER_USER;
-  readonly canRegisterMore = computed(() => this.mine().length < MAX_VEHICLES_PER_USER);
-
   constructor() {
     effect(() => saveDemo(STORAGE_KEY, this._items()));
   }
@@ -119,15 +126,11 @@ export class VehicleRegistrationService {
       throw new RegistrationError('not-signed-in', 'Inicia sesión para registrar un vehículo.');
     }
 
-    if (!this.canRegisterMore()) {
-      throw new RegistrationError(
-        'limit-reached',
-        `Ya tienes ${MAX_VEHICLES_PER_USER} vehículos registrados. Elimina uno para registrar otro.`,
-      );
-    }
-
     if (input.vehicle.plate && this.isPlateTaken(input.vehicle.plate)) {
-      throw new RegistrationError('plate-taken', `La placa ${input.vehicle.plate} ya está registrada.`);
+      throw new RegistrationError(
+        'plate-taken',
+        `La placa ${input.vehicle.plate} ya está registrada.`,
+      );
     }
 
     if (missingRequiredDocuments(input.vehicle.type, input.documents).length) {
@@ -211,11 +214,16 @@ export class VehicleRegistrationService {
     }
 
     const replaced = new Set(documents.map((document) => document.kind));
-    const merged = [...registration.documents.filter((document) => !replaced.has(document.kind)), ...documents];
+    const merged = [
+      ...registration.documents.filter((document) => !replaced.has(document.kind)),
+      ...documents,
+    ];
 
     this.replace({ ...registration, documents: merged, status: 'pending', updatedAt: new Date() });
 
-    const names = documents.map((document) => DOCUMENT_LABELS[document.kind].toLowerCase()).join(' y ');
+    const names = documents
+      .map((document) => DOCUMENT_LABELS[document.kind].toLowerCase())
+      .join(' y ');
 
     this.notifications.notify({
       kind: 'registration',
@@ -226,13 +234,24 @@ export class VehicleRegistrationService {
     });
   }
 
-  /** Libera el cupo. El historial de entradas y salidas no se toca. */
-  remove(id: string): void {
-    this.requireOwn(id);
-    this._items.update((items) => items.filter((item) => item.id !== id));
+  /**
+   * Deja constancia, en la propia solicitud, de si la creación del vehículo
+   * real en el backend (`VehiclesApiService.postCreate`, llamada aparte de
+   * esta cola de aprobación) tuvo éxito o no. Antes no había ninguna forma de
+   * saberlo mirando solo la solicitud de demostración.
+   */
+  markBackendVehicleCreation(id: string, creation: BackendVehicleCreation): void {
+    const registration = this.find(id);
+
+    if (registration) {
+      this.replace({ ...registration, backendVehicleCreation: creation });
+    }
   }
 
-  private decide(id: string, decision: Omit<ReviewDecision, 'reviewer' | 'decidedAt'>): VehicleRegistration {
+  private decide(
+    id: string,
+    decision: Omit<ReviewDecision, 'reviewer' | 'decidedAt'>,
+  ): VehicleRegistration {
     const user = this.auth.user();
 
     if (user?.role !== 'admin') {
@@ -254,7 +273,10 @@ export class VehicleRegistrationService {
       ...registration,
       status: decision.outcome as RegistrationStatus,
       updatedAt: now,
-      reviews: [...registration.reviews, { ...decision, reviewer: user.displayName, decidedAt: now }],
+      reviews: [
+        ...registration.reviews,
+        { ...decision, reviewer: user.displayName, decidedAt: now },
+      ],
     };
 
     this.replace(updated);

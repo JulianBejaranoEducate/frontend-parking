@@ -1,79 +1,56 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+import { environment } from '../../environments/environments';
 import type { Incident, IncidentStatus } from '../models/incident';
+import { createId } from '../utils/id';
 
-/**
- * Incidencias del parqueadero.
- *
- * TODO: datos de muestra. Las reportará el personal de seguridad desde su
- * dashboard y se guardarán en Firestore.
- */
-
-const hoursAgo = (hours: number): Date => new Date(Date.now() - hours * 3_600_000);
-
-const DEMO_INCIDENTS: Incident[] = [
-  {
-    id: 'inc-1',
-    title: 'Moto bloqueando la salida',
-    description: 'Una moto quedó estacionada sobre la franja de salida de la zona de motos.',
-    zoneName: 'Zona de motos',
-    severity: 'medium',
-    status: 'open',
-    reportedAt: hoursAgo(2),
-    reportedBy: 'Portería principal',
-    plate: 'UIO34E',
-  },
-  {
-    id: 'inc-2',
-    title: 'Ingreso con pase de visitante vencido',
-    description: 'Se intentó ingresar con un código QR vencido. Se generó uno nuevo tras verificar la identidad.',
-    zoneName: 'Portería principal',
-    severity: 'high',
-    status: 'in-review',
-    reportedAt: hoursAgo(20),
-    reportedBy: 'Portería principal',
-  },
-  {
-    id: 'inc-3',
-    title: 'Rayón reportado en un scooter',
-    description: 'El propietario reporta un rayón en la carcasa al retirar el vehículo.',
-    zoneName: 'Zona de scooters',
-    severity: 'medium',
-    status: 'open',
-    reportedAt: hoursAgo(50),
-    reportedBy: 'Camila Herrera',
-  },
-  {
-    id: 'inc-4',
-    title: 'Casco olvidado',
-    description: 'Casco negro encontrado en la zona de bicicletas. Está en portería.',
-    zoneName: 'Zona de bicicletas',
-    severity: 'low',
-    status: 'resolved',
-    reportedAt: hoursAgo(75),
-    reportedBy: 'Ronda de seguridad',
-    resolvedAt: hoursAgo(70),
-  },
-];
+export interface BackendIncident {
+  id: number;
+  title: string;
+  description: string;
+  reportDate: string;
+  status: string;
+  severity: string;
+  userId: string | null;
+  plate: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class IncidentService {
-  private readonly _items = signal<Incident[]>(DEMO_INCIDENTS);
+  private readonly http = inject(HttpClient);
+  private readonly baseUrl = `${environment.apiUrl}/incidents`;
 
-  /** Lo más reciente primero. */
-  readonly items = computed(() =>
-    [...this._items()].sort((a, b) => b.reportedAt.getTime() - a.reportedAt.getTime()),
-  );
+  private readonly state = signal<Incident[]>([]);
+  readonly incidents = computed(() => this.state());
 
-  /** Todo lo que todavía requiere atención: abiertas y en revisión. */
-  readonly unresolved = computed(() => this.items().filter((item) => item.status !== 'resolved'));
+  async loadIncidents(): Promise<void> {
+    const data = await firstValueFrom(this.http.get<BackendIncident[]>(this.baseUrl));
+    this.state.set(data.map(i => ({
+      id: String(i.id),
+      title: i.title,
+      description: i.description,
+      zoneName: 'General',
+      status: (i.status as IncidentStatus) || 'open',
+      severity: i.severity as any,
+      reportedAt: new Date(i.reportDate),
+      reportedBy: i.userId || 'Sistema',
+      plate: i.plate || undefined,
+    })));
+  }
 
-  setStatus(id: string, status: IncidentStatus): void {
-    this._items.update((items) =>
-      items.map((item) =>
-        item.id === id
-          ? { ...item, status, resolvedAt: status === 'resolved' ? new Date() : undefined }
-          : item,
-      ),
-    );
+  async report(incident: Omit<Incident, 'id' | 'status' | 'reportedAt'>): Promise<void> {
+    await firstValueFrom(this.http.post(this.baseUrl, {
+      title: incident.title,
+      description: incident.description,
+      severity: incident.severity,
+      plate: incident.plate,
+    }));
+    await this.loadIncidents();
+  }
+
+  async resolve(id: string, resolution: string): Promise<void> {
+    await firstValueFrom(this.http.put(`${this.baseUrl}/${id}`, { status: 'resolved' }));
+    await this.loadIncidents();
   }
 }

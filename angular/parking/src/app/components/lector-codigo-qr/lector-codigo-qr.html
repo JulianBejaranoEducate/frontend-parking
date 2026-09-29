@@ -1,1 +1,44 @@
-<p>lector-codigo-qr works!</p>
+<div class="reader">
+  <button type="button" class="small-btn small-btn--primary reader__start" [disabled]="starting()" (click)="start()">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M3 3h7v7H3zm2 2v3h3V5zm9-2h7v7h-7zm2 2v3h3V5zM3 14h7v7H3zm2 2v3h3v-3zm9-2h3v3h-3zm4 3h3v3h-3zm-4 4h3v3h-3zm4 1h3v2h-3z"
+        fill="currentColor"
+        fill-rule="evenodd"
+      />
+    </svg>
+    {{ starting() ? 'Encendiendo la cámara…' : label() }}
+  </button>
+
+  <label class="reader__photo">
+    <input class="sr-only" type="file" accept="image/*" capture="environment" (change)="readFromPhoto($event)" />
+    <span class="small-btn small-btn--ghost">
+      {{ decoding() ? 'Leyendo la foto…' : 'Leer desde una foto' }}
+    </span>
+  </label>
+
+  @if (error(); as message) {
+    <p class="reader__error" role="alert">{{ message }}</p>
+  }
+</div>
+
+<!-- La capa vive siempre en el DOM (el <video> tiene que existir antes de encender la cámara),
+     pero solo se ve mientras escanea. -->
+<div class="overlay" [class.overlay--active]="scanning()" [attr.aria-hidden]="!scanning()">
+  <video #video class="overlay__video" playsinline muted></video>
+
+  <div class="overlay__frame">
+    <span class="overlay__laser"></span>
+  </div>
+
+  <p class="overlay__hint">{{ hint() }}</p>
+
+  <div class="overlay__actions">
+    @if (torchAvailable()) {
+      <button type="button" class="overlay__button" (click)="toggleTorch()">
+        {{ torchOn() ? 'Apagar linterna' : 'Encender linterna' }}
+      </button>
+    }
+    <button type="button" class="overlay__button" (click)="stop()">Cancelar</button>
+  </div>
+</div>

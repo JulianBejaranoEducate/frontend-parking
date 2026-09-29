@@ -1,28 +1,22 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, type ValidatorFn, Validators } from '@angular/forms';
+import { Component, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 import {
   DOCUMENT_TYPES,
-  type DocumentType,
   VEHICLE_TYPES,
+  type DocumentType,
   type VehicleType,
-  type VisitorPass,
   type VisitorRegistration,
-  type VisitorVehicle,
-  requirementsFor,
   vehicleLabel,
 } from '../../core/models/visitor-pass';
-import { PASS_TTL_MINUTES, VisitorPassService } from '../../core/services/visitor-pass.service';
+import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
 
 /**
- * Placa de moto colombiana: tres letras, dos dígitos y una letra final.
- * La letra final se dejó opcional porque las motos más antiguas no la llevan.
- * El formato de automóvil (ABC123) queda fuera a propósito: la universidad solo
- * tiene parqueadero para vehículos de dos ruedas.
+ * Placa: 3 letras y 3 números exactos (así la exige hoy el backend en
+ * `Visitor.validation.ts`; distinto del formato de motos institucionales).
  */
-const PLATE_PATTERN = /^[A-Z]{3}\d{2}[A-Z]?$/;
+const PLATE_PATTERN = /^[A-Z]{3}[0-9]{3}$/;
 
 /** Cédulas y tarjetas de identidad colombianas: solo dígitos, de 6 a 11. */
 const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
@@ -52,9 +46,22 @@ const REQUIRED_MESSAGES: Record<FieldName, string> = {
 
 const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
   documentNumber: 'Debe tener entre 6 y 11 dígitos, sin puntos ni espacios.',
-  plate: 'Usa el formato de placa de moto: ABC12D.',
+  plate: 'Usa el formato ABC123 (3 letras y 3 números).',
 };
 
+/**
+ * Registro de visitantes (fase de conexión; ver "Conexión frontend-backend" en
+ * planeacion-desarrollo.md).
+ *
+ * Con el modelo actual del backend, enviar este formulario **es** el ingreso:
+ * no hay un paso aparte donde el guardia lo autorice. El QR que se genera solo
+ * lleva el id que el backend le asignó al registro; el personal de seguridad
+ * lo escanea únicamente para marcar la salida cuando corresponda.
+ *
+ * El backend pide siempre marca, color y modelo del vehículo (sin excepción
+ * por tipo) y no acepta serial de marco; la placa es la única opcional, y
+ * aquí solo se pide para motos porque son las que físicamente la llevan.
+ */
 @Component({
   imports: [ReactiveFormsModule, RouterLink],
   selector: 'app-visitor',
@@ -63,53 +70,23 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
 })
 export class Visitor {
   private readonly fb = inject(FormBuilder);
-  private readonly passes = inject(VisitorPassService);
+  private readonly visitorApi = inject(VisitorApiService);
 
   protected readonly brand = BRAND;
   protected readonly documentTypes = DOCUMENT_TYPES;
   protected readonly vehicleTypes = VEHICLE_TYPES;
-  protected readonly ttlMinutes = PASS_TTL_MINUTES;
-  protected readonly vehicleLabel = vehicleLabel;
+  /** El backend guarda el tipo como texto suelto (lo valida Joi, no TypeScript). */
+  protected readonly vehicleLabel = (type: string) => vehicleLabel(type as VehicleType);
 
   /** Se activa al primer intento de envío para revelar todos los errores. */
   protected readonly submitAttempted = signal(false);
   protected readonly submitting = signal(false);
+  /** Error de red o del backend al registrar la visita. */
+  protected readonly submitError = signal<string | null>(null);
 
-  /** Cuando existe un pase, la pantalla muestra el QR en vez del formulario. */
-  protected readonly pass = signal<VisitorPass | null>(null);
+  /** Cuando existe, la pantalla muestra el QR en vez del formulario. */
+  protected readonly visitor = signal<BackendVisitor | null>(null);
   protected readonly qrDataUrl = signal<string | null>(null);
-
-  /**
-   * Tapa el QR cuando la app pasa a segundo plano. No impide una captura de
-   * pantalla — eso no se puede desde la web — pero evita que el código quede
-   * a la vista en la miniatura del selector de aplicaciones.
-   */
-  protected readonly qrConcealed = signal(false);
-
-  /** Tipo de vehículo elegido: decide qué campos se piden y cuáles se validan. */
-  protected readonly vehicleType = signal<VehicleType | ''>('');
-  protected readonly requires = computed(() => requirementsFor(this.vehicleType()));
-
-  /** Caso del scooter: ya eligió vehículo y no hay nada más que preguntarle. */
-  protected readonly vehicleNeedsNoExtras = computed(() => {
-    const requirements = this.requires();
-    return this.vehicleType() !== '' && !requirements.brand && !requirements.color && !requirements.plate;
-  });
-
-  private readonly now = signal(Date.now());
-  private timer: ReturnType<typeof setInterval> | null = null;
-
-  protected readonly remainingMs = computed(() => {
-    const pass = this.pass();
-    return pass ? Math.max(0, pass.expiresAt.getTime() - this.now()) : 0;
-  });
-
-  protected readonly expired = computed(() => this.pass() !== null && this.remainingMs() === 0);
-
-  protected readonly countdown = computed(() => {
-    const seconds = Math.ceil(this.remainingMs() / 1000);
-    return `${Math.floor(seconds / 60)}:${(seconds % 60).toString().padStart(2, '0')}`;
-  });
 
   protected readonly form = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(40)]],
@@ -117,102 +94,46 @@ export class Visitor {
     documentType: ['', Validators.required],
     documentNumber: ['', [Validators.required, Validators.pattern(DOCUMENT_NUMBER_PATTERN)]],
     vehicleType: ['', Validators.required],
-    // Marca, color y placa se validan según el vehículo: los validadores se
-    // montan y desmontan en applyVehicleRules().
-    vehicleBrand: [''],
-    vehicleColor: [''],
+    vehicleBrand: ['', [Validators.required, Validators.minLength(2), Validators.maxLength(30)]],
+    vehicleColor: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(20)]],
+    // Solo obligatoria cuando el tipo elegido es moto (ver toggleVehicleType()).
     plate: [''],
     reason: ['', [Validators.required, Validators.minLength(5), Validators.maxLength(160)]],
   });
 
-  constructor() {
-    this.form.controls.vehicleType.valueChanges
-      .pipe(takeUntilDestroyed())
-      .subscribe((type) => this.applyVehicleRules((type ?? '') as VehicleType | ''));
+  /** Placa obligatoria únicamente para moto; los demás tipos no la llevan. */
+  protected onVehicleTypeChange(): void {
+    const control = this.form.controls.plate;
+    const isMoto = this.form.controls.vehicleType.value === 'moto';
 
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && this.pass()) {
-        this.qrConcealed.set(true);
-      }
-    };
+    if (isMoto) {
+      control.setValidators([Validators.required, Validators.pattern(PLATE_PATTERN)]);
+    } else {
+      control.clearValidators();
+      control.setValue('', { emitEvent: false });
+    }
 
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    inject(DestroyRef).onDestroy(() => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      this.stopTimer();
-    });
+    control.updateValueAndValidity({ emitEvent: false });
   }
 
   /** Las placas se guardan siempre en mayúsculas, se escriban como se escriban. */
   protected normalizePlate(): void {
-    this.rewrite('plate', (value) => value.toUpperCase().replace(/[\s-]/g, ''));
+    const control = this.form.controls.plate;
+    const next = control.value.toUpperCase().replace(/[\s-]/g, '');
+
+    if (next !== control.value) {
+      control.setValue(next, { emitEvent: false });
+    }
   }
 
   /** El número de documento se escribe sin puntos ni separadores de miles. */
   protected normalizeDocumentNumber(): void {
-    this.rewrite('documentNumber', (value) => value.replace(/\D/g, ''));
-  }
+    const control = this.form.controls.documentNumber;
+    const next = control.value.replace(/\D/g, '');
 
-  protected async submit(): Promise<void> {
-    this.submitAttempted.set(true);
-
-    if (this.form.invalid || this.submitting()) {
-      this.form.markAllAsTouched();
-      return;
+    if (next !== control.value) {
+      control.setValue(next, { emitEvent: false });
     }
-
-    const value = this.form.getRawValue();
-    const requirements = this.requires();
-    const vehicle: VisitorVehicle = { type: value.vehicleType as VehicleType };
-
-    // Solo se guarda lo que ese vehículo realmente pide, sin campos vacíos.
-    if (requirements.brand) {
-      vehicle.brand = value.vehicleBrand.trim();
-    }
-
-    if (requirements.color) {
-      vehicle.color = value.vehicleColor.trim();
-    }
-
-    if (requirements.plate) {
-      vehicle.plate = value.plate;
-    }
-
-    await this.issuePass({
-      firstName: value.firstName.trim(),
-      lastName: value.lastName.trim(),
-      documentType: value.documentType as DocumentType,
-      documentNumber: value.documentNumber,
-      vehicle,
-      reason: value.reason.trim(),
-    });
-  }
-
-  /**
-   * Reemplaza un pase vencido. Es la salida de emergencia: el token anterior
-   * queda inservible y solo el nuevo sirve en portería.
-   */
-  protected async regenerate(): Promise<void> {
-    const current = this.pass();
-
-    if (current) {
-      await this.issuePass(current.visitor);
-    }
-  }
-
-  /** Vuelve al formulario en blanco para registrar a la siguiente persona. */
-  protected registerAnother(): void {
-    this.stopTimer();
-    this.pass.set(null);
-    this.qrDataUrl.set(null);
-    this.qrConcealed.set(false);
-    this.submitAttempted.set(false);
-    this.form.reset();
-  }
-
-  protected revealQr(): void {
-    this.qrConcealed.set(false);
   }
 
   protected isInvalid(name: FieldName): boolean {
@@ -246,81 +167,50 @@ export class Visitor {
     return 'Revisa este dato.';
   }
 
-  /**
-   * Monta los validadores del vehículo elegido y limpia los campos que ese
-   * vehículo no usa, para que no arrastren un valor viejo hasta el pase.
-   */
-  private applyVehicleRules(type: VehicleType | ''): void {
-    this.vehicleType.set(type);
-
-    const requirements = requirementsFor(type);
-
-    this.toggleControl('vehicleBrand', requirements.brand, [
-      Validators.required,
-      Validators.maxLength(30),
-    ]);
-    this.toggleControl('vehicleColor', requirements.color, [
-      Validators.required,
-      Validators.maxLength(20),
-    ]);
-    this.toggleControl('plate', requirements.plate, [
-      Validators.required,
-      Validators.pattern(PLATE_PATTERN),
-    ]);
+  /** Vuelve al formulario en blanco para registrar a la siguiente visita. */
+  protected registerAnother(): void {
+    this.visitor.set(null);
+    this.qrDataUrl.set(null);
+    this.submitAttempted.set(false);
+    this.submitError.set(null);
+    this.form.reset();
   }
 
-  private toggleControl(
-    name: 'vehicleBrand' | 'vehicleColor' | 'plate',
-    required: boolean,
-    validators: ValidatorFn[],
-  ): void {
-    const control = this.form.controls[name];
+  protected async submit(): Promise<void> {
+    this.submitAttempted.set(true);
 
-    if (required) {
-      control.setValidators(validators);
-    } else {
-      control.clearValidators();
-      control.setValue('', { emitEvent: false });
-      control.markAsUntouched();
+    if (this.form.invalid || this.submitting()) {
+      this.form.markAllAsTouched();
+      return;
     }
 
-    control.updateValueAndValidity({ emitEvent: false });
-  }
+    const value = this.form.getRawValue();
+    const registration: VisitorRegistration = {
+      firstName: value.firstName.trim(),
+      lastName: value.lastName.trim(),
+      documentType: value.documentType as DocumentType,
+      documentNumber: value.documentNumber,
+      reason: value.reason.trim(),
+      vehicle: {
+        type: value.vehicleType as VehicleType,
+        brand: value.vehicleBrand.trim(),
+        color: value.vehicleColor.trim(),
+        ...(value.plate ? { plate: value.plate } : {}),
+      },
+    };
 
-  private async issuePass(visitor: VisitorRegistration): Promise<void> {
     this.submitting.set(true);
+    this.submitError.set(null);
 
     try {
-      const pass = this.passes.issue(visitor);
-
-      this.qrDataUrl.set(await this.passes.renderQrCode(pass.token));
-      this.qrConcealed.set(false);
-      this.pass.set(pass);
-      this.startTimer();
+      const backendVisitor = await this.visitorApi.create(registration);
+      this.qrDataUrl.set(await this.visitorApi.renderQrCode(String(backendVisitor.id)));
+      this.visitor.set(backendVisitor);
+    } catch (error) {
+      console.error('No se pudo registrar la visita en el backend:', error);
+      this.submitError.set('No pudimos registrar tu visita. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       this.submitting.set(false);
-    }
-  }
-
-  private startTimer(): void {
-    this.stopTimer();
-    this.now.set(Date.now());
-    this.timer = setInterval(() => this.now.set(Date.now()), 1000);
-  }
-
-  private stopTimer(): void {
-    if (this.timer !== null) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  private rewrite(name: 'plate' | 'documentNumber', transform: (value: string) => string): void {
-    const control = this.form.controls[name];
-    const next = transform(control.value);
-
-    if (next !== control.value) {
-      control.setValue(next, { emitEvent: false });
     }
   }
 }

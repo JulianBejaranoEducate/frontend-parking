@@ -93,6 +93,23 @@ describe('Header', () => {
     expect(host().querySelector('.account__affiliation')).toBeNull();
   });
 
+  it('las cuentas de guardias no tienen correo: muestran nombre y portería', async () => {
+    signIn({
+      displayName: 'Carlos Ramírez',
+      email: '',
+      role: 'security',
+      affiliation: 'seguridad',
+      program: 'Portería principal',
+    });
+    api().toggleProfile();
+    await fixture.whenStable();
+
+    expect(host().querySelector('.account__email')).toBeNull();
+    expect(host().querySelector('.account__affiliation')?.textContent?.trim()).toBe(
+      'Personal de seguridad · Portería principal',
+    );
+  });
+
   it('cierra sesión y termina el menú con esa opción', async () => {
     signIn();
     api().toggleProfile();
@@ -109,6 +126,17 @@ describe('Header', () => {
     host().querySelector<HTMLButtonElement>('.icon-btn')?.click();
 
     expect(toggles).toBe(1);
+  });
+
+  it('el texto de ayuda del buscador lo decide cada dashboard', async () => {
+    expect(host().querySelector<HTMLInputElement>('.search__input')?.placeholder).toBe('Buscar');
+
+    fixture.componentRef.setInput('searchPlaceholder', 'Buscar placa, documento o nombre');
+    await fixture.whenStable();
+
+    const input = host().querySelector<HTMLInputElement>('.search__input');
+    expect(input?.placeholder).toBe('Buscar placa, documento o nombre');
+    expect(input?.getAttribute('aria-label')).toBe('Buscar placa, documento o nombre');
   });
 
   it('emite la búsqueda solo cuando hay texto', () => {

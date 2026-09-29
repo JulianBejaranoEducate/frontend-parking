@@ -1,8 +1,20 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import { AuthService, type AuthUser } from '../../core/services/auth.service';
+import { homeFor } from '../../core/guards/auth.guards';
+import { AuthService, type AuthUser, type DemoProfile } from '../../core/services/auth.service';
 
+/** Accesos directos del modo demostración, además del usuario institucional. */
+const DEMO_SHORTCUTS: readonly { profile: Exclude<DemoProfile, 'user'>; label: string }[] = [
+  { profile: 'admin', label: 'Administración' },
+  { profile: 'security', label: 'Guardia Carlos' },
+  { profile: 'security-relief', label: 'Guardia Diana' },
+];
+
+/**
+ * Pantalla de acceso: inicio de sesión institucional con Microsoft, entrada
+ * de visitantes y, en demostración, accesos a los demás roles.
+ */
 @Component({
   imports: [],
   selector: 'app-login',
@@ -18,9 +30,17 @@ export class Login {
   protected readonly loading = this.auth.loading;
   protected readonly error = this.auth.error;
   protected readonly demoMode = this.auth.demoMode;
+  protected readonly demoShortcuts = DEMO_SHORTCUTS;
   protected readonly currentYear = new Date().getFullYear();
 
   constructor() {
+    // Con la sesión ya abierta (p. ej. al abrir la app instalada), no tiene
+    // sentido volver a pedir acceso: cada rol va directo a su inicio.
+    if (this.auth.user()) {
+      void this.enterDashboard(this.auth.user());
+      return;
+    }
+
     // En la app híbrida el acceso se hace por redirección: al volver de
     // Microsoft se aterriza aquí de nuevo y hay que recoger la sesión.
     void this.resumeRedirectSignIn();
@@ -38,13 +58,18 @@ export class Login {
     await this.enterDashboard(await this.auth.loginWithMicrosoft());
   }
 
-  /** Solo en demostración: permite recorrer el dashboard de administración. */
-  protected async signInAsDemoAdmin(): Promise<void> {
+  /**
+   * Solo en demostración: entra con una cuenta simulada de administración o de
+   * seguridad para recorrer su dashboard.
+   *
+   * @param profile Cuenta de demostración elegida.
+   */
+  protected async signInAsDemo(profile: Exclude<DemoProfile, 'user'>): Promise<void> {
     if (this.loading()) {
       return;
     }
 
-    await this.enterDashboard(await this.auth.loginAsDemoAdmin());
+    await this.enterDashboard(await this.auth.loginAsDemo(profile));
   }
 
   /** Acceso de visitantes: sin cuenta institucional, registro temporal. */
@@ -61,11 +86,12 @@ export class Login {
     await this.enterDashboard(await this.auth.resumeRedirectSignIn());
   }
 
+  /** Lleva a cada rol a su propio inicio (ver `ROLE_HOME`). */
   private async enterDashboard(user: AuthUser | null): Promise<void> {
     if (!user) {
       return;
     }
 
-    await this.router.navigate([user.role === 'admin' ? '/admin' : '/inicio']);
+    await this.router.navigateByUrl(homeFor(user));
   }
 }

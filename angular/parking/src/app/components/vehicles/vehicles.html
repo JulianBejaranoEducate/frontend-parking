@@ -1,0 +1,114 @@
+<main class="page">
+  <header class="page__head">
+    <h1 class="page__title">Vehículos</h1>
+    <p class="page__subtitle">Consulta tus vehículos institucionales y muestra su código QR en portería.</p>
+  </header>
+
+  <section class="card" aria-labelledby="vehicles-title">
+    <h2 class="card__title" id="vehicles-title">Tus vehículos</h2>
+
+    @if (loading()) {
+      <p class="empty">Consultando tus vehículos…</p>
+    } @else if (error(); as message) {
+      <p class="empty">{{ message }}</p>
+    } @else if (vehicles().length) {
+      <ul class="vehicles">
+        @for (vehicle of vehicles(); track vehicle.id) {
+          <li class="vehicle">
+            <span class="vehicle__icon" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                @switch (vehicle.type) {
+                  @case ('moto') {
+                    <circle cx="5.5" cy="16.5" r="3" />
+                    <circle cx="18.5" cy="16.5" r="3" />
+                    <path d="M5.5 16.5h4l2.5-5h3.5l3 5M12 11.5 10.5 8H8M15.5 11.5 14 7.5h2.5" />
+                  }
+                  @case ('scooter') {
+                    <circle cx="5" cy="17.5" r="2.5" />
+                    <circle cx="19" cy="17.5" r="2.5" />
+                    <path d="M7.5 17.5h9M19 17.5 16 5M14 5h4" />
+                  }
+                  @default {
+                    <circle cx="5.5" cy="16.5" r="3.5" />
+                    <circle cx="18.5" cy="16.5" r="3.5" />
+                    <path d="M5.5 16.5H12L9 9zM9 9h6.5l3 7.5M15.5 9 12 16.5M9 9V7M7.5 7h3M15.5 9l-1-2.5M13.5 6.5h2.5" />
+                  }
+                }
+              </svg>
+            </span>
+
+            <div class="vehicle__info">
+              <p class="vehicle__title">
+                <span [class.plate]="!!vehicle.plate">{{ vehicleTitle(vehicle) }}</span>
+                <span class="chip" [class]="'chip ' + (vehicle.isAuthorized ? 'chip--inside' : 'chip--neutral')">
+                  {{ statusLabel(vehicle) }}
+                </span>
+              </p>
+              @if (vehicleDetails(vehicle); as details) {
+                <p class="vehicle__details">{{ details }}</p>
+              }
+            </div>
+
+            <button type="button" class="small-btn small-btn--primary" (click)="showQr(vehicle)">
+              Ver código QR
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p class="empty">Todavía no has registrado ningún vehículo.</p>
+    }
+  </section>
+</main>
+
+<!-- ============================ Código QR ============================ -->
+<dialog #qrDialog class="qr-dialog" (close)="onQrDialogClosed()" (click)="onBackdropClick($event)">
+  <div class="qr-dialog__content">
+    <button type="button" class="icon-btn qr-dialog__close" aria-label="Cerrar" (click)="closeQr()">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 6l12 12M18 6 6 18" />
+      </svg>
+    </button>
+
+    @if (qrVehicle(); as vehicle) {
+      <h2 class="qr-dialog__title">
+        <span [class.plate]="!!vehicle.plate">{{ vehicleTitle(vehicle) }}</span>
+      </h2>
+      <p class="qr-dialog__hint">Muéstraselo a portería para tu ingreso.</p>
+    }
+
+    @if (qrLoading()) {
+      <p class="qr-dialog__status">Generando código QR…</p>
+    } @else if (qrError(); as message) {
+      <p class="qr-dialog__status" role="alert">{{ message }}</p>
+    } @else if (qrDataUrl(); as image) {
+      <img
+        class="qr-dialog__image"
+        [src]="image"
+        alt="Código QR del vehículo"
+        width="260"
+        height="260"
+        (contextmenu)="$event.preventDefault()"
+      />
+      <p class="qr-dialog__disclaimer">
+        No lo compartas ni lo dejes visible para otras personas: quien lo tenga puede usarlo para identificar este
+        vehículo.
+      </p>
+    }
+  </div>
+</dialog>

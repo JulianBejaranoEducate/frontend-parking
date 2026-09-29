@@ -1,132 +1,237 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { ParkingService } from '../../core/services/parking.service';
-import { VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
+import {
+  type BackendAccessRecord,
+  type BackendParkingZone,
+  type BackendVehicleStatus,
+  ParkingApiService,
+} from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
+import {
+  type BackendStudent,
+  type BackendUserVehicle,
+  StudentsApiService,
+} from '../../core/services/modules/students-student-panel/students-api.sp.service';
 import { signInForTest } from '../../testing/demo-session';
 import { MainDashboard } from './main-dashboard';
+
+const vehicle = (
+  plate: string,
+  type: string,
+  overrides: Partial<BackendUserVehicle> = {},
+): BackendUserVehicle => ({
+  plate,
+  brand: 'Yamaha',
+  model: 2022,
+  color: 'Negro',
+  type,
+  is_authorized: true,
+  id_owner: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
+  ...overrides,
+});
+
+const student = (vehicles: BackendUserVehicle[]): BackendStudent => ({
+  id: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
+  name: 'test s',
+  email: 'test@test.com',
+  roleId: '3',
+  status_user: true,
+  vehicles,
+});
+
+class StudentsApiServiceStub {
+  student: BackendStudent = student([]);
+  fail = false;
+
+  findById(_id: string): Promise<BackendStudent> {
+    return this.fail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.student);
+  }
+}
+
+const now = Date.now();
+const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString();
+const hoursAgo = (n: number) => new Date(now - n * 3_600_000).toISOString();
+
+const record = (
+  id: number,
+  plate: string,
+  entryDateTime: string,
+  exitDateTime: string | null,
+): BackendAccessRecord => ({ id, plate, visitorId: null, zoneType: 'moto', entryDateTime, exitDateTime });
+
+/** No extiende ParkingApiService (que inyecta HttpClient) para no tener que proveerlo. */
+class ParkingApiServiceStub {
+  zoneRows: BackendParkingZone[] = [
+    { id: 1, vehicleType: 'moto', totalCapacity: 60, availableSpaces: 53 },
+    { id: 2, vehicleType: 'bicicleta', totalCapacity: 30, availableSpaces: 27 },
+    { id: 3, vehicleType: 'scooter', totalCapacity: 20, availableSpaces: 18 },
+  ];
+  /** Historial por placa. Por defecto, KZT45F: cuatro estancias repartidas en 20 días, una en curso. */
+  historyByPlate: Record<string, BackendAccessRecord[]> = {
+    KZT45F: [
+      record(1, 'KZT45F', daysAgo(20), daysAgo(19.9)),
+      record(2, 'KZT45F', daysAgo(10), daysAgo(9.9)),
+      record(3, 'KZT45F', daysAgo(3), daysAgo(2.9)),
+      record(4, 'KZT45F', hoursAgo(2), null),
+    ],
+  };
+  zonesFail = false;
+  historyFail = false;
+  historyCalls: string[] = [];
+
+  zones(): Promise<BackendParkingZone[]> {
+    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
+  }
+
+  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
+    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
+    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
+  }
+
+  history(plate: string): Promise<BackendAccessRecord[]> {
+    this.historyCalls.push(plate);
+    return this.historyFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.historyByPlate[plate] ?? []);
+  }
+
+  status(plate: string): Promise<BackendVehicleStatus> {
+    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
+  }
+}
 
 describe('MainDashboard', () => {
   let component: MainDashboard;
   let fixture: ComponentFixture<MainDashboard>;
-  let parking: ParkingService;
+  let studentsApi: StudentsApiServiceStub;
+  let parkingApi: ParkingApiServiceStub;
 
-  beforeEach(async () => {
+  const configure = async () => {
+    studentsApi = new StudentsApiServiceStub();
+    studentsApi.student = student([vehicle('KZT45F', 'moto')]);
+    parkingApi = new ParkingApiServiceStub();
+
     await TestBed.configureTestingModule({
       imports: [MainDashboard],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: StudentsApiService, useValue: studentsApi },
+        { provide: ParkingApiService, useValue: parkingApi },
+      ],
     }).compileComponents();
 
     signInForTest('user');
+  };
 
-    parking = TestBed.inject(ParkingService);
+  const create = async () => {
     fixture = TestBed.createComponent(MainDashboard);
     component = fixture.componentInstance;
     await fixture.whenStable();
-  });
+  };
 
   const host = () => fixture.nativeElement as HTMLElement;
 
   const api = () =>
     component as unknown as {
-      menuOpen: () => boolean;
-      toggleMenu: () => void;
       greeting: () => string;
       elapsedSince: (date: Date) => string;
-      status: (zone: any) => string;
-      freeSpots: (zone: any) => number;
-      occupancyPercent: (zone: any) => number;
       historyRange: () => number;
       setHistoryRange: (days: number) => void;
       filteredStays: () => unknown[];
+      vehiclesLoading: () => boolean;
+      vehiclesError: () => string | null;
     };
 
   const vehicleRows = () => [...host().querySelectorAll('.vehicle')];
 
-  it('should create', () => {
+  it('should create', async () => {
+    await configure();
+    await create();
+
     expect(component).toBeTruthy();
   });
 
-  it('muestra las tarjetas de resumen y las tres secciones del dashboard', () => {
+  it('muestra las tarjetas de resumen y las tres secciones del dashboard', async () => {
+    await configure();
+    await create();
+
     expect(host().querySelectorAll('.tile').length).toBe(3);
     expect(
       [...host().querySelectorAll('.card__title')].map((t) => t.firstChild?.textContent?.trim()),
     ).toEqual(['Disponibilidad', 'Mis vehículos', 'Historial de entradas y salidas']);
   });
 
-  it('la hamburguesa abre y cierra el menú', () => {
-    const before = api().menuOpen();
-    api().toggleMenu();
+  it('solo pinta el contenido: el header y el menú los pone el layout del rol', async () => {
+    await configure();
+    await create();
 
-    expect(api().menuOpen()).toBe(!before);
+    expect(host().querySelector('app-header')).toBeNull();
+    expect(host().querySelector('app-sidebar')).toBeNull();
   });
 
-  // ---- Mis vehículos -------------------------------------------------------------
+  // ---- Mis vehículos (backend real, GET /users/:id) -------------------------------
 
-  it('lista los vehículos con su estado de aprobación y el cupo usado', () => {
-    const chips = vehicleRows().map((row) => row.querySelector('.chip')?.textContent?.trim());
+  it('mientras consulta el backend, avisa que está cargando', async () => {
+    await configure();
+    fixture = TestBed.createComponent(MainDashboard);
+    component = fixture.componentInstance;
+    // Sin esperar a que resuelva la promesa: el primer render es el de carga.
+    fixture.detectChanges();
 
-    expect(chips).toEqual(['Aprobado', 'Pendiente', 'Rechazado']);
-    expect(host().querySelector('.card__count')?.textContent?.trim()).toBe('3 de 5');
+    expect(host().querySelector('.empty')?.textContent).toContain('Consultando');
   });
 
-  it('la placa es el título cuando existe; si no, el tipo de vehículo', () => {
-    const titles = vehicleRows().map((row) =>
-      row.querySelector('.vehicle__title span')?.textContent?.trim(),
-    );
+  it('si el backend falla, avisa y no inventa vehículos', async () => {
+    await configure();
+    studentsApi.fail = true;
+    await create();
 
-    expect(titles).toEqual(['KZT45F', 'Bicicleta', 'Scooter']);
+    expect(api().vehiclesLoading()).toBe(false);
+    expect(api().vehiclesError()).toContain('No pudimos consultar');
+    expect(vehicleRows()).toHaveLength(0);
   });
 
-  it('muestra el motivo cuando la administración rechazó un vehículo', () => {
-    expect(vehicleRows()[2].querySelector('.vehicle__note')?.textContent).toContain(
-      'El propietario no coincide con la cuenta',
-    );
-  });
+  it('lista los vehículos de verdad, con su estado real (dentro/fuera) y el cupo usado', async () => {
+    await configure();
+    studentsApi.student = student([
+      vehicle('KZT45F', 'moto', { is_authorized: true }),
+      vehicle('uuid-bici', 'bicicleta', { is_authorized: false, brand: 'Trek', color: 'Verde' }),
+    ]);
+    await create();
 
-  it('la papelera pide confirmación antes de eliminar', async () => {
-    host().querySelector<HTMLButtonElement>('#delete-reg-kzt45f')?.click();
-    await fixture.whenStable();
-
-    expect(vehicleRows()).toHaveLength(3);
-    expect(host().querySelector('.vehicle__confirm')).toBeTruthy();
-  });
-
-  it('cancelar la confirmación deja el vehículo intacto', async () => {
-    host().querySelector<HTMLButtonElement>('#delete-reg-kzt45f')?.click();
-    await fixture.whenStable();
-    host().querySelector<HTMLButtonElement>('#cancel-delete-reg-kzt45f')?.click();
-    await fixture.whenStable();
-
-    expect(vehicleRows()).toHaveLength(3);
-    expect(host().querySelector('.vehicle__confirm')).toBeNull();
-  });
-
-  it('confirmar elimina el vehículo, actualiza el cupo y lo anuncia', async () => {
-    host().querySelector<HTMLButtonElement>('#delete-reg-bianchi')?.click();
-    await fixture.whenStable();
-    host().querySelector<HTMLButtonElement>('.small-btn--danger')?.click();
-    await fixture.whenStable();
-
-    expect(vehicleRows()).toHaveLength(2);
+    const statuses = vehicleRows().map((row) => row.querySelector('.chip')?.textContent?.trim());
+    expect(statuses).toEqual(['Activo', 'Inactivo']);
     expect(host().querySelector('.card__count')?.textContent?.trim()).toBe('2 de 5');
-    expect(host().querySelector('[aria-live="polite"]')?.textContent).toContain('Bicicleta se eliminó');
   });
 
-  it('eliminar un vehículo no borra su historial', async () => {
-    const staysBefore = parking.stays().length;
+  it('la placa es el título cuando el backend la asigna de verdad (moto); si no, el tipo de vehículo', async () => {
+    await configure();
+    studentsApi.student = student([
+      vehicle('KZT45F', 'moto'),
+      // El backend genera su propio identificador para lo que no lleva placa real.
+      vehicle('5333040a-7100-466c-adcf-a1f581798453', 'scooter'),
+    ]);
+    await create();
 
-    parking.removeVehicle('reg-kzt45f');
-    await fixture.whenStable();
-
-    expect(parking.stays().length).toBe(staysBefore);
+    const titles = vehicleRows().map((row) => row.querySelector('.vehicle__title span')?.textContent?.trim());
+    expect(titles).toEqual(['KZT45F', 'Scooter']);
   });
 
-  it('con 5 vehículos, agregar queda bloqueado y explica por qué', async () => {
-    const registrations = TestBed.inject(VehicleRegistrationService);
-    const bike = { owner: { firstName: 'Julian', lastName: 'Bejarano' }, vehicle: { type: 'bicicleta' as const }, documents: [] };
-    registrations.submit(bike);
-    registrations.submit(bike);
-    await fixture.whenStable();
+  it('sin vehículos, muestra el estado vacío', async () => {
+    await configure();
+    studentsApi.student = student([]);
+    await create();
+
+    expect(host().querySelector('.empty')?.textContent).toContain('Todavía no has registrado');
+  });
+
+  it('con 5 vehículos reales, agregar queda bloqueado y explica por qué', async () => {
+    await configure();
+    studentsApi.student = student([
+      vehicle('AAA11A', 'moto'),
+      vehicle('BBB22B', 'moto'),
+      vehicle('CCC33C', 'moto'),
+      vehicle('DDD44D', 'moto'),
+      vehicle('EEE55E', 'moto'),
+    ]);
+    await create();
 
     const add = host().querySelector('#add-vehicle');
     expect(add?.getAttribute('aria-disabled')).toBe('true');
@@ -134,9 +239,12 @@ describe('MainDashboard', () => {
     expect(host().querySelector('#vehicles-limit')?.textContent).toContain('máximo de 5');
   });
 
-  // ---- Historial -------------------------------------------------------------------
+  // ---- Historial (backend real, GET /parking/historical/:plate) ---------------------
 
-  it('ofrece los cuatro periodos y arranca en 7 días', () => {
+  it('ofrece los cuatro periodos y arranca en 7 días', async () => {
+    await configure();
+    await create();
+
     const labels = [...host().querySelectorAll('.range__label')].map((l) => l.textContent?.trim());
 
     expect(labels).toEqual(['1 día', '7 días', '15 días', '30 días']);
@@ -144,6 +252,9 @@ describe('MainDashboard', () => {
   });
 
   it('ampliar el periodo nunca muestra menos estancias', async () => {
+    await configure();
+    await create();
+
     const counts: number[] = [];
 
     for (const days of [1, 7, 15, 30]) {
@@ -156,34 +267,65 @@ describe('MainDashboard', () => {
     expect(counts[3]).toBeGreaterThan(counts[0]);
   });
 
-  it('la tabla tiene las columnas pedidas y marca la estancia en curso', () => {
+  it('la tabla tiene las columnas pedidas y marca la estancia en curso', async () => {
+    await configure();
+    await create();
+
     const headers = [...host().querySelectorAll('.data-table th')].map((th) => th.textContent?.trim());
 
     expect(headers).toEqual(['Fecha', 'Placa', 'Entrada', 'Salida', 'Permanencia']);
     expect(host().querySelector('.data-table .chip--inside')?.textContent?.trim()).toBe('En curso');
   });
 
-  // ---- Disponibilidad y utilidades ---------------------------------------------------
+  it('si el backend del historial falla, lo avisa y no inventa movimientos', async () => {
+    await configure();
+    parkingApi.historyFail = true;
+    await create();
 
-  it('clasifica cada zona por ocupación', () => {
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 3 })).toBe('available');
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 9 })).toBe('filling');
-    expect(api().status({ id: 'z', name: 'z', accepts: 'moto', capacity: 10, occupied: 10 })).toBe('full');
+    expect(
+      host().querySelector('#history-title')?.closest('.card')?.querySelector('.empty')?.textContent,
+    ).toContain('No pudimos consultar');
   });
 
-  it('calcula cupos libres y porcentaje de ocupación', () => {
-    const zone = { id: 'z', name: 'z', accepts: 'moto' as const, capacity: 60, occupied: 45 };
+  it('el historial solo pide movimientos de los vehículos propios', async () => {
+    await configure();
+    studentsApi.student = student([vehicle('KZT45F', 'moto'), vehicle('AAA11A', 'moto')]);
+    await create();
 
-    expect(api().freeSpots(zone)).toBe(15);
-    expect(api().occupancyPercent(zone)).toBe(75);
+    expect(parkingApi.historyCalls.sort()).toEqual(['AAA11A', 'KZT45F']);
   });
 
-  it('resume el tiempo transcurrido en horas y minutos', () => {
+  // ---- Disponibilidad (backend real, GET /parkingZone) y utilidades -----------------
+
+  it('la disponibilidad es la misma que ve portería: una fila por tipo de vehículo', async () => {
+    await configure();
+    await create();
+
+    expect(host().querySelectorAll('app-zone-availability .zone')).toHaveLength(3);
+  });
+
+  it('si el backend de zonas falla, lo avisa y no inventa cupos', async () => {
+    await configure();
+    parkingApi.zonesFail = true;
+    await create();
+
+    expect(
+      host().querySelector('#zones-title')?.closest('.card')?.querySelector('.empty')?.textContent,
+    ).toContain('No pudimos consultar');
+  });
+
+  it('resume el tiempo transcurrido en horas y minutos', async () => {
+    await configure();
+    await create();
+
     expect(api().elapsedSince(new Date(Date.now() - 96 * 60_000))).toBe('1 h 36 min');
     expect(api().elapsedSince(new Date(Date.now() - 20 * 60_000))).toBe('20 min');
   });
 
-  it('saluda según la hora del día', () => {
+  it('saluda según la hora del día', async () => {
+    await configure();
+    await create();
+
     expect(['Buenos días', 'Buenas tardes', 'Buenas noches']).toContain(api().greeting());
   });
 });

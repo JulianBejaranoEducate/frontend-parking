@@ -18,7 +18,7 @@
 
 .vehicle {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.5rem 0.875rem;
   align-items: center;
   padding: 0.75rem 0.5rem 0.75rem 0.875rem;
@@ -59,109 +59,7 @@
   color: var(--brand-text-muted);
 }
 
-/* Qué pidió la administración: se lee sin abrir nada. */
-.vehicle__note {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--brand-text);
-}
-
-.vehicle__actions {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-}
-
-.vehicle__delete {
-  color: var(--brand-secondary);
-}
-
-.vehicle__delete svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.vehicle__delete:hover {
-  color: var(--brand-secondary-dark);
-  background: var(--brand-secondary-soft);
-}
-
-.vehicle--confirming {
-  border-color: var(--brand-secondary-ring);
-}
-
-/* En móvil la confirmación baja a su propia fila, a todo el ancho. */
-.vehicle__confirm {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1 / -1;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.vehicle__question {
-  flex-basis: 100%;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--brand-secondary-dark);
-}
-
-.vehicle__confirm .small-btn {
-  flex: 1;
-}
-
-/* ---------- Disponibilidad ---------- */
-
-.zones {
-  display: grid;
-  gap: 1.125rem 1.75rem;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.zone__head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.zone__name {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--brand-text);
-}
-
-/* Barra de ocupación: un solo tono, porque mide magnitud, no categoría. */
-.meter {
-  height: 0.5rem;
-  margin-top: 0.5rem;
-  overflow: hidden;
-  background: var(--brand-primary-soft);
-  border-radius: 999px;
-}
-
-.meter__fill {
-  display: block;
-  height: 100%;
-  background: var(--brand-primary);
-  border-radius: 999px;
-  transition: width 0.3s ease;
-}
-
-.zone__count {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--brand-text-muted);
-}
-
-.zone__count strong {
-  color: var(--brand-text);
-}
+/* La disponibilidad por zona vive en el componente zone-availability. */
 
 /* ---------- Historial ---------- */
 
@@ -240,38 +138,12 @@
 
 /* ---------- Adaptaciones por pantalla ---------- */
 
-@media (min-width: 40rem) {
-  /* Con espacio, la confirmación cabe en la misma fila del vehículo. */
-  .vehicle__confirm {
-    grid-column: auto;
-  }
-
-  .vehicle__question {
-    flex-basis: auto;
-    margin-right: 0.25rem;
-  }
-
-  .vehicle__confirm .small-btn {
-    flex: none;
-  }
-}
-
 @media (min-width: 48rem) {
-  .zones {
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  }
-
   .history-table {
     display: block;
   }
 
   .stays {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .meter__fill {
-    transition: none;
   }
 }

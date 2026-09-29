@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { SIDEBAR_ITEMS, Sidebar } from './sidebar';
+import { USER_NAVIGATION_ITEMS } from '../main-dashboard/user-navigation';
+import { Sidebar } from './sidebar';
 
 describe('Sidebar', () => {
   let component: Sidebar;
@@ -15,6 +16,7 @@ describe('Sidebar', () => {
     fixture = TestBed.createComponent(Sidebar);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('open', true);
+    fixture.componentRef.setInput('items', USER_NAVIGATION_ITEMS);
     await fixture.whenStable();
   });
 
@@ -24,20 +26,32 @@ describe('Sidebar', () => {
     expect(component).toBeTruthy();
   });
 
-  it('lista las opciones iniciales del menú', () => {
+  it('lista las opciones que recibe', () => {
     const labels = [...host().querySelectorAll('.menu__label')].map((item) => item.textContent?.trim());
 
-    expect(labels).toEqual(['Registrar vehículo', 'Parqueaderos', 'Estadísticas']);
+    expect(labels).toEqual(['Dashboard', 'Registrar vehículo', 'Vehículos', 'Parqueaderos', 'Estadísticas']);
+  });
+
+  it('sin opciones no muestra ningún menú, ni siquiera el de otro rol', async () => {
+    fixture.componentRef.setInput('items', []);
+    await fixture.whenStable();
+
+    expect(host().querySelectorAll('.menu__item')).toHaveLength(0);
   });
 
   it('las opciones con ruta son enlaces reales', () => {
     const link = host().querySelector<HTMLAnchorElement>('a.menu__item');
 
-    expect(link?.textContent).toContain('Registrar vehículo');
-    expect(link?.getAttribute('href')).toBe('/vehiculos/registrar');
+    expect(link?.textContent).toContain('Dashboard');
+    expect(link?.getAttribute('href')).toBe('/inicio');
   });
 
   it('una opción sin ruta marca la selección y avisa para que el cajón se cierre en móvil', async () => {
+    // Ninguna opción del usuario queda sin ruta hoy: se prueba con una propia,
+    // como ya hace la prueba de "contadores" más abajo.
+    fixture.componentRef.setInput('items', [{ id: 'ajustes', label: 'Ajustes', icon: 'M0 0h24v24H0z' }]);
+    await fixture.whenStable();
+
     let closedCount = 0;
     component.closed.subscribe(() => (closedCount += 1));
 
@@ -50,7 +64,7 @@ describe('Sidebar', () => {
     expect(closedCount).toBe(1);
   });
 
-  it('muestra contadores y un contexto cuando otra pantalla los pide', async () => {
+  it('muestra contadores y un contexto cuando el rol los aporta', async () => {
     fixture.componentRef.setInput('context', 'Administración');
     fixture.componentRef.setInput('items', [
       { id: 'pendientes', label: 'Pendientes', icon: 'M0 0h24v24H0z', route: '/admin/pendientes', badge: 4, badgeLabel: 'por revisar' },
@@ -74,13 +88,5 @@ describe('Sidebar', () => {
     const aside = host().querySelector('.sidebar');
     expect(aside?.getAttribute('aria-hidden')).toBe('true');
     expect(aside?.classList.contains('sidebar--open')).toBe(false);
-  });
-
-  it('expone las opciones como dato reutilizable por otras pantallas', () => {
-    expect(SIDEBAR_ITEMS.map((item) => item.id)).toEqual([
-      'registrar-vehiculo',
-      'parqueaderos',
-      'estadisticas',
-    ]);
   });
 });

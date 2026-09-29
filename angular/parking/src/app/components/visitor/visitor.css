@@ -163,21 +163,6 @@
   color: var(--brand-text-muted);
 }
 
-/* Ocupa la celda libre cuando el vehículo elegido no pide más datos. */
-.grid__note {
-  display: flex;
-  align-items: center;
-  align-self: end;
-  min-height: 3rem;
-  padding: 0.625rem 0.875rem;
-  margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.35;
-  color: var(--brand-text-muted);
-  background: var(--brand-primary-soft);
-  border-radius: 0.625rem;
-}
-
 .field--standalone {
   margin-top: 1.375rem;
 }

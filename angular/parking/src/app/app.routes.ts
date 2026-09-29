@@ -1,8 +1,16 @@
 import { Routes } from '@angular/router';
-import { adminGuard, authGuard } from './core/guards/auth.guards';
+import { redirectToHome, roleGuard } from './core/guards/auth.guards';
 
+/**
+ * Rutas de la aplicación (ADR-010 en planeacion-desarrollo.md).
+ *
+ * Hay rutas públicas (acceso y visitantes) y un grupo por rol. Cada grupo se
+ * protege con `canMatch`: para otro rol el grupo no existe, así que ni se evalúa
+ * ni se descarga su código, y la dirección cae en el comodín final, que lleva a
+ * cada quien a su propio inicio.
+ */
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'login' },
+  { path: '', pathMatch: 'full', redirectTo: redirectToHome },
   {
     path: 'login',
     title: 'Uni-parking | Acceso',
@@ -14,25 +22,21 @@ export const routes: Routes = [
     loadComponent: () => import('./components/visitor/visitor').then((m) => m.Visitor),
   },
   {
-    path: 'inicio',
-    title: 'Uni-parking | Inicio',
-    loadComponent: () => import('./components/main-dashboard/main-dashboard').then((m) => m.MainDashboard),
+    path: 'admin',
+    canMatch: [roleGuard('admin')],
+    loadChildren: () => import('./components/admin-dashboard/admin.routes'),
   },
   {
-    // ?actualizar=<id> abre el formulario solo para reenviar documentos.
-    path: 'vehiculos/registrar',
-    title: 'Uni-parking | Registrar vehículo',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./components/register-vehicle/register-vehicle').then((m) => m.RegisterVehicle),
+    path: 'seguridad',
+    canMatch: [roleGuard('security')],
+    loadChildren: () => import('./components/security-dashboard/security.routes'),
   },
-  { path: 'admin', pathMatch: 'full', redirectTo: 'admin/resumen' },
   {
-    // :section elige la vista; ?solicitud=<id> abre la revisión de una solicitud.
-    path: 'admin/:section',
-    title: 'Uni-parking | Administración',
-    canActivate: [adminGuard],
-    loadComponent: () => import('./components/admin-dashboard/admin-dashboard').then((m) => m.AdminDashboard),
+    // Las rutas de usuarios (/inicio, /vehiculos/registrar) cuelgan de la raíz,
+    // por eso este grupo va después de los que tienen prefijo propio.
+    path: '',
+    canMatch: [roleGuard('user')],
+    loadChildren: () => import('./components/main-dashboard/user.routes'),
   },
-  { path: '**', redirectTo: 'login' },
+  { path: '**', redirectTo: redirectToHome },
 ];

@@ -26,10 +26,7 @@ export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
 // ---- Documentos ------------------------------------------------------------------
 
 export type DocumentKind =
-  | 'property-card-front'
-  | 'property-card-back'
-  | 'frame-serial'
-  | 'purchase-proof';
+  'property-card-front' | 'property-card-back' | 'frame-serial' | 'purchase-proof';
 
 export interface DocumentRequirement {
   kind: DocumentKind;
@@ -99,7 +96,8 @@ export function missingRequiredDocuments(
   documents: readonly Pick<RegistrationDocument, 'kind'>[],
 ): DocumentRequirement[] {
   return DOCUMENT_REQUIREMENTS[type].filter(
-    (requirement) => requirement.required && !documents.some((doc) => doc.kind === requirement.kind),
+    (requirement) =>
+      requirement.required && !documents.some((doc) => doc.kind === requirement.kind),
   );
 }
 
@@ -149,6 +147,16 @@ export const REJECTION_REASONS = [
   'Otro motivo',
 ] as const;
 
+/**
+ * Resultado de crear el vehículo de verdad en el backend real
+ * (`VehiclesApiService.postCreate`), aparte del estado de aprobación de la
+ * solicitud (que sigue siendo de demostración, PEN-020): antes no había
+ * ninguna forma de saber, mirando la propia solicitud, si esa llamada tuvo
+ * éxito o no.
+ */
+export type BackendVehicleCreation =
+  { status: 'created'; vehicleId: string } | { status: 'failed' };
+
 export interface VehicleRegistration {
   id: string;
   applicant: Applicant;
@@ -160,6 +168,8 @@ export interface VehicleRegistration {
   updatedAt: Date;
   /** Decisiones de la administración, de la más antigua a la más reciente. */
   reviews: ReviewDecision[];
+  /** `undefined` mientras no se haya intentado crear el vehículo real todavía. */
+  backendVehicleCreation?: BackendVehicleCreation;
 }
 
 export function latestReview(registration: VehicleRegistration): ReviewDecision | null {

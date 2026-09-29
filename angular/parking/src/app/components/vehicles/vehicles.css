@@ -1,0 +1,140 @@
+/* "Vehículos" del panel de estudiante: lista completa + código QR por vehículo.
+   El armazón (shell, tarjetas, botones pequeños) vive en styles.css porque lo
+   comparte el resto de los dashboards. */
+
+:host {
+  display: block;
+}
+
+/* ---------- Lista de vehículos ---------- */
+
+.vehicles {
+  display: grid;
+  gap: 0.625rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.vehicle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.5rem 0.875rem;
+  align-items: center;
+  padding: 0.75rem 0.875rem;
+  background: color-mix(in srgb, var(--brand-border) 30%, var(--brand-surface));
+  border: 1px solid var(--brand-border);
+  border-radius: 0.875rem;
+}
+
+.vehicle__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+  border-radius: 0.75rem;
+}
+
+.vehicle__icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.vehicle__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--brand-text);
+}
+
+.vehicle__details {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--brand-text-muted);
+}
+
+/* En móvil, el botón baja a su propia fila para no apretar el título. */
+@media (max-width: 26rem) {
+  .vehicle {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .vehicle > .small-btn {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- Panel del código QR ---------- */
+
+.qr-dialog {
+  padding: 0;
+  border: none;
+  border-radius: 1rem;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 20%);
+  background: var(--brand-surface);
+  max-width: min(90vw, 22rem);
+}
+
+.qr-dialog::backdrop {
+  background: rgb(10 15 30 / 55%);
+}
+
+.qr-dialog__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem 1.5rem;
+  text-align: center;
+}
+
+.qr-dialog__close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+
+.qr-dialog__title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--brand-text);
+}
+
+.qr-dialog__hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--brand-text-muted);
+}
+
+.qr-dialog__status {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  font-size: 0.875rem;
+  color: var(--brand-text-muted);
+}
+
+.qr-dialog__image {
+  width: 260px;
+  height: 260px;
+  border-radius: 0.5rem;
+  /* Fricción menor: no evita una captura de pantalla real, solo dificulta
+     "Guardar imagen" con clic derecho o mantener presionado. */
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.qr-dialog__disclaimer {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--brand-text-muted);
+}

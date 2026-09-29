@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { timeAgo } from '../../core/models/notification';
+import type { DemoProfile } from '../../core/services/auth.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { signInForTest } from '../../testing/demo-session';
 import { Notifications } from './notifications';
@@ -10,7 +11,7 @@ describe('Notifications', () => {
   let fixture: ComponentFixture<Notifications>;
   let service: NotificationService;
 
-  const create = async (profile: 'user' | 'admin' | null) => {
+  const create = async (profile: DemoProfile | null) => {
     await TestBed.configureTestingModule({
       imports: [Notifications],
       providers: [provideRouter([])],
@@ -120,6 +121,23 @@ describe('Notifications', () => {
       const link = host().querySelector<HTMLAnchorElement>('a.note__link');
       expect(link?.textContent?.trim()).toBe('Nueva solicitud de registro');
       expect(link?.getAttribute('href')).toBe('/admin/pendientes?solicitud=reg-mnb67c');
+    });
+
+    it('no ve los avisos del personal de seguridad', async () => {
+      await openPanel();
+
+      expect(host().textContent).not.toContain('Vehículo con ingreso de ayer');
+    });
+  });
+
+  describe('como personal de seguridad', () => {
+    beforeEach(() => create('security'));
+
+    it('recibe los avisos de portería, no los de administración ni los de usuarios', async () => {
+      await openPanel();
+
+      const titles = [...host().querySelectorAll('.note__title')].map((t) => t.textContent?.trim());
+      expect(titles).toEqual(['Vehículo con ingreso de ayer']);
     });
   });
 
