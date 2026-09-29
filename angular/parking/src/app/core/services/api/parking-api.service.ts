@@ -1,6 +1,6 @@
 /**
- * Habla con el módulo Parking del backend (rama `camilo-dev`): zonas de
- * parqueo y registros de acceso (ADR-021 en planeacion-desarrollo.md).
+ * Módulo Parking del backend: zonas de parqueo (`/parkingZone`) y registros de
+ * acceso (`/parking`), ADR-021.
  *
  * Un ingreso abre un registro en `access_record` y ocupa un puesto de la zona
  * del tipo de vehículo; la salida cierra ese registro y libera el puesto.
@@ -9,7 +9,9 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { type Observable, firstValueFrom, map } from 'rxjs';
-import { environment } from '../../../../environments/environments';
+import { environment } from '../../../environments/environments';
+import type { ParkingZone } from '../../models/parking';
+import type { VehicleType } from '../../models/vehicle';
 
 /** Zona de parqueo de un tipo de vehículo, tal como la devuelve `GET /parkingZone`. */
 export interface BackendParkingZone {
@@ -36,6 +38,24 @@ interface AccessRecordResponse {
   data: BackendAccessRecord;
 }
 
+const PLURALS: Record<VehicleType, string> = { moto: 'motos', bicicleta: 'bicicletas', scooter: 'scooters' };
+
+/** Nombre visible de la zona de un tipo de vehículo, p. ej. "Zona de motos". */
+export function zoneName(vehicleType: string): string {
+  return `Zona de ${PLURALS[vehicleType as VehicleType] ?? vehicleType}`;
+}
+
+/** Una zona del backend lista para pantalla: los ocupados son la capacidad menos los libres. */
+export function toParkingZone(zone: BackendParkingZone): ParkingZone {
+  return {
+    id: String(zone.id),
+    name: zoneName(zone.vehicleType),
+    accepts: zone.vehicleType as VehicleType,
+    capacity: zone.totalCapacity,
+    occupied: zone.totalCapacity - zone.availableSpaces,
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ParkingApiService {
   private readonly http = inject(HttpClient);
@@ -50,6 +70,11 @@ export class ParkingApiService {
   /** Quién está dentro ahora: registros sin salida, del ingreso más reciente al más antiguo. */
   openRecords(): Promise<BackendAccessRecord[]> {
     return firstValueFrom(this.http.get<BackendAccessRecord[]>(`${this.accessUrl}/records/open`));
+  }
+
+  /** Todos los ingresos y salidas de una placa, del más antiguo al más reciente. */
+  history(plate: string): Promise<BackendAccessRecord[]> {
+    return firstValueFrom(this.http.get<BackendAccessRecord[]>(`${this.accessUrl}/historical/${plate}`));
   }
 
   /**

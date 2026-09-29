@@ -1,18 +1,19 @@
 /**
- * Habla con el módulo real de visitantes del backend (rama `camilo-dev` de
- * `Backend_Uni-Parking`; ver "Conexión frontend-backend" en
- * planeacion-desarrollo.md).
+ * Módulo de visitantes del backend (`/visitors`).
  *
  * Los datos del vehículo del visitante viven en su propia fila, no en la tabla
  * de vehículos (esa es solo de la comunidad). Crear el registro no es el
  * ingreso: el ingreso y la salida son registros de acceso que abre y cierra
  * portería con `ParkingApiService` (ADR-021).
+ *
+ * `POST /visitors` es pública (el visitante no tiene cuenta); las demás rutas
+ * piden un token con permiso.
  */
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../../environments/environments';
-import type { DocumentType, VisitorRegistration } from '../../../models/visitor-pass';
+import { environment } from '../../../environments/environments';
+import type { DocumentType, VisitorRegistration } from '../../models/visitor';
 
 /** Visitante tal como lo devuelve el backend: un registro plano, sin vehículo anidado. */
 export interface BackendVisitor {
@@ -42,7 +43,7 @@ interface CreateVisitorPayload {
 }
 
 @Injectable({ providedIn: 'root' })
-export class VisitorApiService {
+export class VisitorsApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/visitors`;
 
@@ -80,15 +81,6 @@ export class VisitorApiService {
     const visitors = await this.findAll();
     // El id lo asigna la base de datos en orden: el mayor es el registro más reciente.
     return visitors.filter(matches).reduce<BackendVisitor | null>((latest, visitor) => (!latest || visitor.id > latest.id ? visitor : latest), null);
-  }
-
-  /**
-   * Dibuja el QR como data URL. La librería se carga con import dinámico para
-   * que su peso no entre en el paquete inicial del formulario.
-   */
-  async renderQrCode(value: string): Promise<string> {
-    const QRCode = await import('qrcode');
-    return QRCode.toDataURL(value, { errorCorrectionLevel: 'M', margin: 1, width: 512 });
   }
 
   private toPayload(visitor: VisitorRegistration): CreateVisitorPayload {

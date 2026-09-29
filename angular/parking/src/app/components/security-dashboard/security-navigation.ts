@@ -11,13 +11,14 @@ const ICONS = {
   incidencias: 'M12 2 1 21h22zm0 4 7.5 13h-15zM11 10h2v5h-2zm0 6h2v2h-2z',
 } satisfies Record<SecuritySection, string>;
 
+/** Menú del personal de seguridad: ocupación, control de acceso y reporte de novedades. */
 export function securityNavigation(): DashboardNavigation {
   return {
     context: 'Seguridad',
     items: signal([
       { id: 'resumen', label: 'Resumen', icon: ICONS.resumen, route: '/seguridad/resumen' },
       { id: 'control', label: 'Control de acceso', icon: ICONS.control, route: '/seguridad/control' },
-      { id: 'incidencias', label: 'Reportar Novedad', icon: ICONS.incidencias, route: '/seguridad/incidencias' },
+      { id: 'incidencias', label: 'Novedades', icon: ICONS.incidencias, route: '/seguridad/incidencias' },
     ]),
   };
 }

@@ -1,23 +1,18 @@
 /**
- * Habla con el módulo de usuarios del backend real, desde el panel del
- * estudiante (fase de conexión; ver "Conexión frontend-backend" en
- * planeacion-desarrollo.md).
+ * Módulo de usuarios del backend (`/users`).
  *
- * Sigue el mismo patrón que `VisitorApiService` y `VehiclesApiService`: un
- * servicio por módulo del backend. El único endpoint en alcance por ahora es
- * `GET /users/:id`, que trae al usuario con sus vehículos institucionales
- * anidados — es la fuente real de "Mis vehículos" en el dashboard.
+ * Todas las rutas piden un token de Firebase con permiso (lo agrega
+ * `authInterceptor`), salvo `POST /users`, que solo pide el token: es el
+ * registro de quien inicia sesión por primera vez y todavía no tiene rol.
  */
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../../../environments/environments';
+import { environment } from '../../../environments/environments';
 
 /**
- * Vehículo tal como viaja anidado en la respuesta de `GET /users/:id`: trae el
- * dueño como `id_owner` (el uid plano). Es una forma distinta de la que
- * devuelve `GET /vehicles` (`VehicleApiService.BackendVehicle`, con el dueño
- * como objeto completo) — mismo backend, dos formas según el endpoint.
+ * Vehículo tal como viaja anidado en `GET /users/:id`: el dueño llega como
+ * `id_owner` (el uid), no como objeto.
  */
 export interface BackendUserVehicle {
   plate: string;
@@ -25,27 +20,51 @@ export interface BackendUserVehicle {
   model: number;
   color: string;
   type: string;
-  /** true = está dentro del parqueadero ahora mismo. */
+  /** Permiso para entrar al parqueadero; no dice si el vehículo está dentro. */
   is_authorized: boolean;
   id_owner: string;
 }
 
-export interface BackendStudent {
+/** Usuario tal como lo devuelve el backend (el `User` de dominio). */
+export interface BackendUser {
   id: string;
   name: string;
   email: string;
+  /** 1 userEstandar · 2 vigilante · 3 administrador · 4 superadmin. */
   roleId: number;
-  vehicles: BackendUserVehicle[];
   status_user: boolean;
+  /** Solo viene en `GET /users/:id`. */
+  vehicles?: BackendUserVehicle[];
 }
 
 @Injectable({ providedIn: 'root' })
-export class StudentsApiService {
+export class UsersApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/users`;
 
-  /** El usuario con sesión y sus vehículos institucionales, tal como los tiene el backend. */
-  findById(id: string): Promise<BackendStudent> {
-    return firstValueFrom(this.http.get<BackendStudent>(`${this.baseUrl}/${id}`));
+  /**
+   * Registra a quien acaba de iniciar sesión o, si ya estaba registrado, solo le
+   * sincroniza el rol en Firebase (el backend responde 201 o 200). Exige correo
+   * institucional.
+   *
+   * @param name Nombre del perfil, tal como lo trae la cuenta de Microsoft.
+   */
+  register(name: string): Promise<BackendUser> {
+    return firstValueFrom(this.http.post<BackendUser>(this.baseUrl, { name }));
+  }
+
+  /** Un usuario con sus vehículos: de aquí sale «Mis vehículos». */
+  findById(id: string): Promise<BackendUser> {
+    return firstValueFrom(this.http.get<BackendUser>(`${this.baseUrl}/${id}`));
+  }
+
+  /** Usuarios dados de baja. */
+  listInactive(): Promise<BackendUser[]> {
+    return firstValueFrom(this.http.get<BackendUser[]>(`${this.baseUrl}/unactive`));
+  }
+
+  /** Reactiva a un usuario dado de baja (`PUT /users/:id`). */
+  restore(id: string): Promise<void> {
+    return firstValueFrom(this.http.put<void>(`${this.baseUrl}/${id}`, {}));
   }
 }

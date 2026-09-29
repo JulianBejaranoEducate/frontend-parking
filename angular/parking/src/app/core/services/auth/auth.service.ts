@@ -1,24 +1,19 @@
-import { InjectionToken, Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import type { User } from 'firebase/auth';
-import { FIREBASE_AUTH_STATE_SUBSCRIBER } from '../auth/firebase-auth-session';
-import { BRAND } from '../config/branding.config';
-import { isFirebaseConfigured } from '../config/firebase.config';
-import { PARKING } from '../config/parking.config';
-import { clearDemo, loadDemo, saveDemo } from '../demo/demo-storage';
-import { UserProfileService } from './user-profile.service';
+import { BRAND } from '../../config/branding.config';
+import { UsersApiService } from '../api/users-api.service';
+import { FIREBASE_AUTH } from './firebase-auth';
 
 /**
- * Roles del sistema. El rol decide qué grupo de rutas existe para la persona
- * (ADR-010): cada rol ve solo su propio dashboard.
+ * Roles del frontend. El rol decide qué grupo de rutas existe para la persona
+ * (ADR-010): cada rol ve solo su propio dashboard. Los visitantes no tienen
+ * cuenta: su formulario es público.
  */
-export type UserRole = 'admin' | 'user' | 'visitor' | 'security';
-
-const USER_ROLES: readonly UserRole[] = ['admin', 'user', 'visitor', 'security'];
+export type UserRole = 'admin' | 'user' | 'security';
 
 /**
- * Vínculo de la persona con la universidad. Llega del directorio institucional
- * (Azure AD / Firestore), no lo elige el usuario. El personal de seguridad es de
- * una empresa externa: su vínculo lo asigna la administración al crear la cuenta.
+ * Vínculo de la persona con la universidad, si el token lo trae en sus claims.
+ * El personal de seguridad es de una empresa externa.
  */
 export type Affiliation = 'estudiante' | 'docente' | 'administrativo' | 'seguridad';
 
@@ -29,275 +24,105 @@ export const AFFILIATION_LABELS: Record<Affiliation, string> = {
   seguridad: 'Personal de seguridad',
 };
 
+/** Cuenta con la sesión abierta. */
 export interface AuthUser {
   uid: string;
   displayName: string;
-  /** Vacío en las cuentas de guardias, que inician sesión con su documento (ADR-009). */
   email: string;
   photoUrl: string | null;
   role: UserRole;
-  /** Null mientras el directorio no informe el vínculo. */
+  /** Null mientras el token no informe el vínculo. */
   affiliation: Affiliation | null;
-  /**
-   * Carrera del estudiante, área de docentes y administrativos, o portería
-   * del personal de seguridad.
-   */
+  /** Carrera, área o portería, si el token la trae. */
   program: string | null;
 }
 
-/** Cuentas simuladas disponibles mientras Firebase no esté configurado. */
-export type DemoProfile = 'user' | 'admin' | 'security' | 'security-relief';
-
-/** Errores de Firebase traducidos a mensajes que sí puede leer el usuario final. */
+/** Errores de Firebase traducidos a mensajes que sí puede leer quien usa la app. */
 const ERROR_MESSAGES: Record<string, string> = {
-  'auth/popup-closed-by-user':
-    'Cerraste la ventana de Microsoft antes de terminar. Inténtalo de nuevo.',
+  'auth/popup-closed-by-user': 'Cerraste la ventana de Microsoft antes de terminar. Inténtalo de nuevo.',
   'auth/cancelled-popup-request': 'Se canceló el inicio de sesión anterior. Inténtalo de nuevo.',
-  'auth/popup-blocked':
-    'Tu navegador bloqueó la ventana de Microsoft. Habilita las ventanas emergentes.',
-  'auth/network-request-failed':
-    'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.',
-  'auth/account-exists-with-different-credential':
-    'Ya existe una cuenta registrada con ese correo.',
-  'auth/unauthorized-domain':
-    'Este dominio no está autorizado en Firebase. Avisa al administrador.',
+  'auth/popup-blocked': 'Tu navegador bloqueó la ventana de Microsoft. Habilita las ventanas emergentes.',
+  'auth/network-request-failed': 'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.',
+  'auth/account-exists-with-different-credential': 'Ya existe una cuenta registrada con ese correo.',
+  'auth/unauthorized-domain': 'Este dominio no está autorizado en Firebase. Avisa al administrador.',
   'auth/operation-not-allowed': 'El acceso con Microsoft no está habilitado en Firebase.',
   'auth/invalid-domain': `Debes ingresar con tu correo institucional @${BRAND.emailDomain}.`,
 };
 
 /**
- * Cuentas del modo demostración: una por dashboard, y dos guardias para poder
- * probar la entrega y la recepción del turno. Todas las personas son ficticias.
+ * Rol del claim `rolId` que asigna el backend: 1 userEstandar, 2 vigilante,
+ * 3 administrador y 4 superadmin. Sin claim reconocible, la persona entra con
+ * los permisos básicos; el backend decide de todas formas qué puede hacer.
  */
-export const DEMO_ACCOUNTS: Record<DemoProfile, AuthUser> = {
-  user: {
-    uid: 'demo-uid',
-    displayName: 'Julian Bejarano',
-    email: `julian.bejarano@${BRAND.emailDomain}`,
-    photoUrl: null,
-    role: 'user',
-    affiliation: 'estudiante',
-    program: 'Administración de Empresas',
-  },
-  admin: {
-    uid: 'demo-admin',
-    displayName: 'Laura Martínez',
-    email: `laura.martinez@${BRAND.emailDomain}`,
-    photoUrl: null,
-    role: 'admin',
-    affiliation: 'administrativo',
-    program: 'Seguridad y parqueaderos',
-  },
-  security: {
-    uid: 'demo-guard-carlos',
-    displayName: 'Carlos Ramírez',
-    email: '',
-    photoUrl: null,
-    role: 'security',
-    affiliation: 'seguridad',
-    program: PARKING.postName,
-  },
-  'security-relief': {
-    uid: 'demo-guard-diana',
-    displayName: 'Diana Morales',
-    email: '',
-    photoUrl: null,
-    role: 'security',
-    affiliation: 'seguridad',
-    program: PARKING.postName,
-  },
-};
+const ROLE_BY_ID: Record<number, UserRole> = { 1: 'user', 2: 'security', 3: 'admin', 4: 'admin' };
 
-const DEMO_SESSION_KEY = 'session';
+/** Si Firebase no responde en este tiempo, la app sigue sin sesión en vez de quedarse esperando. */
+const AUTH_READY_TIMEOUT_MS = 10_000;
 
-export const FIREBASE_CURRENT_USER = new InjectionToken<() => Promise<User | null>>(
-  'FIREBASE_CURRENT_USER',
-  {
-    providedIn: 'root',
-    factory: () => async () => {
-      const { firebaseAuth } = await import('./microsoft-auth');
-      return firebaseAuth().currentUser;
-    },
-  },
-);
-
+/**
+ * Sesión de la app: acceso con Microsoft a través de Firebase.
+ *
+ * Al abrir la app, Firebase restaura la sesión guardada; hasta que eso termina,
+ * `authReady()` es false y los guards esperan con {@link waitUntilReady}. Cada
+ * cuenta se registra (o se sincroniza) en el backend con `POST /users`, y el rol
+ * sale del claim `rolId` del token.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly subscribeFirebaseAuthState = inject(FIREBASE_AUTH_STATE_SUBSCRIBER);
-  private readonly getFirebaseCurrentUser = inject(FIREBASE_CURRENT_USER);
-  private readonly userProfile = inject(UserProfileService);
-  private readonly syncedFirebaseUserIds = new Set<string>();
-  private readonly firebaseUserSyncs = new Map<string, Promise<void>>();
-  /**
-   * En demostración la sesión se guarda en la pestaña, para que recargar no
-   * obligue a entrar de nuevo. Con Firebase, la sesión la restaura su SDK.
-   */
-  private readonly _user = signal<AuthUser | null>(loadDemo<AuthUser>(DEMO_SESSION_KEY, 'session'));
+  private readonly firebase = inject(FIREBASE_AUTH);
+  private readonly usersApi = inject(UsersApiService);
+
+  private readonly syncedUids = new Set<string>();
+  private readonly pendingSyncs = new Map<string, Promise<void>>();
+  private readonly _user = signal<AuthUser | null>(null);
   private readonly _loading = signal(false);
   private readonly _error = signal<string | null>(null);
-  private readonly _authReady = signal(!isFirebaseConfigured());
+  private readonly _authReady = signal(false);
   private resolveAuthReady!: () => void;
-  private readonly authReadyPromise = new Promise<void>((resolve) => {
-    this.resolveAuthReady = resolve;
-  });
-  private authListenerStarted = false;
-  private authInitializationFailed = false;
-  private authStateRevision = 0;
+  private readonly authReadyPromise = new Promise<void>((resolve) => (this.resolveAuthReady = resolve));
   private authReadyTimeout?: ReturnType<typeof setTimeout>;
+  private authFailed = false;
+  private authStateRevision = 0;
+  private unsubscribeAuth?: () => void;
 
   /** Cuenta con la sesión abierta; null si no hay sesión. */
   readonly user = this._user.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
+  /** true cuando Firebase ya dijo si hay sesión o no. */
   readonly authReady = this._authReady.asReadonly();
-  readonly isAuthenticated = computed(() => this._user() !== null);
   /** Rol de la sesión actual; null si no hay sesión. */
   readonly role = computed(() => this._user()?.role ?? null);
-  readonly isAdmin = computed(() => this._user()?.role === 'admin');
-  readonly isSecurity = computed(() => this._user()?.role === 'security');
-
-  /** Sin credenciales de Firebase la app funciona con cuentas simuladas. */
-  readonly demoMode = !isFirebaseConfigured();
+  /** uid de quien tiene la sesión, para las llamadas del panel de usuario; vacío sin sesión. */
+  readonly effectiveUid = computed(() => this._user()?.uid ?? '');
 
   constructor() {
-    if (!isFirebaseConfigured()) {
-      this.resolveAuthReady();
-      return;
-    }
-
     this.authReadyTimeout = setTimeout(
-      () => this.failFirebaseAuth(new Error('Firebase Auth initialization timed out')),
-      10_000,
+      () => this.failAuth(new Error('Firebase Auth no respondió a tiempo')),
+      AUTH_READY_TIMEOUT_MS,
     );
-    this.startFirebaseAuthListener();
+    this.listenToAuthState();
   }
 
+  /** Espera a que Firebase restaure (o descarte) la sesión guardada. */
   waitUntilReady(): Promise<void> {
     return this._authReady() ? Promise.resolve() : this.authReadyPromise;
   }
 
-  /** Obtiene el ID token de la sesión actual sin guardarlo en la aplicación. */
-  async getIdToken(): Promise<string | null> {
-    if (!isFirebaseConfigured()) {
-      return null;
-    }
-
-    try {
-      const user = await this.getFirebaseCurrentUser();
-
-      return user ? await user.getIdToken() : null;
-    } catch {
-      return null;
-    }
-  }
-
   /**
-   * uid a usar en las llamadas al backend real del panel de usuario: el de la
-   * cuenta con sesión abierta. Centraliza lo que antes cada consumidor
-   * (`ParkingService`, `MainDashboard`, `Vehicles`, `RegisterVehicle`)
-   * repetía por su cuenta.
-   */
-  readonly effectiveUid = computed(() => this._user()?.uid ?? '');
-
-  /**
-   * Inicio de sesión institucional con Microsoft (Azure AD) a través de Firebase.
-   * Devuelve null si hubo error o si se lanzó una redirección todavía en curso.
+   * Inicio de sesión institucional con Microsoft.
+   *
+   * @returns La cuenta, o null si hubo error o si se lanzó una redirección todavía en curso.
    */
   async loginWithMicrosoft(): Promise<AuthUser | null> {
-    return this.runSignIn(() =>
-      isFirebaseConfigured() ? this.signInWithFirebase() : this.signInSimulated('user'),
-    );
-  }
-
-  /**
-   * Entra con una cuenta simulada de administración o de seguridad.
-   *
-   * Solo existe en demostración, para recorrer esos dashboards sin un tenant
-   * real. Con Firebase, el rol llega en los claims del token.
-   *
-   * @param profile Cuenta a usar; el usuario institucional entra con `loginWithMicrosoft`.
-   * @returns La cuenta con la sesión abierta, o null fuera del modo demostración.
-   */
-  async loginAsDemo(profile: Exclude<DemoProfile, 'user'>): Promise<AuthUser | null> {
-    if (!this.demoMode) {
-      return null;
-    }
-
-    return this.runSignIn(() => this.signInSimulated(profile));
-  }
-
-  /**
-   * Recoge el resultado del login por redirección al volver de Microsoft.
-   * La pantalla de acceso la llama al montarse.
-   */
-  async resumeRedirectSignIn(): Promise<AuthUser | null> {
-    if (!isFirebaseConfigured()) {
-      return null;
-    }
-
-    try {
-      const { resolvePendingRedirect } = await import('./microsoft-auth');
-      const account = await resolvePendingRedirect();
-
-      if (!account) {
-        return null;
-      }
-
-      const user = await this.toAuthUserAfterProfileSync(account);
-      this.assertAllowedAccount(user);
-      this.setUser(user);
-
-      return user;
-    } catch (error) {
-      this._error.set(this.describe(error));
-      return null;
-    }
-  }
-
-  /** Acceso de visitantes: no autentica, solo abre el flujo de registro. */
-  continueAsVisitor(): void {
-    this._error.set(null);
-  }
-
-  /**
-   * Cierra la sesión.
-   *
-   * No hace falta borrar datos a mano (ADR-010): las pantallas del rol se
-   * destruyen al salir de su grupo de rutas y los servicios calculan lo que
-   * muestran a partir de `user()`, así que en un celular compartido la
-   * siguiente persona no ve nada de la cuenta anterior.
-   */
-  async logout(): Promise<void> {
-    if (isFirebaseConfigured()) {
-      const { signOutUser } = await import('./microsoft-auth');
-      await signOutUser();
-    }
-
-    this.syncedFirebaseUserIds.clear();
-    this.setUser(null);
-    this._error.set(null);
-  }
-
-  clearError(): void {
-    this._error.set(null);
-  }
-
-  private async runSignIn(signIn: () => Promise<AuthUser | null>): Promise<AuthUser | null> {
     this._loading.set(true);
     this._error.set(null);
 
     try {
-      const user = await signIn();
+      const account = await this.firebase.signInWithMicrosoft(this.isNativeShell());
 
       // En el flujo por redirección la app se recarga: aquí todavía no hay usuario.
-      if (!user) {
-        return null;
-      }
-
-      this.assertAllowedAccount(user);
-      this.setUser(user);
-
-      return user;
+      return account ? await this.openSession(account) : null;
     } catch (error) {
       this._error.set(this.describe(error));
       return null;
@@ -306,245 +131,200 @@ export class AuthService {
     }
   }
 
-  private setUser(user: AuthUser | null): void {
-    this._user.set(user);
-
-    if (user) {
-      saveDemo(DEMO_SESSION_KEY, user, 'session');
-    } else {
-      clearDemo(DEMO_SESSION_KEY, 'session');
+  /**
+   * Recoge el acceso por redirección al volver de Microsoft (app nativa). La
+   * pantalla de acceso la llama al montarse.
+   */
+  async resumeRedirectSignIn(): Promise<AuthUser | null> {
+    try {
+      const account = await this.firebase.resolvePendingRedirect();
+      return account ? await this.openSession(account) : null;
+    } catch (error) {
+      this._error.set(this.describe(error));
+      return null;
     }
   }
 
-  private startFirebaseAuthListener(): void {
-    if (!isFirebaseConfigured() || this.authListenerStarted) {
-      return;
-    }
+  /**
+   * Cierra la sesión. Las pantallas del rol se destruyen al salir de su grupo de
+   * rutas (ADR-010), así que en un celular compartido la siguiente persona no ve
+   * nada de la cuenta anterior.
+   */
+  async logout(): Promise<void> {
+    await this.firebase.signOut();
+    this.syncedUids.clear();
+    this._user.set(null);
+    this._error.set(null);
+  }
 
-    this.authListenerStarted = true;
-    void this.subscribeFirebaseAuthState(
-      (user) => {
-        if (!this.authInitializationFailed) {
-          void this.syncFirebaseUser(user);
+  clearError(): void {
+    this._error.set(null);
+  }
+
+  private async openSession(account: User): Promise<AuthUser> {
+    await this.syncWithBackend(account);
+    const user = await this.toAuthUser(account);
+    this.assertAllowedAccount(user);
+    this._user.set(user);
+    return user;
+  }
+
+  private listenToAuthState(): void {
+    void this.firebase.onAuthStateChanged(
+      (account) => {
+        if (!this.authFailed) {
+          void this.onAuthStateChanged(account);
         }
       },
-      (error) => this.failFirebaseAuth(error),
+      (error) => this.failAuth(error),
     )
       .then((unsubscribe) => {
-        if (this.authInitializationFailed) {
+        if (this.authFailed) {
           unsubscribe();
           return;
         }
 
         this.unsubscribeAuth = unsubscribe;
       })
-      .catch((error: unknown) => this.failFirebaseAuth(error));
+      .catch((error: unknown) => this.failAuth(error));
   }
 
-  private async syncFirebaseUser(firebaseUser: User | null): Promise<void> {
+  private async onAuthStateChanged(account: User | null): Promise<void> {
     const revision = ++this.authStateRevision;
 
-    if (!firebaseUser) {
-      this.syncedFirebaseUserIds.clear();
-      this.setUser(null);
-      this._error.set(null);
+    if (!account) {
+      this.syncedUids.clear();
+      this._user.set(null);
       this.markAuthReady();
       return;
     }
 
     try {
-      await this.ensureProfileSynced(firebaseUser);
-      const user = await this.toAuthUser(firebaseUser);
+      await this.syncWithBackend(account);
+      const user = await this.toAuthUser(account);
       this.assertAllowedAccount(user);
 
       if (revision === this.authStateRevision) {
-        this.setUser(user);
+        this._user.set(user);
         this._error.set(null);
-        this.markAuthReady();
       }
     } catch (error) {
       if (revision === this.authStateRevision) {
-        this.setUser(null);
+        this._user.set(null);
         this._error.set(this.describe(error));
+      }
+    } finally {
+      if (revision === this.authStateRevision) {
         this.markAuthReady();
       }
     }
   }
 
-  private failFirebaseAuth(error: unknown): void {
-    this.authInitializationFailed = true;
-    this.authStateRevision++;
-    this.unsubscribeAuth?.();
-    this.unsubscribeAuth = undefined;
-    this.setUser(null);
-    this._error.set(this.describe(error));
-    this.markAuthReady();
-  }
-
-  private unsubscribeAuth?: () => void;
-
-  private markAuthReady(): void {
-    if (this._authReady()) {
-      return;
-    }
-
-    if (this.authReadyTimeout !== undefined) {
-      clearTimeout(this.authReadyTimeout);
-      this.authReadyTimeout = undefined;
-    }
-
-    this._authReady.set(true);
-    this.resolveAuthReady();
-  }
-
   /**
-   * firebase/auth se carga aquí, no al abrir la pantalla: son cientos de
-   * kilobytes que solo hacen falta cuando alguien pulsa el botón.
+   * Registra la cuenta en el backend (`POST /users`) una vez por sesión y
+   * renueva el token para que traiga el claim `rolId` que el backend acaba de
+   * asignar o sincronizar.
    */
-  private async signInWithFirebase(): Promise<AuthUser | null> {
-    const { signIn } = await import('./microsoft-auth');
-    const account = await signIn(this.isNativeShell());
-
-    if (!account) {
-      return null;
-    }
-
-    return this.toAuthUserAfterProfileSync(account);
-  }
-
-  private async toAuthUserAfterProfileSync(firebaseUser: User): Promise<AuthUser> {
-    await this.ensureProfileSynced(firebaseUser);
-    return this.toAuthUser(firebaseUser);
-  }
-
-  private async ensureProfileSynced(firebaseUser: User): Promise<void> {
-    const uid = firebaseUser.uid;
-
-    if (this.syncedFirebaseUserIds.has(uid)) {
+  private async syncWithBackend(account: User): Promise<void> {
+    if (this.syncedUids.has(account.uid)) {
       return;
     }
 
-    const pendingSync = this.firebaseUserSyncs.get(uid);
-    if (pendingSync) {
-      return pendingSync;
+    const pending = this.pendingSyncs.get(account.uid);
+    if (pending) {
+      return pending;
     }
 
     const sync = (async () => {
-      await this.userProfile.syncCurrentUser(firebaseUser.displayName);
+      await this.usersApi.register(this.profileName(account.displayName));
 
-      const currentUser = await this.getFirebaseCurrentUser();
-      if (!currentUser) {
-        throw new Error('Firebase user unavailable after profile synchronization');
+      const current = await this.firebase.currentUser();
+      if (!current) {
+        throw new Error('La cuenta de Firebase ya no está disponible');
       }
 
-      await currentUser.getIdToken(true);
+      await current.getIdToken(true);
     })();
-    this.firebaseUserSyncs.set(uid, sync);
+    this.pendingSyncs.set(account.uid, sync);
 
     try {
       await sync;
-      this.syncedFirebaseUserIds.add(uid);
+      this.syncedUids.add(account.uid);
     } finally {
-      if (this.firebaseUserSyncs.get(uid) === sync) {
-        this.firebaseUserSyncs.delete(uid);
-      }
+      this.pendingSyncs.delete(account.uid);
     }
   }
 
-  /**
-   * El rol llega en los custom claims que el backend asigna a cada cuenta.
-   * Sin claim, la persona entra con los permisos básicos.
-   */
-  private async toAuthUser(account: {
-    uid: string;
-    displayName: string | null;
-    email: string | null;
-    photoURL: string | null;
-    getIdTokenResult: () => Promise<{ claims: Record<string, unknown> }>;
-  }): Promise<AuthUser> {
-    const token = await account.getIdTokenResult();
-    const hasRoleId = Object.prototype.hasOwnProperty.call(token.claims, 'rolId');
-    const claimedRole = hasRoleId
-      ? this.toRoleId(token.claims['rolId'])
-      : this.toRole(token.claims['role']);
-    const claimedAffiliation = token.claims['affiliation'];
-    const claimedProgram = token.claims['program'];
+  /** El backend exige un nombre de 2 a 100 letras; lo trae la cuenta de Microsoft. */
+  private profileName(displayName: string | null): string {
+    const name = displayName?.trim() ?? '';
+    const length = Array.from(name).length;
+
+    if (length < 2 || length > 100 || !/^\p{L}+(?:[ ]*\p{L}+)*$/u.test(name)) {
+      throw new Error('La cuenta de Microsoft no tiene un nombre válido');
+    }
+
+    return name;
+  }
+
+  private async toAuthUser(account: User): Promise<AuthUser> {
+    const { claims } = await account.getIdTokenResult();
+    const affiliation = claims['affiliation'];
+    const program = claims['program'];
 
     return {
       uid: account.uid,
       displayName: account.displayName ?? 'Usuario',
       email: account.email ?? '',
       photoUrl: account.photoURL,
-      role: claimedRole,
-      affiliation: this.toAffiliation(claimedAffiliation),
-      program: typeof claimedProgram === 'string' ? claimedProgram : null,
+      role: ROLE_BY_ID[Number(claims['rolId'])] ?? 'user',
+      affiliation: typeof affiliation === 'string' && affiliation in AFFILIATION_LABELS ? (affiliation as Affiliation) : null,
+      program: typeof program === 'string' ? program : null,
     };
   }
 
-  /** Sin claim reconocible, la persona entra con los permisos básicos de usuario. */
-  private toRole(value: unknown): UserRole {
-    return USER_ROLES.includes(value as UserRole) ? (value as UserRole) : 'user';
+  private failAuth(error: unknown): void {
+    this.authFailed = true;
+    this.authStateRevision++;
+    this.unsubscribeAuth?.();
+    this.unsubscribeAuth = undefined;
+    this._user.set(null);
+    this._error.set(this.describe(error));
+    this.markAuthReady();
   }
 
-  private toRoleId(value: unknown): UserRole {
-    switch (value) {
-      case 1:
-        return 'user';
-      case 2:
-        return 'security';
-      case 3:
-        return 'admin';
-      default:
-        return 'user';
+  private markAuthReady(): void {
+    if (this._authReady()) {
+      return;
     }
-  }
 
-  private toAffiliation(value: unknown): Affiliation | null {
-    return typeof value === 'string' && value in AFFILIATION_LABELS ? (value as Affiliation) : null;
+    clearTimeout(this.authReadyTimeout);
+    this._authReady.set(true);
+    this.resolveAuthReady();
   }
 
   /** En la app híbrida no existe el popup: hay que usar redirección. */
   private isNativeShell(): boolean {
-    const container = globalThis as {
-      Capacitor?: { isNativePlatform?: () => boolean };
-      cordova?: unknown;
-    };
-
-    return Boolean(container.Capacitor?.isNativePlatform?.() ?? container.cordova);
+    const container = globalThis as { Capacitor?: { isNativePlatform?: () => boolean } };
+    return Boolean(container.Capacitor?.isNativePlatform?.());
   }
 
   /**
-   * La comunidad institucional solo entra con cuentas del dominio de la
-   * universidad. El personal de seguridad es la excepción: sus cuentas las crea
-   * la administración y no tienen correo institucional (ADR-009).
+   * Barrera temprana de experiencia de uso: la comunidad entra con cuentas del
+   * dominio institucional. La validación real vive en el backend, que además lo
+   * exige en `POST /users` a todas las cuentas.
    *
-   * La validación real vive en el backend y en las reglas de Firebase, que leen
-   * el rol de los claims; aquí es solo una barrera temprana de experiencia de uso.
-   *
-   * @throws `{ code: 'auth/invalid-domain' }` si una cuenta que no es de seguridad
-   * no pertenece al dominio institucional.
+   * @throws `{ code: 'auth/invalid-domain' }` si una cuenta que no es de
+   * seguridad no pertenece al dominio institucional.
    */
   private assertAllowedAccount(user: AuthUser): void {
-    if (user.role === 'security') {
-      return;
-    }
-
-    if (!user.email.toLowerCase().endsWith(`@${BRAND.emailDomain}`)) {
+    if (user.role !== 'security' && !user.email.toLowerCase().endsWith(`@${BRAND.emailDomain}`)) {
       throw { code: 'auth/invalid-domain' };
     }
   }
 
   private describe(error: unknown): string {
     const code = (error as { code?: string })?.code ?? '';
-    return (
-      ERROR_MESSAGES[code] ?? 'No pudimos iniciar sesión. Inténtalo de nuevo en unos segundos.'
-    );
-  }
-
-  /** Sustituto mientras firebase.config.ts no tenga credenciales reales. */
-  private signInSimulated(profile: DemoProfile): Promise<AuthUser> {
-    console.warn('[AuthService] Firebase sin configurar: usando un inicio de sesión simulado.');
-
-    return new Promise((resolve) => setTimeout(() => resolve(DEMO_ACCOUNTS[profile]), 1200));
+    return ERROR_MESSAGES[code] ?? 'No pudimos iniciar sesión. Inténtalo de nuevo en unos segundos.';
   }
 }

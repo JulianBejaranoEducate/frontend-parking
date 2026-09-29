@@ -1,11 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import {
-  type BackendStudent,
-  type BackendUserVehicle,
-  StudentsApiService,
-} from '../../core/services/modules/students-student-panel/students-api.sp.service';
-import { VehiclesApiService } from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
-import { signInForTest } from '../../testing/demo-session';
+import { UsersApiService } from '../../core/services/api/users-api.service';
+import { QR_CODE_RENDERER } from '../../core/utils/qr-code';
+import { UsersApiStub, testUser, testUserVehicle } from '../../testing/backend-stubs';
+import { signInForTest } from '../../testing/test-session';
 import { Vehicles } from './vehicles';
 
 /**
@@ -25,61 +22,32 @@ if (!HTMLDialogElement.prototype.showModal) {
   };
 }
 
-const vehicle = (plate: string, type: string, isAuthorized = false): BackendUserVehicle => ({
-  plate,
-  brand: 'Yamaha',
-  model: 2022,
-  color: 'Negro',
-  type,
-  is_authorized: isAuthorized,
-  id_owner: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-});
-
-const student = (vehicles: BackendUserVehicle[]): BackendStudent => ({
-  id: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-  name: 'test s',
-  email: 'test@test.com',
-  roleId: '3',
-  status_user: true,
-  vehicles,
-});
-
-class StudentsApiServiceStub {
-  student: BackendStudent = student([]);
-  fail = false;
-
-  findById(_id: string): Promise<BackendStudent> {
-    return this.fail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.student);
-  }
-}
-
-class VehiclesApiServiceStub {
+/** Generador de QR de mentira: registra qué codificó y devuelve una imagen falsa. */
+class QrRendererStub {
   calls: string[] = [];
   fail = false;
 
-  renderQrCode(plate: string): Promise<string> {
-    this.calls.push(plate);
-    return this.fail
-      ? Promise.reject(new Error('sin conexión'))
-      : Promise.resolve(`data:image/png;base64,QR-${plate}`);
-  }
+  readonly render = (value: string): Promise<string> => {
+    this.calls.push(value);
+    return this.fail ? Promise.reject(new Error('sin canvas')) : Promise.resolve(`data:image/png;base64,QR-${value}`);
+  };
 }
 
 describe('Vehicles', () => {
   let component: Vehicles;
   let fixture: ComponentFixture<Vehicles>;
-  let studentsApi: StudentsApiServiceStub;
-  let vehicleApi: VehiclesApiServiceStub;
+  let usersApi: UsersApiStub;
+  let qr: QrRendererStub;
 
   const configure = async () => {
-    studentsApi = new StudentsApiServiceStub();
-    vehicleApi = new VehiclesApiServiceStub();
+    usersApi = new UsersApiStub();
+    qr = new QrRendererStub();
 
     await TestBed.configureTestingModule({
       imports: [Vehicles],
       providers: [
-        { provide: StudentsApiService, useValue: studentsApi },
-        { provide: VehiclesApiService, useValue: vehicleApi },
+        { provide: UsersApiService, useValue: usersApi },
+        { provide: QR_CODE_RENDERER, useValue: qr.render },
       ],
     }).compileComponents();
 
@@ -114,7 +82,7 @@ describe('Vehicles', () => {
 
   it('si el backend falla, avisa y no muestra vehículos inventados', async () => {
     await configure();
-    studentsApi.fail = true;
+    usersApi.fail = true;
     await create();
 
     expect(host().querySelector('.empty')?.textContent).toContain('No pudimos consultar');
@@ -130,9 +98,9 @@ describe('Vehicles', () => {
 
   it('lista los vehículos reales con su estado y un botón de QR cada uno', async () => {
     await configure();
-    studentsApi.student = student([
-      vehicle('KZT45F', 'moto', true),
-      vehicle('uuid-bici', 'bicicleta', false),
+    usersApi.user = testUser([
+      testUserVehicle('KZT45F', 'moto', { is_authorized: true }),
+      testUserVehicle('uuid-bici', 'bicicleta', { is_authorized: false }),
     ]);
     await create();
 
@@ -147,13 +115,13 @@ describe('Vehicles', () => {
   it('al pedir el código QR, lo genera con el identificador real del vehículo y lo muestra en el panel', async () => {
     await configure();
     // El backend le asigna su propio identificador a lo que no lleva placa real.
-    studentsApi.student = student([vehicle('5333040a-uuid', 'scooter')]);
+    usersApi.user = testUser([testUserVehicle('5333040a-uuid', 'scooter')]);
     await create();
 
     host().querySelector<HTMLButtonElement>('.vehicle button.small-btn')?.click();
     await fixture.whenStable();
 
-    expect(vehicleApi.calls).toEqual(['5333040a-uuid']);
+    expect(qr.calls).toEqual(['5333040a-uuid']);
     expect(host().querySelector('dialog[open]')).toBeTruthy();
     expect(host().querySelector('.qr-dialog__image')?.getAttribute('src')).toBe(
       'data:image/png;base64,QR-5333040a-uuid',
@@ -162,8 +130,8 @@ describe('Vehicles', () => {
 
   it('si falla la generación del QR, lo avisa dentro del panel', async () => {
     await configure();
-    studentsApi.student = student([vehicle('KZT45F', 'moto')]);
-    vehicleApi.fail = true;
+    usersApi.user = testUser([testUserVehicle('KZT45F', 'moto')]);
+    qr.fail = true;
     await create();
 
     host().querySelector<HTMLButtonElement>('.vehicle button.small-btn')?.click();
@@ -175,7 +143,7 @@ describe('Vehicles', () => {
 
   it('cerrar el panel limpia el QR mostrado', async () => {
     await configure();
-    studentsApi.student = student([vehicle('KZT45F', 'moto')]);
+    usersApi.user = testUser([testUserVehicle('KZT45F', 'moto')]);
     await create();
 
     host().querySelector<HTMLButtonElement>('.vehicle button.small-btn')?.click();

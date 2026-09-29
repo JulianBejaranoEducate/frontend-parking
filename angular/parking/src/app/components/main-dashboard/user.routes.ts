@@ -20,8 +20,7 @@ const USER_ROUTES: Routes = [
       },
       {
         // Dentro del mismo layout que /inicio: header y sidebar se quedan puestos,
-        // solo cambia el contenido. ?actualizar=<id> abre el formulario solo para
-        // reenviar documentos.
+        // solo cambia el contenido.
         path: 'vehiculos/registrar',
         title: 'Uni-parking | Registrar vehículo',
         loadComponent: () => import('../register-vehicle/register-vehicle').then((m) => m.RegisterVehicle),

@@ -43,8 +43,3 @@ export function dayAndTime(date: Date, now: Date = new Date()): string {
 
   return `${day} a ${atClock(date)}`;
 }
-
-/** Hora sola si es de hoy; si no, con el día, para no confundir movimientos viejos. */
-export function momentLabel(date: Date, now: Date = new Date()): string {
-  return calendarDaysAgo(date, now) === 0 ? clockTime(date) : dayAndTime(date, now);
-}

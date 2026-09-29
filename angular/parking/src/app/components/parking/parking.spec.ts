@@ -1,142 +1,23 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type BackendVehicle, VehicleApiService } from '../../core/services/modules/security-dashboard/vehicle-api.service';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
-import {
-  type BackendAccessRecord,
-  type BackendParkingZone,
-  type BackendVehicleStatus,
-  ParkingApiService,
-} from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
-import {
-  type BackendStudent,
-  type BackendUserVehicle,
-  StudentsApiService,
-} from '../../core/services/modules/students-student-panel/students-api.sp.service';
-import { signInForTest } from '../../testing/demo-session';
+import { ParkingApiService } from '../../core/services/api/parking-api.service';
+import { UsersApiService } from '../../core/services/api/users-api.service';
+import { ParkingApiStub, UsersApiStub, accessRecord } from '../../testing/backend-stubs';
+import { signInForTest } from '../../testing/test-session';
 import { Parking } from './parking';
-
-const owner: BackendVehicle['owner'] = {
-  id_user: 'demo-uid',
-  name_user: 'Julian Bejarano',
-  email_user: 'julian.bejarano@example.edu.co',
-  role_id_user: '3',
-  status_user: true,
-};
-
-const vehicle = (plate: string, type: string): BackendVehicle => ({
-  plate,
-  brand: 'Yamaha',
-  model: 2022,
-  color: 'Negro',
-  type,
-  is_authorized: true,
-  owner,
-});
-
-const visitor = (id: number, type: string, exitedAt: string | null): BackendVisitor => ({
-  id,
-  first_name: 'Ana',
-  last_name: 'Gómez',
-  document_type: 'CC',
-  document_number: '1012345678',
-  reason: 'Visita académica',
-  plate_vehicle_visitor: null,
-  brand_vehicle: 'Trek',
-  color_vehicle: 'Verde',
-  type_vehicle: type,
-  model_vehicle: 2021,
-  created_at: new Date().toISOString(),
-  exited_at: exitedAt,
-});
-
-class VehicleApiServiceStub {
-  vehicles: BackendVehicle[] = [];
-  fail = false;
-
-  inside(): Promise<BackendVehicle[]> {
-    return this.fail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.vehicles);
-  }
-}
-
-class VisitorApiServiceStub {
-  visitors: BackendVisitor[] = [];
-
-  findAll(): Promise<BackendVisitor[]> {
-    return Promise.resolve(this.visitors);
-  }
-}
-
-const backendUserVehicle = (plate: string, type: string): BackendUserVehicle => ({
-  plate,
-  brand: 'Yamaha',
-  model: 2022,
-  color: 'Negro',
-  type,
-  is_authorized: true,
-  id_owner: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-});
-
-class StudentsApiServiceStub {
-  student: BackendStudent = {
-    id: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-    name: 'test s',
-    email: 'test@test.com',
-    roleId: '3',
-    status_user: true,
-    vehicles: [],
-  };
-
-  findById(_id: string): Promise<BackendStudent> {
-    return Promise.resolve(this.student);
-  }
-}
-
-/** No extiende ParkingApiService (que inyecta HttpClient) para no tener que proveerlo. */
-class ParkingApiServiceStub {
-  zoneRows: BackendParkingZone[] = [
-    { id: 1, vehicleType: 'moto', totalCapacity: 60, availableSpaces: 53 },
-    { id: 2, vehicleType: 'bicicleta', totalCapacity: 30, availableSpaces: 27 },
-    { id: 3, vehicleType: 'scooter', totalCapacity: 20, availableSpaces: 18 },
-  ];
-  zonesFail = false;
-
-  zones(): Promise<BackendParkingZone[]> {
-    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
-  }
-
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
-    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
-  }
-
-  history(_plate: string): Promise<BackendAccessRecord[]> {
-    return Promise.resolve([]);
-  }
-
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
-  }
-}
 
 describe('Parking', () => {
   let component: Parking;
   let fixture: ComponentFixture<Parking>;
-  let vehicleApi: VehicleApiServiceStub;
-  let visitorApi: VisitorApiServiceStub;
-  let parkingApi: ParkingApiServiceStub;
+  let parkingApi: ParkingApiStub;
 
   const configure = async () => {
-    vehicleApi = new VehicleApiServiceStub();
-    visitorApi = new VisitorApiServiceStub();
-    parkingApi = new ParkingApiServiceStub();
+    parkingApi = new ParkingApiStub();
 
     await TestBed.configureTestingModule({
       imports: [Parking],
       providers: [
-        { provide: VehicleApiService, useValue: vehicleApi },
-        { provide: VisitorApiService, useValue: visitorApi },
         { provide: ParkingApiService, useValue: parkingApi },
-        { provide: StudentsApiService, useClass: StudentsApiServiceStub },
+        { provide: UsersApiService, useClass: UsersApiStub },
       ],
     }).compileComponents();
 
@@ -155,7 +36,7 @@ describe('Parking', () => {
     component as unknown as {
       zonesLoading: () => boolean;
       zonesError: () => string | null;
-      zones: () => { id: string; occupied: number; capacity: number }[];
+      zones: () => { accepts: string; occupied: number; capacity: number }[];
       totalFree: () => number;
       totalCapacity: () => number;
       institutionalInside: () => number;
@@ -175,21 +56,24 @@ describe('Parking', () => {
     await create();
 
     const zones = api().zones();
-    expect(zones.find((z) => z.id === 'motos')).toMatchObject({ capacity: 60, occupied: 7 });
-    expect(zones.find((z) => z.id === 'bicicletas')).toMatchObject({ capacity: 30, occupied: 3 });
-    expect(zones.find((z) => z.id === 'scooters')).toMatchObject({ capacity: 20, occupied: 2 });
+    expect(zones.find((z) => z.accepts === 'moto')).toMatchObject({ capacity: 60, occupied: 7 });
+    expect(zones.find((z) => z.accepts === 'bicicleta')).toMatchObject({ capacity: 30, occupied: 3 });
+    expect(zones.find((z) => z.accepts === 'scooter')).toMatchObject({ capacity: 20, occupied: 2 });
     expect(api().totalFree()).toBe(53 + 27 + 18);
     expect(api().totalCapacity()).toBe(60 + 30 + 20);
   });
 
-  it('cuenta por separado los institucionales y los visitantes que siguen dentro', async () => {
+  it('cuenta por separado los de la comunidad y los visitantes que siguen dentro', async () => {
     await configure();
-    vehicleApi.vehicles = [vehicle('ABC123', 'moto'), vehicle('XYZ987', 'moto')];
-    visitorApi.visitors = [visitor(1, 'bicicleta', null), visitor(2, 'scooter', '2026-09-26T10:00:00.000Z')];
+    const now = new Date().toISOString();
+    parkingApi.openRecordRows = [
+      accessRecord(1, 'ABC12D', 'moto', now, null),
+      accessRecord(2, 'XYZ98K', 'moto', now, null),
+      { ...accessRecord(3, 'VIS11A', 'moto', now, null), visitorId: 7 },
+    ];
     await create();
 
     expect(api().institutionalInside()).toBe(2);
-    // El scooter ya salió (exited_at no es null): no debe contar.
     expect(api().visitorsInside()).toBe(1);
   });
 
@@ -204,12 +88,12 @@ describe('Parking', () => {
 
   it('si no se puede consultar quién está dentro, lo avisa aparte, sin bloquear las zonas', async () => {
     await configure();
-    vehicleApi.fail = true;
+    parkingApi.openRecordsFail = true;
     await create();
 
     expect(api().zonesError()).toBeNull();
     expect(host().querySelector('.tile:nth-child(2) .tile__note')?.textContent).toContain(
-      'No pudimos consultar',
+      'No pudimos consultar quién está dentro',
     );
   });
 

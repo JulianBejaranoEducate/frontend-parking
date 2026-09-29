@@ -1,80 +1,32 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { DocumentKind, RegistrationDocument } from '../../core/models/vehicle-registration';
-import {
-  type BackendStudent,
-  type BackendUserVehicle,
-  StudentsApiService,
-} from '../../core/services/modules/students-student-panel/students-api.sp.service';
-import {
-  type BackendVehicle,
-  type VehicleRegistrationInput,
-  VehiclesApiService,
-} from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
-import { UploadService } from '../../core/services/upload.service';
-import { VehicleRegistrationService } from '../../core/services/vehicle-registration.service';
-import { signInForTest } from '../../testing/demo-session';
+import { UsersApiService } from '../../core/services/api/users-api.service';
+import { type BackendVehicle, type NewVehicle, VehiclesApiService } from '../../core/services/api/vehicles-api.service';
+import { UsersApiStub, testUser, testUserVehicle } from '../../testing/backend-stubs';
+import { TEST_ACCOUNTS, signInForTest } from '../../testing/test-session';
 import { RegisterVehicle } from './register-vehicle';
 
-/** Evita el canvas de jsdom: la foto "se procesa" al instante. */
-class UploadServiceStub extends UploadService {
-  override prepare(file: File, kind: DocumentKind): Promise<RegistrationDocument> {
-    return Promise.resolve({
-      kind,
-      fileName: file.name,
-      mimeType: 'image/jpeg',
-      dataUrl: 'data:image/jpeg;base64,AAAA',
-      uploadedAt: new Date(),
-    });
-  }
-}
+/** `VehiclesApiService` de mentira: guarda lo que se le pidió crear. */
+class VehiclesApiStub {
+  calls: NewVehicle[] = [];
+  error: unknown = null;
 
-/** No extiende VehiclesApiService (que inyecta HttpClient) para no tener que proveerlo. */
-class VehiclesApiServiceStub {
-  calls: VehicleRegistrationInput[] = [];
-  fail = false;
+  create(vehicle: NewVehicle): Promise<BackendVehicle> {
+    this.calls.push(vehicle);
 
-  postCreate(input: VehicleRegistrationInput): Promise<BackendVehicle> {
-    this.calls.push(input);
-
-    if (this.fail) {
-      return Promise.reject(new Error('sin conexión'));
+    if (this.error) {
+      return Promise.reject(this.error);
     }
 
     return Promise.resolve({
-      plate: input.plate ?? 'generado-1',
-      brand: input.brand,
-      model: input.model,
-      color: input.color,
-      type: input.type,
-      owner: input.ownerUid,
-    });
-  }
-}
-
-const backendVehicle = (plate: string): BackendUserVehicle => ({
-  plate,
-  brand: 'Yamaha',
-  model: 2022,
-  color: 'Negro',
-  type: 'moto',
-  is_authorized: false,
-  id_owner: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-});
-
-/** No extiende StudentsApiService (que inyecta HttpClient) para no tener que proveerlo. */
-class StudentsApiServiceStub {
-  /** Por defecto, sin vehículos reales: no bloquea ninguna prueba existente. */
-  vehicles: BackendUserVehicle[] = [];
-
-  findById(id: string): Promise<BackendStudent> {
-    return Promise.resolve({
-      id,
-      name: 'test s',
-      email: 'test@test.com',
-      roleId: '3',
-      status_user: true,
-      vehicles: this.vehicles,
+      plate: vehicle.plate ?? 'generado-1',
+      brand: vehicle.brand,
+      model: vehicle.model,
+      color: vehicle.color,
+      type: vehicle.type,
+      is_authorized: false,
+      id_owner: vehicle.ownerUid,
     });
   }
 }
@@ -85,62 +37,47 @@ type Api = {
   chooseType: (type: string) => void;
   continueFromType: () => void;
   continueFromDetails: () => void;
-  continueFromDocuments: () => void;
   toggleDeclaration: (event: Event) => void;
   submit: () => Promise<void>;
-  onFileSelected: (event: Event, kind: DocumentKind) => Promise<void>;
-  submitted: () => { id: string } | null;
+  submitted: () => { type: string; plate?: string } | null;
+  submitError: () => string | null;
+  summaryVehicle: () => unknown;
 };
 
 describe('RegisterVehicle', () => {
   let component: RegisterVehicle;
   let fixture: ComponentFixture<RegisterVehicle>;
-  let registrations: VehicleRegistrationService;
-  let vehicleApi: VehiclesApiServiceStub;
-  let studentsApi: StudentsApiServiceStub;
+  let vehiclesApi: VehiclesApiStub;
+  let usersApi: UsersApiStub;
 
   const configure = async () => {
-    vehicleApi = new VehiclesApiServiceStub();
-    studentsApi = new StudentsApiServiceStub();
+    vehiclesApi = new VehiclesApiStub();
+    usersApi = new UsersApiStub();
 
     await TestBed.configureTestingModule({
       imports: [RegisterVehicle],
       providers: [
         provideRouter([]),
-        { provide: UploadService, useClass: UploadServiceStub },
-        { provide: VehiclesApiService, useValue: vehicleApi },
-        { provide: StudentsApiService, useValue: studentsApi },
+        { provide: VehiclesApiService, useValue: vehiclesApi },
+        { provide: UsersApiService, useValue: usersApi },
       ],
     }).compileComponents();
 
     signInForTest('user');
-    registrations = TestBed.inject(VehicleRegistrationService);
   };
 
-  const create = async (actualizar?: string) => {
+  const create = async () => {
     fixture = TestBed.createComponent(RegisterVehicle);
     component = fixture.componentInstance;
-
-    if (actualizar) {
-      fixture.componentRef.setInput('actualizar', actualizar);
-    }
-
     await fixture.whenStable();
   };
 
   const api = () => component as unknown as Api;
   const host = () => fixture.nativeElement as HTMLElement;
   const render = () => fixture.whenStable();
-
-  const attach = (kind: DocumentKind) =>
-    api().onFileSelected(
-      { target: { files: [new File(['x'], 'tarjeta.jpg', { type: 'image/jpeg' })], value: '' } } as unknown as Event,
-      kind,
-    );
-
   const acceptDeclaration = () => api().toggleDeclaration({ target: { checked: true } } as unknown as Event);
 
-  describe('registro nuevo', () => {
+  describe('registro', () => {
     beforeEach(async () => {
       await configure();
       await create();
@@ -156,51 +93,43 @@ describe('RegisterVehicle', () => {
       expect(host().querySelector('#type-error')).toBeTruthy();
     });
 
-    it('la moto pide placa, marca, línea, modelo y color; nada de datos personales', async () => {
+    it('la moto pide placa, marca, modelo y color: lo que guarda el backend', async () => {
       api().chooseType('moto');
       api().continueFromType();
       await render();
 
-      for (const id of ['plate', 'brand', 'line', 'modelYear', 'color']) {
+      for (const id of ['plate', 'brand', 'modelYear', 'color']) {
         expect(host().querySelector(`#${id}`), id).toBeTruthy();
-      }
-      for (const id of ['firstName', 'lastName', 'documentType', 'documentNumber', 'frameSerial']) {
-        expect(host().querySelector(`#${id}`), id).toBeNull();
       }
     });
 
-    it('la bicicleta pide marca, color y serial opcional, sin placa ni datos personales', async () => {
-      api().chooseType('bicicleta');
-      api().continueFromType();
-      await render();
+    it('la bicicleta y el scooter piden marca y color, sin placa', async () => {
+      for (const type of ['bicicleta', 'scooter']) {
+        api().chooseType(type);
+        api().continueFromType();
+        await render();
 
-      for (const id of ['brand', 'color', 'frameSerial']) {
-        expect(host().querySelector(`#${id}`), id).toBeTruthy();
-      }
-      for (const id of ['plate', 'firstName', 'lastName', 'documentType', 'documentNumber']) {
-        expect(host().querySelector(`#${id}`), id).toBeNull();
+        expect(host().querySelector('#brand'), type).toBeTruthy();
+        expect(host().querySelector('#color'), type).toBeTruthy();
+        expect(host().querySelector('#plate'), type).toBeNull();
+        expect(host().querySelector('#modelYear'), type).toBeNull();
+        api().chooseType('moto');
       }
     });
 
-    it('el scooter pide marca y color, sin placa ni datos personales', async () => {
+    it('la marca es obligatoria en los tres tipos: el backend la exige siempre', async () => {
       api().chooseType('scooter');
       api().continueFromType();
-      await render();
+      api().form.patchValue({ brand: '', color: 'Negro' });
+      api().continueFromDetails();
 
-      for (const id of ['brand', 'color']) {
-        expect(host().querySelector(`#${id}`), id).toBeTruthy();
-      }
-      // El backend real exige marca en los tres tipos, sin excepción: ya no es opcional.
-      expect(host().querySelector('label[for="brand"]')?.textContent).not.toContain('(opcional)');
-      for (const id of ['plate', 'frameSerial', 'firstName', 'lastName', 'documentType', 'documentNumber']) {
-        expect(host().querySelector(`#${id}`), id).toBeNull();
-      }
+      expect(api().step()).toBe('details');
 
-      expect(api().form.valid).toBe(false);
-      api().form.patchValue({ color: 'Negro' });
-      expect(api().form.valid).toBe(false);
       api().form.patchValue({ brand: 'Xiaomi' });
-      expect(api().form.valid).toBe(true);
+      api().continueFromDetails();
+
+      expect(api().step()).toBe('review');
+      expect(api().summaryVehicle()).toEqual({ type: 'scooter', brand: 'Xiaomi', color: 'Negro' });
     });
 
     it('no avanza con datos incompletos y señala los errores', async () => {
@@ -213,141 +142,94 @@ describe('RegisterVehicle', () => {
       expect(host().querySelector('#plate-error')?.textContent).toContain('Escribe la placa');
     });
 
-    it('avisa si la placa ya tiene un registro vigente', async () => {
+    it('exige la declaración antes de registrar', async () => {
+      api().chooseType('bicicleta');
+      api().continueFromType();
+      api().form.patchValue({ brand: 'Trek', color: 'Verde' });
+      api().continueFromDetails();
+
+      await api().submit();
+      await render();
+
+      expect(api().step()).toBe('review');
+      expect(vehiclesApi.calls).toHaveLength(0);
+      expect(host().querySelector('#declaration-error')).toBeTruthy();
+    });
+
+    it('una moto completa se crea en el backend a nombre de la sesión y queda pendiente de aprobación', async () => {
+      api().chooseType('moto');
+      api().continueFromType();
+      api().form.patchValue({ plate: 'QAZ12W', brand: 'Honda', modelYear: 2023, color: 'Rojo' });
+      api().continueFromDetails();
+      acceptDeclaration();
+      await api().submit();
+      await render();
+
+      expect(vehiclesApi.calls).toEqual([
+        { type: 'moto', brand: 'Honda', model: 2023, color: 'Rojo', plate: 'QAZ12W', ownerUid: TEST_ACCOUNTS.user.uid },
+      ]);
+      expect(api().step()).toBe('done');
+      expect(api().submitted()).toMatchObject({ type: 'moto', plate: 'QAZ12W' });
+      expect(host().querySelector('.done__vehicle .chip')?.textContent?.trim()).toBe('Pendiente');
+    });
+
+    it('sin placa (bicicleta), no manda placa: el backend asigna su propio identificador', async () => {
+      api().chooseType('bicicleta');
+      api().continueFromType();
+      api().form.patchValue({ brand: 'Trek', color: 'Verde' });
+      api().continueFromDetails();
+      acceptDeclaration();
+      await api().submit();
+
+      expect(vehiclesApi.calls[0]).not.toHaveProperty('plate');
+      expect(vehiclesApi.calls[0]).toMatchObject({ type: 'bicicleta', brand: 'Trek', color: 'Verde' });
+    });
+
+    it('si el backend rechaza el registro, se queda en la revisión y muestra su motivo', async () => {
+      vehiclesApi.error = new HttpErrorResponse({ status: 409, error: { details: 'La placa ya está registrada' } });
+      api().chooseType('moto');
+      api().continueFromType();
+      api().form.patchValue({ plate: 'QAZ12W', brand: 'Honda', modelYear: 2023, color: 'Rojo' });
+      api().continueFromDetails();
+      acceptDeclaration();
+      await api().submit();
+      await render();
+
+      expect(api().step()).toBe('review');
+      expect(api().submitError()).toContain('La placa ya está registrada');
+      expect(host().querySelector('.alert')?.textContent).toContain('La placa ya está registrada');
+    });
+
+    it('sin conexión, lo dice sin inventar un motivo', async () => {
+      vehiclesApi.error = new Error('sin conexión');
+      api().chooseType('scooter');
+      api().continueFromType();
+      api().form.patchValue({ brand: 'Xiaomi', color: 'Gris' });
+      api().continueFromDetails();
+      acceptDeclaration();
+      await api().submit();
+
+      expect(api().step()).toBe('review');
+      expect(api().submitError()).toContain('Revisa tu conexión');
+    });
+  });
+
+  describe('placa repetida', () => {
+    it('avisa si la persona ya registró un vehículo con esa placa', async () => {
+      await configure();
+      usersApi.user = testUser([testUserVehicle('KZT45F', 'moto')]);
+      await create();
+
       api().chooseType('moto');
       api().continueFromType();
       api().form.patchValue({ plate: 'KZT45F' });
       api().form.controls.plate.markAsTouched();
       await render();
 
-      expect(host().querySelector('#plate-error')?.textContent).toContain('ya tiene un registro vigente');
-    });
-
-    it('una moto completa llega a la administración como pendiente, con el dueño de la sesión', async () => {
-      api().chooseType('moto');
-      api().continueFromType();
-      api().form.patchValue({
-        plate: 'QAZ12W',
-        brand: 'Honda',
-        line: 'CB 125F',
-        modelYear: 2023,
-        color: 'Rojo',
-      });
-      api().continueFromDetails();
-      expect(api().step()).toBe('documents');
-
-      // Sin la tarjeta de propiedad no se puede seguir.
-      api().continueFromDocuments();
-      expect(api().step()).toBe('documents');
-
-      await attach('property-card-front');
-      api().continueFromDocuments();
-      expect(api().step()).toBe('review');
-
-      // La declaración es obligatoria.
-      api().submit();
-      expect(api().step()).toBe('review');
-
-      acceptDeclaration();
-      api().submit();
-      await render();
-
-      expect(api().step()).toBe('done');
-      const created = registrations.find(api().submitted()?.id);
-      expect(created?.status).toBe('pending');
-      // El dueño sale de la cuenta con sesión (demo: "Julian Bejarano"), no de un formulario.
-      expect(created?.owner).toEqual({ firstName: 'Julian', lastName: 'Bejarano' });
-      expect(created?.vehicle).toEqual({
-        type: 'moto',
-        plate: 'QAZ12W',
-        brand: 'Honda',
-        line: 'CB 125F',
-        modelYear: 2023,
-        color: 'Rojo',
-      });
-      expect(created?.documents.map((document) => document.kind)).toEqual(['property-card-front']);
-    });
-
-    it('además de la solicitud, crea el vehículo de verdad en el backend real', async () => {
-      api().chooseType('moto');
-      api().continueFromType();
-      api().form.patchValue({ plate: 'RTG34K', brand: 'Honda', line: 'CB 125F', modelYear: 2023, color: 'Rojo' });
-      api().continueFromDetails();
-      await attach('property-card-front');
-      api().continueFromDocuments();
-      acceptDeclaration();
-      await api().submit();
-
-      expect(vehicleApi.calls).toHaveLength(1);
-      expect(vehicleApi.calls[0]).toMatchObject({
-        type: 'moto',
-        brand: 'Honda',
-        color: 'Rojo',
-        model: 2023,
-        plate: 'RTG34K',
-        // En modo demostración se manda el uid real sembrado (no 'demo-uid',
-        // que no existe en la base de datos real): ver SEEDED_OWNER_UID.
-        ownerUid: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-      });
-      // La "línea" no existe en el backend real: no se manda, aunque se guarde en la solicitud de demo.
-      expect(vehicleApi.calls[0]).not.toHaveProperty('line');
-    });
-
-    it('si el backend real falla, la solicitud igual queda guardada y no se muestra ningún error', async () => {
-      vehicleApi.fail = true;
-      api().chooseType('scooter');
-      api().continueFromType();
-      api().form.patchValue({ brand: 'Xiaomi', color: 'Gris' });
-      api().continueFromDetails();
-      api().continueFromDocuments();
-      acceptDeclaration();
-      await api().submit();
-
-      expect(api().step()).toBe('done');
-      expect(registrations.find(api().submitted()?.id)?.status).toBe('pending');
-    });
-
-    it('la bicicleta se envía sin fotos, con el serial y el dueño de la sesión', async () => {
-      api().chooseType('bicicleta');
-      api().continueFromType();
-      api().form.patchValue({ brand: 'Trek', color: 'Verde', frameSerial: 'WTU123456' });
-
-      api().continueFromDetails();
-      api().continueFromDocuments();
-      acceptDeclaration();
-      api().submit();
-
-      const created = registrations.find(api().submitted()?.id);
-      expect(created?.vehicle).toEqual({ type: 'bicicleta', brand: 'Trek', color: 'Verde', frameSerial: 'WTU123456' });
-      expect(created?.owner).toEqual({ firstName: 'Julian', lastName: 'Bejarano' });
-      expect(created?.documents).toEqual([]);
-    });
-
-    it('el scooter sin marca no avanza: el backend real la exige siempre', async () => {
-      api().chooseType('scooter');
-      api().continueFromType();
-      api().form.patchValue({ brand: '', color: 'Negro' });
-      api().continueFromDetails();
-
-      expect(api().step()).toBe('details');
-    });
-
-    it('el scooter completo se describe con marca y color', async () => {
-      api().chooseType('scooter');
-      api().continueFromType();
-      api().form.patchValue({ brand: 'Xiaomi', color: 'Negro' });
-      api().continueFromDetails();
-
-      expect(api().step()).toBe('documents');
-      expect((component as unknown as { summaryVehicle: () => unknown }).summaryVehicle()).toEqual({
-        type: 'scooter',
-        brand: 'Xiaomi',
-        color: 'Negro',
-      });
+      expect(host().querySelector('#plate-error')?.textContent).toContain('Ya registraste un vehículo con esta placa');
     });
   });
 
-  // ---- Tope de vehículos: contra el backend real, no contra la demo -----------------
   describe('tope de vehículos', () => {
     it('mientras consulta el backend, avisa que está cargando', async () => {
       await configure();
@@ -359,89 +241,24 @@ describe('RegisterVehicle', () => {
       expect(host().querySelector('.step__lead')?.textContent).toContain('Consultando');
     });
 
-    it('con 5 vehículos reales, no deja seguir y lo explica', async () => {
+    it('con 5 vehículos, no deja seguir y lo explica', async () => {
       await configure();
-      studentsApi.vehicles = [
-        backendVehicle('AAA11A'),
-        backendVehicle('BBB22B'),
-        backendVehicle('CCC33C'),
-        backendVehicle('DDD44D'),
-        backendVehicle('EEE55E'),
-      ];
+      usersApi.user = testUser(
+        ['AAA11A', 'BBB22B', 'CCC33C', 'DDD44D', 'EEE55E'].map((plate) => testUserVehicle(plate, 'moto')),
+      );
       await create();
 
       expect(host().querySelector('#step-title')?.textContent).toContain('Llegaste al máximo de vehículos');
       expect(host().querySelectorAll('.type')).toHaveLength(0);
     });
 
-    it(
-      'aunque la demostración ya tenga 5 solicitudes, si el backend real tiene menos, deja registrar ' +
-        '(bug reportado: el dashboard mostraba cupo pero el registro decía "llegaste al máximo")',
-      async () => {
-        await configure();
-
-        // La demostración (uid 'demo-uid') llega a su propio tope de 5 solicitudes,
-        // sin relación con los vehículos reales del uid sembrado que usa el backend.
-        const bike = { owner: { firstName: 'Julian', lastName: 'Bejarano' }, vehicle: { type: 'bicicleta' as const }, documents: [] };
-        registrations.submit(bike);
-        registrations.submit(bike);
-        expect(registrations.mine().length).toBeGreaterThanOrEqual(5);
-
-        // El backend real (SEEDED_OWNER_UID) solo tiene 2 vehículos.
-        studentsApi.vehicles = [backendVehicle('AAA11A'), backendVehicle('BBB22B')];
-        await create();
-
-        expect(host().querySelector('#step-title')?.textContent).not.toContain('Llegaste al máximo');
-        expect(host().querySelectorAll('.type')).toHaveLength(3);
-      },
-    );
-
-    it('si falla la consulta al backend, no bloquea el registro (falla abierto)', async () => {
+    it('si falla la consulta al backend, no bloquea el registro', async () => {
       await configure();
-      studentsApi.findById = () => Promise.reject(new Error('sin conexión'));
+      usersApi.fail = true;
       await create();
 
       expect(host().querySelector('#step-title')?.textContent).not.toContain('Llegaste al máximo');
       expect(host().querySelectorAll('.type')).toHaveLength(3);
-    });
-  });
-
-  describe('actualizar un documento pedido', () => {
-    beforeEach(async () => {
-      await configure();
-
-      // La administración pide actualizar el serial de la bicicleta de Julian.
-      signInForTest('admin');
-      registrations.requestUpdate('reg-bianchi', 'frame-serial', 'No se lee el serial.');
-      signInForTest('user');
-    });
-
-    it('muestra lo que pidió la administración y solo ese documento', async () => {
-      await create('reg-bianchi');
-
-      expect(host().querySelector('.request-note')?.textContent).toContain('No se lee el serial.');
-      expect(host().querySelectorAll('.upload')).toHaveLength(1);
-      expect(host().querySelector('.upload__label')?.textContent).toContain('serial del marco');
-    });
-
-    it('reenviar el documento devuelve la solicitud a la fila de revisión', async () => {
-      await create('reg-bianchi');
-
-      api().continueFromDocuments();
-      expect(registrations.find('reg-bianchi')?.status).toBe('needs-update');
-
-      await attach('frame-serial');
-      api().continueFromDocuments();
-      await render();
-
-      expect(api().step()).toBe('done');
-      expect(registrations.find('reg-bianchi')?.status).toBe('pending');
-    });
-
-    it('no deja actualizar solicitudes ajenas', async () => {
-      await create('reg-camila');
-
-      expect(host().querySelector('#step-title')?.textContent).toContain('No hay nada que actualizar');
     });
   });
 });

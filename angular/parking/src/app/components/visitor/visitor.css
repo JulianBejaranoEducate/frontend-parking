@@ -175,8 +175,6 @@
   align-items: start;
 }
 
-/* Los estilos de .field viven en styles.css: los comparte el registro de vehículos. */
-
 /* ---------- Acciones ---------- */
 
 .actions {
@@ -285,46 +283,6 @@
   pointer-events: none;
 }
 
-.qr--blocked .qr__image {
-  filter: blur(14px);
-  opacity: 0.3;
-}
-
-.qr__cover {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  gap: 0.375rem;
-  place-content: center;
-  justify-items: center;
-  width: 100%;
-  padding: 1rem;
-  margin: 0;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--brand-text-muted);
-  background: rgb(255 255 255 / 55%);
-  border: 0;
-  border-radius: inherit;
-}
-
-.qr__cover--action {
-  color: var(--brand-primary);
-  cursor: pointer;
-}
-
-.qr__cover--action:focus-visible {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: -2px;
-}
-
-.qr__cover-icon {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
 .pass__holder {
   display: flex;
   flex-wrap: wrap;
@@ -352,44 +310,6 @@
   letter-spacing: 0.12em;
   color: var(--brand-secondary);
   background: var(--brand-secondary-soft);
-}
-
-.pass__timer {
-  margin: 0.5rem 0 0;
-  font-size: 0.875rem;
-  color: var(--brand-text-muted);
-}
-
-.pass__timer strong {
-  font-variant-numeric: tabular-nums;
-  color: var(--brand-primary);
-}
-
-.pass__timer--expired {
-  font-weight: 600;
-  color: var(--brand-secondary-dark);
-}
-
-.pass__warning {
-  display: flex;
-  gap: 0.625rem;
-  align-items: flex-start;
-  margin: 1.125rem 0 0;
-  padding: 0.75rem 0.875rem;
-  font-size: 0.8125rem;
-  line-height: 1.45;
-  text-align: left;
-  color: var(--brand-text-muted);
-  background: var(--brand-accent-soft);
-  border-radius: 0.75rem;
-}
-
-.pass__warning-icon {
-  flex: none;
-  width: 1.125rem;
-  height: 1.125rem;
-  margin-top: 0.0625rem;
-  color: var(--brand-accent);
 }
 
 /* ---------- Animaciones ---------- */

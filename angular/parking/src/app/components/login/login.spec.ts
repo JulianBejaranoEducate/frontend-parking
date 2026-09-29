@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import { signInForTest } from '../../testing/demo-session';
+import { provideFirebaseWithoutSession, signInForTest } from '../../testing/test-session';
 import { Login } from './login';
 
 describe('Login', () => {
@@ -17,7 +17,7 @@ describe('Login', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Login],
-      providers: [provideRouter([])],
+      providers: [provideRouter([]), provideFirebaseWithoutSession()],
     }).compileComponents();
   });
 
@@ -43,11 +43,10 @@ describe('Login', () => {
     expect(host().querySelector('.btn--secondary')?.textContent).toContain('Visitantes');
   });
 
-  it('en demostración permite entrar como administración o como cualquiera de los dos guardias', async () => {
+  it('no ofrece accesos de demostración: solo Microsoft y visitantes', async () => {
     await create();
-    const shortcuts = [...host().querySelectorAll('.demo__link')].map((link) => link.textContent?.trim());
 
-    expect(shortcuts).toEqual(['Administración', 'Guardia Carlos', 'Guardia Diana']);
+    expect(host().querySelectorAll('button, a')).toHaveLength(2);
   });
 
   it('con la sesión abierta lleva directo al inicio del rol', async () => {

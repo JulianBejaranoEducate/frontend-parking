@@ -10,7 +10,7 @@ import {
   staysWithinDays,
 } from '../../core/models/parking';
 import { vehicleTitle } from '../../core/models/vehicle';
-import { ParkingService } from '../../core/services/parking.service';
+import { StudentParkingService } from '../../core/services/student-panel/student-parking.service';
 
 /**
  * Estadísticas personales de uso del parqueadero (Opción A de
@@ -21,7 +21,7 @@ import { ParkingService } from '../../core/services/parking.service';
  * con esos mismos datos: duración promedio de la estancia y entradas por
  * vehículo.
  *
- * `ParkingService` ya trae el historial real (`GET /parking/historical/:plate`,
+ * `StudentParkingService` ya trae el historial real (`GET /parking/historical/:plate`,
  * uno por vehículo del usuario, combinados) — no confundir con
  * `ParkingStatsService`, que es para el dashboard de administración y genera
  * datos simulados con semilla: esto es el historial real de la sesión,
@@ -33,7 +33,7 @@ import { ParkingService } from '../../core/services/parking.service';
   templateUrl: './stats.html',
 })
 export class Stats {
-  private readonly parking = inject(ParkingService);
+  private readonly parking = inject(StudentParkingService);
 
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly loading = this.parking.staysLoading;

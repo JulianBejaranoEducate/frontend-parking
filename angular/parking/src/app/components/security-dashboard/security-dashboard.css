@@ -108,6 +108,15 @@
   margin-top: 1.25rem;
 }
 
+/* ---------- Novedades ---------- */
+
+.incident-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 36rem;
+  margin-top: 1.25rem;
+}
+
 /* ---------- Dentro ahora ---------- */
 
 .filters {
@@ -179,7 +188,7 @@
   }
 }
 
-/* ---------- BotA3n de escaneo de placa ---------- */
+/* ---------- Botón de escaneo de placa ---------- */
 .scan-actions {
   display: flex;
   flex-wrap: wrap;

@@ -324,34 +324,59 @@
         }
       </section>
     }
-      @case ('incidencias') {
+    @case ('incidencias') {
       <section class="card" aria-labelledby="incidents-title">
-        <h2 id="incidents-title" class="card__title">Registrar Novedad (Incidencia)</h2>
-        <form class="form" (submit)="submitIncident($event, incTitle.value, incDesc.value, incSev.value, incPlate.value); incTitle.value=''; incDesc.value=''; incPlate.value=''">
+        <h2 id="incidents-title" class="card__title">Nueva novedad</h2>
+        <form class="incident-form" (submit)="submitIncident($event)">
           <div class="field">
-            <label class="field__label" for="inc-title">Título de la novedad</label>
-            <input #incTitle id="inc-title" class="field__control" type="text" placeholder="Ej. Vehículo mal parqueado" required />
+            <label class="field__label" for="inc-title">Título</label>
+            <input
+              id="inc-title"
+              name="title"
+              class="field__control"
+              type="text"
+              minlength="3"
+              maxlength="100"
+              placeholder="Ej. Vehículo mal parqueado"
+              required
+            />
           </div>
           <div class="field">
             <label class="field__label" for="inc-desc">Descripción</label>
-            <textarea #incDesc id="inc-desc" class="field__control" rows="3" placeholder="Detalles completos..." required></textarea>
+            <textarea
+              id="inc-desc"
+              name="description"
+              class="field__control"
+              rows="3"
+              minlength="5"
+              maxlength="480"
+              placeholder="Qué pasó, dónde y a qué hora."
+              required
+            ></textarea>
           </div>
           <div class="field">
-            <label class="field__label" for="inc-plate">Placa involucrada (opcional)</label>
-            <input #incPlate id="inc-plate" class="field__control" type="text" placeholder="Ej. ABC123" />
+            <label class="field__label" for="inc-plate">
+              Placa involucrada <span class="field__optional">(opcional)</span>
+            </label>
+            <input
+              id="inc-plate"
+              name="plate"
+              class="field__control field__control--plate"
+              type="text"
+              maxlength="6"
+              autocapitalize="characters"
+              placeholder="ABC12D"
+            />
           </div>
-          <div class="field">
-            <label class="field__label" for="inc-sev">Severidad</label>
-            <div class="field__select">
-              <select #incSev id="inc-sev" class="field__control">
-                <option value="low">Baja (ej. mal parqueado)</option>
-                <option value="medium">Media (ej. golpe leve)</option>
-                <option value="high">Alta (ej. accidente, robo)</option>
-              </select>
-            </div>
-          </div>
-          <div style="margin-top: 1rem;">
-            <button type="submit" class="btn btn--primary">Reportar a la administración</button>
+
+          @if (incidentError(); as message) {
+            <p class="notice notice--critical" role="alert">{{ message }}</p>
+          }
+
+          <div>
+            <button type="submit" class="small-btn small-btn--primary" [disabled]="incidentSending()">
+              {{ incidentSending() ? 'Enviando…' : 'Reportar a la administración' }}
+            </button>
           </div>
         </form>
       </section>

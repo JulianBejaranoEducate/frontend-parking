@@ -1,98 +1,58 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { zoneFor } from '../config/parking.config';
-import { type ParkingZone, type Stay, freeSpots } from '../models/parking';
-import { type DashboardVehicle } from '../models/vehicle';
-import type { VehicleType } from '../models/vehicle';
-import {
-  type BackendAccessRecord,
-  type BackendParkingZone,
-  ParkingApiService,
-} from './modules/parking-student-panel/parking-api.sp.service';
-import { StudentsService } from './students.service';
-
-function toParkingZone(zone: BackendParkingZone): ParkingZone {
-  const type = zone.vehicleType as VehicleType;
-  const config = zoneFor(type);
-
-  return {
-    id: config.id,
-    name: config.name,
-    accepts: type,
-    capacity: zone.totalCapacity,
-    occupied: zone.totalCapacity - zone.availableSpaces,
-  };
-}
+import { type ParkingZone, type Stay, freeSpots } from '../../models/parking';
+import type { DashboardVehicle } from '../../models/vehicle';
+import { type BackendAccessRecord, ParkingApiService, toParkingZone, zoneName } from '../api/parking-api.service';
+import { StudentVehiclesService } from './student-vehicles.service';
 
 function toStay(record: BackendAccessRecord, vehicle: DashboardVehicle): Stay {
-  const type = record.zoneType as VehicleType;
-
   return {
     id: String(record.id),
     vehicle,
-    zoneName: zoneFor(type).name,
+    zoneName: zoneName(record.zoneType),
     enteredAt: new Date(record.entryDateTime),
     exitedAt: record.exitDateTime ? new Date(record.exitDateTime) : null,
   };
 }
 
 /**
- * Datos del parqueadero para el dashboard del usuario institucional, ya
- * conectados al backend real (fase de conexión; ver "Conexión
- * frontend-backend" en planeacion-desarrollo.md).
+ * Datos del parqueadero para el panel de quien tiene la sesión (ADR-010): la
+ * disponibilidad por zona (`GET /parkingZone`) y el historial de todos sus
+ * vehículos (`GET /parking/historical/:plate`, uno por vehículo, combinados).
  *
- * Solo expone lo de quien tiene la sesión abierta (ADR-010): sus cupos de
- * zona (`GET /parkingZone`) y el historial de todos sus vehículos
- * (`GET /parking/historical/:plate`, uno por vehículo, combinados). "Mis
- * vehículos" no sale de aquí: el dashboard los trae directo de
- * `StudentsService`, que también es de donde este servicio saca las placas
- * para pedir el historial de cada una — comparten la misma consulta en vez de
- * pedir cada uno la suya, para no duplicar la llamada a `GET /users/:id`.
- *
- * `currentStay` se deriva del historial combinado (el registro con
- * `exitDateTime: null`, si existe) en vez de llamar a `GET /parking/status`
- * por cada vehículo: son la misma información, y así no se duplican llamadas
- * cuando de todas formas hace falta el historial completo.
+ * Las placas salen de `StudentVehiclesService`, la misma consulta de «Mis
+ * vehículos», para no pedir dos veces `GET /users/:id`. La estancia en curso se
+ * deriva del historial (el registro sin salida) en vez de consultar el estado de
+ * cada vehículo aparte.
  */
 @Injectable({ providedIn: 'root' })
-export class ParkingService {
-  private readonly students = inject(StudentsService);
+export class StudentParkingService {
+  private readonly vehicles = inject(StudentVehiclesService);
   private readonly parkingApi = inject(ParkingApiService);
 
-  // ---- Cupos por zona (GET /parkingZone) -----------------------------------------
+  // ---- Cupos por zona -------------------------------------------------------------
 
   readonly zonesLoading = signal(true);
   readonly zonesError = signal<string | null>(null);
   readonly zones = signal<ParkingZone[]>([]);
 
-  readonly totalFreeSpots = computed(() =>
-    this.zones().reduce((total, zone) => total + freeSpots(zone), 0),
-  );
-  readonly totalCapacity = computed(() =>
-    this.zones().reduce((total, zone) => total + zone.capacity, 0),
-  );
-  readonly totalOccupied = computed(() =>
-    this.zones().reduce((total, zone) => total + zone.occupied, 0),
-  );
+  readonly totalFreeSpots = computed(() => this.zones().reduce((total, zone) => total + freeSpots(zone), 0));
+  readonly totalCapacity = computed(() => this.zones().reduce((total, zone) => total + zone.capacity, 0));
 
-  // ---- Historial de mis vehículos (GET /parking/historical/:plate) --------------
+  // ---- Historial de mis vehículos -------------------------------------------------
 
   readonly staysLoading = signal(true);
   readonly staysError = signal<string | null>(null);
   readonly stays = signal<Stay[]>([]);
 
   /** Estancia sin salida registrada: el vehículo sigue dentro. */
-  readonly currentStay = computed(
-    () => this.stays().find((item) => item.exitedAt === null) ?? null,
-  );
+  readonly currentStay = computed(() => this.stays().find((item) => item.exitedAt === null) ?? null);
 
-  /** Cuántas veces entró el usuario en el mes corriente. */
+  /** Cuántas veces entró la persona en el mes corriente. */
   readonly entriesThisMonth = computed(() => {
     const now = new Date();
 
     return this.stays().filter(
-      (item) =>
-        item.enteredAt.getMonth() === now.getMonth() &&
-        item.enteredAt.getFullYear() === now.getFullYear(),
+      (item) => item.enteredAt.getMonth() === now.getMonth() && item.enteredAt.getFullYear() === now.getFullYear(),
     ).length;
   });
 
@@ -101,43 +61,36 @@ export class ParkingService {
     void this.refreshStays();
   }
 
-  /** Vuelve a consultar la disponibilidad por zona. Expuesto para el botón "Actualizar" de Parqueaderos. */
+  /** Vuelve a consultar la disponibilidad por zona (botón «Actualizar» de Parqueaderos). */
   async refreshZones(): Promise<void> {
     this.zonesLoading.set(true);
     this.zonesError.set(null);
 
     try {
-      const zones = await this.parkingApi.zones();
-      this.zones.set(zones.map(toParkingZone));
+      this.zones.set((await this.parkingApi.zones()).map(toParkingZone));
     } catch {
-      this.zonesError.set(
-        'No pudimos consultar la disponibilidad del parqueadero. Revisa tu conexión e inténtalo de nuevo.',
-      );
+      this.zonesError.set('No pudimos consultar la disponibilidad del parqueadero. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       this.zonesLoading.set(false);
     }
   }
 
-  /** Vuelve a consultar el historial de todos mis vehículos. */
+  /** Vuelve a consultar el historial de todos los vehículos de la persona. */
   async refreshStays(): Promise<void> {
     this.staysLoading.set(true);
     this.staysError.set(null);
 
     try {
-      const vehicles = await this.students.refresh();
-      const histories = await Promise.all(
-        vehicles.map((vehicle) => this.parkingApi.history(vehicle.id)),
+      const vehicles = await this.vehicles.refresh();
+      const histories = await Promise.all(vehicles.map((vehicle) => this.parkingApi.history(vehicle.id)));
+
+      this.stays.set(
+        vehicles
+          .flatMap((vehicle, index) => histories[index].map((record) => toStay(record, vehicle)))
+          .sort((a, b) => b.enteredAt.getTime() - a.enteredAt.getTime()),
       );
-
-      const stays = vehicles
-        .flatMap((vehicle, index) => histories[index].map((record) => toStay(record, vehicle)))
-        .sort((a, b) => b.enteredAt.getTime() - a.enteredAt.getTime());
-
-      this.stays.set(stays);
     } catch {
-      this.staysError.set(
-        'No pudimos consultar tu historial. Revisa tu conexión e inténtalo de nuevo.',
-      );
+      this.staysError.set('No pudimos consultar tu historial. Revisa tu conexión e inténtalo de nuevo.');
     } finally {
       this.staysLoading.set(false);
     }

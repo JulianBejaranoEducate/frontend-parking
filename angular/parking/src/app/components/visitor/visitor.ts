@@ -2,21 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
-import {
-  DOCUMENT_TYPES,
-  VEHICLE_TYPES,
-  type DocumentType,
-  type VehicleType,
-  type VisitorRegistration,
-  vehicleLabel,
-} from '../../core/models/visitor-pass';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
+import { VEHICLE_TYPES, type VehicleType, vehicleLabel } from '../../core/models/vehicle';
+import { DOCUMENT_TYPES, type DocumentType, type VisitorRegistration } from '../../core/models/visitor';
+import { type BackendVisitor, VisitorsApiService } from '../../core/services/api/visitors-api.service';
+import { QR_CODE_RENDERER } from '../../core/utils/qr-code';
 
 /**
- * Placa: 3 letras y 3 números exactos (así la exige hoy el backend en
- * `Visitor.validation.ts`; distinto del formato de motos institucionales).
+ * Placa de moto colombiana: ABC12D; las antiguas no llevan la letra final
+ * (ABC12). Es el mismo patrón que acepta el backend en `Visitor.validation.ts`.
  */
-const PLATE_PATTERN = /^[A-Z]{3}[0-9]{3}$/;
+const PLATE_PATTERN = /^[A-Z]{3}[0-9]{2}[A-Z0-9]?$/;
 
 /** Cédulas y tarjetas de identidad colombianas: solo dígitos, de 6 a 11. */
 const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
@@ -46,12 +41,11 @@ const REQUIRED_MESSAGES: Record<FieldName, string> = {
 
 const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
   documentNumber: 'Debe tener entre 6 y 11 dígitos, sin puntos ni espacios.',
-  plate: 'Usa el formato ABC123 (3 letras y 3 números).',
+  plate: 'Usa el formato de placa de moto: ABC12D.',
 };
 
 /**
- * Registro de visitantes (fase de conexión; ver "Conexión frontend-backend" en
- * planeacion-desarrollo.md).
+ * Registro de visitantes: formulario público, sin cuenta (`POST /visitors`).
  *
  * Enviar este formulario solo registra la visita: todavía no es un ingreso
  * (la persona puede registrarse y al final no entrar). El QR lleva el id que el
@@ -71,7 +65,8 @@ const PATTERN_MESSAGES: Partial<Record<FieldName, string>> = {
 })
 export class Visitor {
   private readonly fb = inject(FormBuilder);
-  private readonly visitorApi = inject(VisitorApiService);
+  private readonly visitorApi = inject(VisitorsApiService);
+  private readonly renderQrCode = inject(QR_CODE_RENDERER);
 
   protected readonly brand = BRAND;
   protected readonly documentTypes = DOCUMENT_TYPES;
@@ -205,7 +200,7 @@ export class Visitor {
 
     try {
       const backendVisitor = await this.visitorApi.create(registration);
-      this.qrDataUrl.set(await this.visitorApi.renderQrCode(String(backendVisitor.id)));
+      this.qrDataUrl.set(await this.renderQrCode(String(backendVisitor.id)));
       this.visitor.set(backendVisitor);
     } catch (error) {
       console.error('No se pudo registrar la visita en el backend:', error);

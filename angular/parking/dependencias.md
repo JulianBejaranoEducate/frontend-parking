@@ -71,16 +71,18 @@ Son las que viajan dentro de la app (`dependencies` en `package.json`).
 | Librería | Versión | Para qué sirve | Estado |
 | --- | --- | --- | --- |
 | `@angular/core`, `@angular/common`, `@angular/compiler`, `@angular/platform-browser` | ^22.0.0 | El framework: componentes, signals y arranque de la app | En uso |
-| `@angular/router` | ^22.0.0 | Rutas por rol (`/login`, `/visitantes`, `/seguridad/...`) | En uso |
+| `@angular/router` | ^22.0.0 | Rutas por rol (`/login`, `/visitantes`, `/inicio`, `/admin/...`, `/seguridad/...`) | En uso |
 | `@angular/forms` | ^22.0.0 | Formularios reactivos: visitantes y registro de vehículos | En uso |
 | `@angular/service-worker` | ^22.1.3 | La PWA: guarda la app para abrirla sin conexión (sección 6) | En uso |
 | `rxjs` | ~7.8.0 | Lo usa Angular por dentro (peticiones HTTP) | En uso |
 | `tslib` | ^2.3.0 | Ayudantes de TypeScript que necesita el código compilado | En uso |
-| `@zxing/browser` y `@zxing/library` | ^0.2.1 y ^0.23.0 | Leer el QR del visitante con la cámara o desde una foto (`scanner.service.ts`) | En uso |
-| `qrcode` | ^1.5.4 | Dibujar el QR que recibe el visitante (`visitor-api.service.ts`) | En uso |
-| `@capacitor/core` y `@capacitor/android` | ^8.5.2 | Empaquetar la app para Android (sección 5) | En uso |
-| `bootstrap` | ^5.3.8 | Estilos. Está importado en `styles.css`, pero ninguna vista usa sus clases (MEJ-001) | Instalada, sin uso real |
-| `firebase` | ^12.18.0 | Era el inicio de sesión con Microsoft. Ningún archivo lo usa desde el 2026-09-27 (ADR-022, PEN-026) | Instalada, sin uso |
+| `firebase` | ^12.18.0 | Inicio de sesión con Microsoft y el token que se envía al backend (`services/auth/firebase-auth.ts`). Se carga solo al usarlo, no entra en el paquete inicial | En uso |
+| `@zxing/browser` y `@zxing/library` | ^0.2.1 y ^0.23.0 | Leer el QR con la cámara o desde una foto (`services/scanner/qr-scanner.service.ts`) | En uso |
+| `qrcode` | ^1.5.4 | Dibujar el QR del visitante y el de cada vehículo (`utils/qr-code.ts`) | En uso |
+| `@capacitor/core` | ^8.5.2 | Base de la app de Android (sección 5) | En uso |
+| `@capacitor/camera` | ^8.2.4 | Tomar la foto de la placa en la app de Android (`services/scanner/plate-scanner.service.ts`) | En uso (solo en la app nativa) |
+| `@capacitor-mlkit/text-recognition` | ^8.2.1 | Leer el texto de la placa en el celular con ML Kit, sin internet (`plate-scanner.service.ts`) | En uso (solo en la app nativa) |
+| `bootstrap` | ^5.3.8 | Estilos. Está importado en `styles.css`, pero ninguna vista usa sus clases: solo aplica su hoja base. Pesa 252 kB y es lo que pasa el paquete inicial del límite (MEJ-001) | Instalada, sin uso real |
 
 ### Cómo se instala cada una
 
@@ -94,6 +96,18 @@ npx ng update @angular/core @angular/cli
 
 ```bash
 npm install @zxing/browser @zxing/library
+```
+
+**Firebase** (inicio de sesión con Microsoft; la configuración del proyecto está en `core/config/firebase.config.ts`):
+
+```bash
+npm install firebase
+```
+
+**Cámara y lectura de placas en la app de Android** (después de instalarlas hay que correr `npx cap sync android`):
+
+```bash
+npm install @capacitor/camera @capacitor-mlkit/text-recognition
 ```
 
 **Generador de QR** (la segunda línea instala sus tipos para TypeScript):
@@ -116,12 +130,6 @@ npm install --save-dev @types/qrcode
 npm install bootstrap
 ```
 
-**Firebase** (ya está instalado; solo haría falta si se desinstala y se vuelve a necesitar):
-
-```bash
-npm install firebase
-```
-
 ---
 
 ## 4. Dependencias de desarrollo
@@ -138,6 +146,7 @@ Solo se usan para programar, probar y compilar; no viajan dentro de la app (`dev
 | `jsdom` | ^28.0.0 | Simula el navegador dentro de las pruebas |
 | `prettier` | ^3.8.1 | Da formato al código |
 | `@capacitor/cli` | ^8.5.2 | El comando `npx cap` para la app de Android |
+| `@capacitor/android` | ^8.5.2 | La plataforma Android de Capacitor (sección 5) |
 | `@types/qrcode` | ^1.5.6 | Tipos de TypeScript para `qrcode` |
 
 Las de Angular, TypeScript, Vitest y jsdom vienen con `ng new`. Las demás se instalan con `--save-dev`:

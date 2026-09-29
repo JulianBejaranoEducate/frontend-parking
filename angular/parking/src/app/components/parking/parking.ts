@@ -1,27 +1,19 @@
 import { Component, inject, signal } from '@angular/core';
 import { formatDuration } from '../../core/models/parking';
 import { vehicleTitle } from '../../core/models/vehicle';
-import { ParkingService } from '../../core/services/parking.service';
-import { ParkingApiService } from '../../core/services/modules/security-dashboard/parking-api.service';
-
+import { ParkingApiService } from '../../core/services/api/parking-api.service';
+import { StudentParkingService } from '../../core/services/student-panel/student-parking.service';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
 
 /**
- * Disponibilidad del parqueadero (fase de conexión; ver "Conexión
- * frontend-backend" en planeacion-desarrollo.md).
+ * Disponibilidad del parqueadero para la comunidad.
  *
- * La capacidad y disponibilidad por zona ya son 100% reales
- * (`ParkingService.zones`, `GET /parkingZone`) — es la versión completa del
- * widget "Disponibilidad" que ya vive en `/inicio` (mismo dato, mismo
- * componente `zone-availability`, aquí con la ficha completa).
- *
- * "Vehículos dentro" es un desglose aparte, institucionales vs. visitantes,
- * que `/parkingZone` no distingue (solo da el total por tipo): sigue
- * viniendo de `VehicleApiService.inside()` + `VisitorApiService.findAll()`,
- * igual que antes.
- *
- * "Estado de tu vehículo" también es real (`ParkingService.currentStay`,
- * derivado de `GET /parking/historical/:plate`).
+ * - Capacidad y puestos libres por zona: `StudentParkingService.zones`
+ *   (`GET /parkingZone`), el mismo dato del widget "Disponibilidad" de `/inicio`.
+ * - "Vehículos dentro", separados en comunidad y visitantes: los registros de
+ *   acceso abiertos (`GET /parking/records/open`).
+ * - "Estado de tu vehículo": `StudentParkingService.currentStay`, que sale del
+ *   historial de cada placa (`GET /parking/historical/:plate`).
  */
 @Component({
   imports: [ZoneAvailability],
@@ -31,8 +23,7 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 })
 export class Parking {
   private readonly parkingApi = inject(ParkingApiService);
-  
-  private readonly parking = inject(ParkingService);
+  private readonly parking = inject(StudentParkingService);
 
   protected readonly vehicleTitle = vehicleTitle;
 
@@ -58,19 +49,19 @@ export class Parking {
     void this.parking.refreshZones();
   }
 
-    protected async loadInside(): Promise<void> {
+  /** Cuenta los registros de acceso abiertos: los de visitantes traen su id, los de la comunidad no. */
+  protected async loadInside(): Promise<void> {
     this.insideLoading.set(true);
     this.insideError.set(null);
 
     try {
       const records = await this.parkingApi.openRecords();
-      const visitors = records.filter((r) => r.visitorId !== null).length;
-      const institutional = records.length - visitors;
-      
-      this.institutionalInside.set(institutional);
+      const visitors = records.filter((record) => record.visitorId !== null).length;
+
+      this.institutionalInside.set(records.length - visitors);
       this.visitorsInside.set(visitors);
     } catch {
-      this.insideError.set('No pudimos consultar quiAc!n estAc! dentro ahora mismo.');
+      this.insideError.set('No pudimos consultar quién está dentro ahora mismo.');
     } finally {
       this.insideLoading.set(false);
     }

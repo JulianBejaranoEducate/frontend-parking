@@ -41,7 +41,7 @@ export interface ScanOptions {
  * ML Kit (`@capacitor-mlkit/barcode-scanning`) sin cambiar las pantallas.
  */
 @Injectable({ providedIn: 'root' })
-export class ScannerService {
+export class QrScannerService {
   private controls?: IScannerControls;
   private torchOn = false;
   /** Identifica el encendido actual de la cámara para descartar respuestas viejas. */

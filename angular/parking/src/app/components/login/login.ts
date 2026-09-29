@@ -2,18 +2,11 @@ import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { BRAND } from '../../core/config/branding.config';
 import { homeFor } from '../../core/guards/auth.guards';
-import { AuthService, type AuthUser, type DemoProfile } from '../../core/services/auth.service';
-
-/** Accesos directos del modo demostración, además del usuario institucional. */
-const DEMO_SHORTCUTS: readonly { profile: Exclude<DemoProfile, 'user'>; label: string }[] = [
-  { profile: 'admin', label: 'Administración' },
-  { profile: 'security', label: 'Guardia Carlos' },
-  { profile: 'security-relief', label: 'Guardia Diana' },
-];
+import { AuthService, type AuthUser } from '../../core/services/auth/auth.service';
 
 /**
- * Pantalla de acceso: inicio de sesión institucional con Microsoft, entrada
- * de visitantes y, en demostración, accesos a los demás roles.
+ * Pantalla de acceso: inicio de sesión institucional con Microsoft y entrada
+ * al formulario de visitantes, que no necesita cuenta.
  */
 @Component({
   imports: [],
@@ -29,27 +22,21 @@ export class Login {
   protected readonly brand = BRAND;
   protected readonly loading = this.auth.loading;
   protected readonly error = this.auth.error;
-  protected readonly demoMode = this.auth.demoMode;
-  protected readonly demoShortcuts = DEMO_SHORTCUTS;
   protected readonly currentYear = new Date().getFullYear();
 
   constructor() {
-    // Con la sesión ya abierta (p. ej. al abrir la app instalada), no tiene
-    // sentido volver a pedir acceso: cada rol va directo a su inicio.
+    // Con la sesión ya abierta (p. ej. al abrir la app instalada) va directo a su inicio.
     if (this.auth.user()) {
       void this.enterDashboard(this.auth.user());
       return;
     }
 
-    // En la app híbrida el acceso se hace por redirección: al volver de
-    // Microsoft se aterriza aquí de nuevo y hay que recoger la sesión.
+    // En la app nativa el acceso es por redirección: al volver de Microsoft se
+    // aterriza aquí de nuevo y hay que recoger la sesión.
     void this.resumeRedirectSignIn();
   }
 
-  /**
-   * Acceso institucional: delega en Firebase, que lleva al login de Microsoft.
-   * Al volver, el rol decide el dashboard de destino.
-   */
+  /** Acceso institucional: Firebase lleva al login de Microsoft y el rol decide el destino. */
   protected async signInWithMicrosoft(): Promise<void> {
     if (this.loading()) {
       return;
@@ -58,23 +45,9 @@ export class Login {
     await this.enterDashboard(await this.auth.loginWithMicrosoft());
   }
 
-  /**
-   * Solo en demostración: entra con una cuenta simulada de administración o de
-   * seguridad para recorrer su dashboard.
-   *
-   * @param profile Cuenta de demostración elegida.
-   */
-  protected async signInAsDemo(profile: Exclude<DemoProfile, 'user'>): Promise<void> {
-    if (this.loading()) {
-      return;
-    }
-
-    await this.enterDashboard(await this.auth.loginAsDemo(profile));
-  }
-
-  /** Acceso de visitantes: sin cuenta institucional, registro temporal. */
+  /** Abre el formulario de visitantes, que no necesita sesión. */
   protected goToVisitors(): void {
-    this.auth.continueAsVisitor();
+    this.auth.clearError();
     void this.router.navigate(['/visitantes']);
   }
 
@@ -88,10 +61,8 @@ export class Login {
 
   /** Lleva a cada rol a su propio inicio (ver `ROLE_HOME`). */
   private async enterDashboard(user: AuthUser | null): Promise<void> {
-    if (!user) {
-      return;
+    if (user) {
+      await this.router.navigateByUrl(homeFor(user));
     }
-
-    await this.router.navigateByUrl(homeFor(user));
   }
 }

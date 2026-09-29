@@ -9,14 +9,14 @@ import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from 
 import { provideServiceWorker } from '@angular/service-worker';
 
 import { applyBrandTheme } from './core/config/branding.config';
-import { authInterceptor } from './core/interceptors/auth.interceptors';
+import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { routes } from './app.routes';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    // Cliente HTTP hacia el backend real; authInterceptor le agrega el token de
-    // Firebase a cada petición cuando hay una sesión real (fase de conexión).
+    // Cliente HTTP hacia el backend; authInterceptor le agrega el token de
+    // Firebase a cada petición cuando hay sesión.
     provideHttpClient(withInterceptors([authInterceptor])),
     provideRouter(
       routes,

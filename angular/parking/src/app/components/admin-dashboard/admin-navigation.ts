@@ -1,6 +1,6 @@
-import { signal, inject } from '@angular/core';
+import { computed, inject } from '@angular/core';
 import type { DashboardNavigation } from '../../core/navigation/dashboard-navigation';
-import { IncidentService } from '../../core/services/incident.service';
+import { IncidentsApiService } from '../../core/services/api/incidents-api.service';
 
 export const ADMIN_SECTIONS = [
   'resumen',
@@ -20,16 +20,28 @@ const ICONS = {
   incidencias: 'M12 2 1 21h22zm0 4 7.5 13h-15zM11 10h2v5h-2zm0 6h2v2h-2z',
 } satisfies Record<AdminSection, string>;
 
+/**
+ * Menú de administración. El contador de «Incidencias» se recalcula solo cuando
+ * `IncidentsApiService` carga la lista.
+ */
 export function adminNavigation(): DashboardNavigation {
-  const incidents = inject(IncidentService);
+  const incidents = inject(IncidentsApiService);
+  const openIncidents = computed(() => incidents.incidents().filter((incident) => incident.status === 'open').length);
+
   return {
-    context: 'Administracion',
-    items: signal([
+    context: 'Administración',
+    items: computed(() => [
       { id: 'resumen', label: 'Resumen', icon: ICONS.resumen, route: '/admin/resumen' },
       { id: 'pendientes', label: 'Pendientes', icon: ICONS.pendientes, route: '/admin/pendientes' },
       { id: 'aprobados', label: 'Aprobados', icon: ICONS.aprobados, route: '/admin/aprobados' },
       { id: 'usuarios', label: 'Usuarios', icon: ICONS.usuarios, route: '/admin/usuarios' },
-      { id: 'incidencias', label: 'Incidencias', icon: ICONS.incidencias, route: '/admin/incidencias', badge: incidents.incidents().filter((i) => i.status === 'open').length || undefined },
-    ]).asReadonly(),
+      {
+        id: 'incidencias',
+        label: 'Incidencias',
+        icon: ICONS.incidencias,
+        route: '/admin/incidencias',
+        ...(openIncidents() ? { badge: openIncidents(), badgeLabel: 'abiertas' } : {}),
+      },
+    ]),
   };
 }

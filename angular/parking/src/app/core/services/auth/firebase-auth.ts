@@ -1,70 +1,89 @@
 /**
- * Capa delgada sobre el SDK de Firebase para el acceso con Microsoft.
+ * Capa delgada sobre el SDK de Firebase: acceso con Microsoft, cierre de
+ * sesión y la cuenta con la sesión abierta.
  *
- * Vive en su propio módulo porque AuthService lo carga con un import dinámico:
- * así el peso de firebase/auth solo se descarga cuando la persona pulsa
- * "Iniciar sesión", y la pantalla de acceso pinta de inmediato.
+ * El SDK se carga con import dinámico dentro de cada función: este archivo se
+ * puede importar sin que sus cientos de kilobytes entren en el paquete inicial,
+ * y la pantalla de acceso pinta de inmediato.
  */
-import { type FirebaseApp, getApps, initializeApp } from 'firebase/app';
-import {
-  type Auth,
-  OAuthProvider,
-  type User,
-  getAuth,
-  getRedirectResult,
-  signInWithPopup,
-  signInWithRedirect,
-  signOut,
-} from 'firebase/auth';
-import { BRAND } from '../config/branding.config';
-import { FIREBASE_CONFIG, MICROSOFT_TENANT_ID } from '../config/firebase.config';
+import { InjectionToken } from '@angular/core';
+import type { Auth, Unsubscribe, User } from 'firebase/auth';
+import { BRAND } from '../../config/branding.config';
+import { FIREBASE_CONFIG, MICROSOFT_TENANT_ID } from '../../config/firebase.config';
 
-function app(): FirebaseApp {
-  return getApps()[0] ?? initializeApp(FIREBASE_CONFIG);
+/** Lo que la app usa de Firebase Auth. Las pruebas lo reemplazan con {@link FIREBASE_AUTH}. */
+export interface FirebaseAuthGateway {
+  /**
+   * Inicia sesión con Microsoft. En web abre un popup; en la app nativa no hay
+   * popup, así que navega a Microsoft y devuelve null: la app se recarga y el
+   * resultado se recoge después con `resolvePendingRedirect`.
+   */
+  signInWithMicrosoft(useRedirect: boolean): Promise<User | null>;
+  /** Recoge la cuenta al volver de Microsoft en la app nativa; null si no había un acceso pendiente. */
+  resolvePendingRedirect(): Promise<User | null>;
+  signOut(): Promise<void>;
+  /** La cuenta con la sesión abierta, o null. */
+  currentUser(): Promise<User | null>;
+  /**
+   * Avisa cada vez que cambia la sesión o se renueva el token (ahí llegan los
+   * cambios de rol). La primera llamada llega en cuanto Firebase restaura la
+   * sesión guardada, o con null si no había.
+   */
+  onAuthStateChanged(onUser: (user: User | null) => void, onError: (error: Error) => void): Promise<Unsubscribe>;
 }
 
-export function firebaseAuth(): Auth {
-  return getAuth(app());
+async function firebaseAuth(): Promise<Auth> {
+  const [{ getApps, initializeApp }, { getAuth }] = await Promise.all([import('firebase/app'), import('firebase/auth')]);
+  return getAuth(getApps()[0] ?? initializeApp(FIREBASE_CONFIG));
 }
 
-function microsoftProvider(): OAuthProvider {
-  const provider = new OAuthProvider('microsoft.com');
-  const parameters: Record<string, string> = {
-    prompt: 'select_account',
-    // Sugiere el dominio institucional en la pantalla de Microsoft.
-    domain_hint: BRAND.emailDomain,
-  };
+/** Implementación real, sobre el proyecto de Firebase de `firebase.config.ts`. */
+const firebaseAuthGateway: FirebaseAuthGateway = {
+  async signInWithMicrosoft(useRedirect) {
+    const [{ OAuthProvider, signInWithPopup, signInWithRedirect }, auth] = await Promise.all([
+      import('firebase/auth'),
+      firebaseAuth(),
+    ]);
 
-  if (MICROSOFT_TENANT_ID) {
-    parameters['tenant'] = MICROSOFT_TENANT_ID;
-  }
+    const provider = new OAuthProvider('microsoft.com');
+    provider.setCustomParameters({
+      prompt: 'select_account',
+      // Sugiere el dominio institucional en la pantalla de Microsoft.
+      domain_hint: BRAND.emailDomain,
+      ...(MICROSOFT_TENANT_ID ? { tenant: MICROSOFT_TENANT_ID } : {}),
+    });
+    provider.addScope('user.read');
 
-  provider.setCustomParameters(parameters);
-  provider.addScope('user.read');
+    if (useRedirect) {
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
 
-  return provider;
-}
+    return (await signInWithPopup(auth, provider)).user;
+  },
 
-/**
- * En web se abre un popup. En la app híbrida no hay popup disponible, así que
- * se navega a Microsoft y se devuelve null: la app se recarga y el resultado se
- * recoge después con resolvePendingRedirect().
- */
-export async function signIn(useRedirect: boolean): Promise<User | null> {
-  if (useRedirect) {
-    await signInWithRedirect(firebaseAuth(), microsoftProvider());
-    return null;
-  }
+  async resolvePendingRedirect() {
+    const [{ getRedirectResult }, auth] = await Promise.all([import('firebase/auth'), firebaseAuth()]);
+    return (await getRedirectResult(auth))?.user ?? null;
+  },
 
-  const credential = await signInWithPopup(firebaseAuth(), microsoftProvider());
-  return credential.user;
-}
+  async signOut() {
+    const [{ signOut }, auth] = await Promise.all([import('firebase/auth'), firebaseAuth()]);
+    await signOut(auth);
+  },
 
-export async function resolvePendingRedirect(): Promise<User | null> {
-  const result = await getRedirectResult(firebaseAuth());
-  return result?.user ?? null;
-}
+  async currentUser() {
+    return (await firebaseAuth()).currentUser;
+  },
 
-export async function signOutUser(): Promise<void> {
-  await signOut(firebaseAuth());
-}
+  async onAuthStateChanged(onUser, onError) {
+    const [{ onIdTokenChanged }, auth] = await Promise.all([import('firebase/auth'), firebaseAuth()]);
+    return onIdTokenChanged(auth, onUser, onError);
+  },
+};
+
+/** Acceso a Firebase Auth. Las pruebas lo reemplazan (`testing/test-providers.ts`) para no depender de Firebase. */
+export const FIREBASE_AUTH = new InjectionToken<FirebaseAuthGateway>('FIREBASE_AUTH', {
+  providedIn: 'root',
+  factory: () => firebaseAuthGateway,
+});

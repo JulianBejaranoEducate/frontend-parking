@@ -1,14 +1,13 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { type DashboardVehicle, vehicleDetails, vehicleTitle } from '../../core/models/vehicle';
-import { VehiclesApiService } from '../../core/services/modules/vehicles-student-panel/vehicles-api.sp.service';
-import { StudentsService } from '../../core/services/students.service';
+import { StudentVehiclesService } from '../../core/services/student-panel/student-vehicles.service';
+import { QR_CODE_RENDERER } from '../../core/utils/qr-code';
 
 /**
- * "Vehículos" del panel de estudiante (fase de conexión; ver "Conexión
- * frontend-backend" en planeacion-desarrollo.md).
+ * "Vehículos" del panel de usuario.
  *
  * Es la versión completa de "Mis vehículos" (que en `/inicio` sigue siendo un
- * resumen): mismos datos reales, vía `StudentsService` (compartido con
+ * resumen): mismos datos reales, vía `StudentVehiclesService` (compartido con
  * `MainDashboard` y `RegisterVehicle`, para no repetir la consulta ni el uid
  * efectivo de cada uno por su cuenta). Lo que agrega esta pantalla es el
  * código QR de cada vehículo, para mostrarlo en portería.
@@ -32,8 +31,8 @@ import { StudentsService } from '../../core/services/students.service';
   templateUrl: './vehicles.html',
 })
 export class Vehicles {
-  private readonly studentsService = inject(StudentsService);
-  private readonly vehicleApi = inject(VehiclesApiService);
+  private readonly studentsService = inject(StudentVehiclesService);
+  private readonly renderQrCode = inject(QR_CODE_RENDERER);
 
   protected readonly vehicleTitle = vehicleTitle;
   protected readonly vehicleDetails = vehicleDetails;
@@ -51,7 +50,7 @@ export class Vehicles {
   protected readonly qrDataUrl = signal<string | null>(null);
 
   constructor() {
-    // La promesa la observan los signals de StudentsService; un rechazo no bloquea nada aquí.
+    // La promesa la observan los signals de StudentVehiclesService; un rechazo no bloquea nada aquí.
     void this.studentsService.refresh().catch(() => {});
   }
 
@@ -67,7 +66,7 @@ export class Vehicles {
     this.qrDialog().nativeElement.showModal();
 
     try {
-      this.qrDataUrl.set(await this.vehicleApi.renderQrCode(vehicle.id));
+      this.qrDataUrl.set(await this.renderQrCode(vehicle.id));
     } catch {
       this.qrError.set('No pudimos generar el código QR. Inténtalo de nuevo.');
     } finally {

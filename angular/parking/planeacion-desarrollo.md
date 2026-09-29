@@ -1,8 +1,8 @@
 # Uni-parking · Planeación y registro de desarrollo
 
-> **Fase actual:** Fase 8 (módulo Parking: el QR valida el ingreso) **pendiente**: ingreso, salida y «Dentro ahora» ya funcionan contra el backend real; faltan «Movimientos de hoy» y la dirección automática en Control de acceso. Ver ADR-021. Las Fases 4, 5 y 6 (foto de placa, integración con el usuario, PWA en portería) siguen sin iniciar. Fuera de Visitantes y Seguridad ya no hay datos de demostración: esas pantallas conservan su diseño, sin datos (ADR-022).
-> **Rama de trabajo:** `frontend-julian` · **Última actualización:** 2026-09-28
-> **Estado técnico:** compila con el mismo aviso de tamaño de siempre (paquete inicial de 536 kB, límite de 500 kB; ver MEJ-001) · 133 pruebas unitarias pasando (2026-09-27; eran 186 antes de retirar el modo demostración, ADR-022)
+> **Fase actual:** Fase 9 (integración de las ramas y orden del proyecto) **completada** el 2026-09-28, sin commit todavía: `frontend-miguel` y `frontend-julian` quedaron unidas en `frontend-integracion`, sin modo demostración y con los servicios ordenados por módulo del backend (ADR-024). Todas las pantallas trabajan con el backend real e inicio de sesión con Microsoft. Lo que sigue depende sobre todo del backend (PEN-030) y de la Fase 8 («Movimientos de hoy» y dirección automática).
+> **Rama de trabajo:** `frontend-integracion` · **Última actualización:** 2026-09-28
+> **Estado técnico:** compila con el aviso de tamaño de siempre (paquete inicial de 555 kB, límite de 500 kB; lo causa Bootstrap, MEJ-001) · 163 pruebas unitarias pasando (2026-09-28)
 
 Este documento es la fuente única para saber en qué va el proyecto: qué está hecho, qué se decidió y por qué, qué falta y qué hay que corregir. Se actualiza en el mismo commit que el cambio que registra (ver [Cómo actualizar este documento](#cómo-actualizar-este-documento)).
 
@@ -26,14 +26,14 @@ Este documento es la fuente única para saber en qué va el proyecto: qué está
 
 - **Plataforma:** aplicación web progresiva (PWA) instalable en computador y celular (ADR-014). Ionic y Capacitor quedan como opción si la materia los pide (ADR-015).
 - **Vehículos admitidos:** moto, bicicleta y scooter. No hay parqueadero para carros.
-- **Tecnología:** Angular 22 (componentes standalone, signals, sin zone.js), `@angular/service-worker`, `qrcode` (generar el pase), ZXing (`@zxing/browser`, leer el pase) y Vitest. El paquete `firebase` 12 sigue instalado, pero ningún archivo lo usa desde el 2026-09-27 (ADR-022, PEN-026).
+- **Tecnología:** Angular 22 (componentes standalone, signals, sin zone.js), `@angular/service-worker`, Firebase Auth (inicio de sesión con Microsoft y token para el backend), `qrcode` (generar los QR), ZXing (`@zxing/browser`, leer el QR), Capacitor 8 con ML Kit (foto de placa en Android) y Vitest. Ver [dependencias.md](dependencias.md).
 
 | Rol | Quién | Qué hace |
 | --- | --- | --- |
-| Usuario institucional | Estudiantes, docentes y administrativos con correo institucional | Registra hasta 5 vehículos; ve disponibilidad, historial y notificaciones |
+| Usuario institucional | Estudiantes, docentes y administrativos con correo institucional | Registra hasta 5 vehículos; ve disponibilidad, historial y el QR de cada vehículo |
 | Visitante | Personas sin cuenta | Llena un formulario y recibe un QR para ingresar |
-| Administrador | Personal de la universidad | Aprueba, rechaza o pide actualizar vehículos; ve estadísticas e incidencias |
-| Personal de seguridad | Guardias de la empresa de vigilancia | Autoriza y registra ingresos y salidas; toma y entrega turnos |
+| Administrador | Personal de la universidad | Aprueba vehículos o les quita el permiso, reactiva usuarios y revisa incidencias |
+| Personal de seguridad | Guardias de la empresa de vigilancia | Registra ingresos y salidas y reporta novedades |
 
 ---
 
@@ -48,19 +48,22 @@ Estados (ver [Estados](#estados)):
 
 | Módulo | Ruta | Estado | Responsable | Actualizado | Notas |
 | --- | --- | --- | --- | --- | --- |
-| Login | `/login` | Completado (demo) | Julian | 2026-09-27 | Solo quedan «Visitantes» y el acceso simulado de los dos guardias (Carlos y Diana), que abre el panel de seguridad. Se retiraron el inicio con Microsoft (Firebase) y el acceso de administración (ADR-022). Falta el inicio de sesión real (PEN-013) |
-| Visitantes | `/visitantes` | Completado | Julian | 2026-09-27 | Conectado al backend real del equipo (rama `camilo-dev`), sin datos quemados. Enviar el formulario solo registra la visita; el QR (el id que asigna el backend) es la llave con la que portería valida el ingreso (ADR-021) |
-| Dashboard de usuarios | `/inicio` | Pendiente | Julian | 2026-09-27 | Solo el diseño, con el layout común: sin servicios ni datos, cada sección muestra su estado vacío (ADR-022). Nadie puede abrirlo mientras no haya inicio de sesión de la comunidad. Falta conectarlo al backend |
-| Registro de vehículos | `/vehiculos/registrar` | Pendiente | Julian | 2026-09-27 | Diseño y validaciones del formulario: las bicicletas piden documento (PEN-009) y los scooters color y marca opcional. Adjuntar y enviar avisan que no está conectado al backend (ADR-022) |
-| Dashboard de administración | `/admin/:section` | Pendiente | Julian | 2026-09-27 | Solo el diseño: secciones vacías y menú sin contadores. Aprobar, rechazar y pedir actualización validan el formulario y avisan que no está conectado al backend (ADR-022). Faltan cuentas de guardias e historial de turnos |
-| Notificaciones | Panel del header | Pendiente | Julian | 2026-09-27 | Solo el diseño: la campana muestra «No tiene notificaciones pendientes» hasta que el backend envíe avisos (ADR-022). Botón de configuración sin función (PEN-004) |
+| Login | `/login` | Completado | Miguel · Julian | 2026-09-28 | «Iniciar sesión» con Microsoft (Firebase) y «Visitantes». Al entrar, la cuenta se registra en el backend (`POST /users`) y el rol sale del claim `rolId` del token. Sin accesos de demostración (ADR-024) |
+| Visitantes | `/visitantes` | Completado | Julian | 2026-09-28 | Conectado al backend, sin datos quemados. Enviar el formulario solo registra la visita; el QR (el id que asigna el backend) es la llave con la que portería valida el ingreso (ADR-021). Acepta placas `ABC12D`, `ABC12` y `ABC123`, como el backend (PEN-028) |
+| Dashboard de usuarios | `/inicio` | Pendiente | Miguel | 2026-09-28 | «Mis vehículos» (`GET /users/:id`) y la disponibilidad por zona funcionan con el backend. El historial pide `GET /parking/historical/:plate`, que el rol userEstandar todavía no tiene permitido: hoy muestra el aviso de error (PEN-030) |
+| Registro de vehículos | `/vehiculos/registrar` | Completado | Miguel · Julian | 2026-09-28 | Tres pasos (vehículo, datos y confirmar). Crea el vehículo en el backend (`POST /vehicles`) sin permiso para entrar: lo aprueba la administración. Sin documentos: el backend no los recibe (PEN-003, ADR-024) |
+| Vehículos | `/vehiculos` | Completado | Miguel | 2026-09-28 | Lista los vehículos de la persona y muestra el QR de cada uno, con su identificador del backend (PEN-018) |
+| Parqueaderos | `/parqueaderos` | Pendiente | Miguel | 2026-09-28 | Disponibilidad por zona con el backend. «Vehículos dentro» pide `GET /parking/records/open`, que userEstandar no tiene permitido (PEN-030) |
+| Estadísticas | `/estadisticas` | Pendiente | Miguel | 2026-09-28 | Promedios e historial calculados del historial de cada vehículo; dependen del mismo permiso que el historial (PEN-030) |
+| Dashboard de administración | `/admin/:section` | Completado | Miguel · Julian | 2026-09-28 | Resumen, vehículos pendientes (aprobar), aprobados (quitar el permiso), usuarios inactivos (reactivar) e incidencias, todo con el backend. Faltan cambiar el rol de una cuenta y marcar incidencias como resueltas (PEN-031) |
+| Notificaciones | — | Sin iniciar | — | 2026-09-28 | La campana del header se retiró el 2026-09-28: no había API y siempre salía vacía (ADR-024). Se recupera del historial de git (`b869f89`) cuando el backend tenga notificaciones |
 | Layout común por rol | — | Completado | Julian | 2026-09-15 | ADR-010. Cada rol solo ve y descarga su grupo de rutas; cada rol puede aportar su buscador del header |
-| Dashboard de seguridad | `/seguridad/:section` | Pendiente | Julian | 2026-09-27 | **Resumen**: vehículos dentro, puestos disponibles, ocupación por tipo y «Dentro ahora» (búsqueda, filtros, orden y paginación) con los registros de acceso abiertos. **Control de acceso** registra ingresos y salidas en `access_record` para visitantes (QR, documento o placa) y comunidad (placa) (ADR-021). Faltan «Movimientos de hoy» y la dirección automática (PEN-021) |
+| Dashboard de seguridad | `/seguridad/:section` | Pendiente | Julian · Miguel | 2026-09-28 | **Resumen**: vehículos dentro, puestos disponibles, ocupación por tipo y «Dentro ahora» con los registros de acceso abiertos. **Control de acceso** registra ingresos y salidas para visitantes (QR, documento o placa) y comunidad (placa, también con foto en Android) (ADR-021). **Novedades**: reporta incidencias a la administración. Faltan «Movimientos de hoy» y la dirección automática (PEN-021) |
 | PWA | — | Pendiente | Julian | 2026-09-15 | Base lista y verificada: service worker activo y apertura sin conexión. Faltan pruebas en celulares, aviso de nueva versión e íconos por cliente |
 | Documentación del código (TSDoc) | — | Pendiente | Julian | 2026-09-15 | Todo lo nuevo de las Fases 1 a 3 está documentado; falta el código anterior (PEN-015) |
 | Lector de QR (`lector-codigo-qr`) | — | Completado | Julian | 2026-09-15 | ZXing en la PWA, con linterna y lectura desde una foto (ADR-019). Probado con la foto de un pase real en computador; la cámara en vivo se prueba en celulares en la Fase 6 (PEN-010) |
 | Accesibilidad y footer | — | Sin iniciar | — | 2026-09-26 | Los componentes vacíos se borraron el 2026-09-26; se crean de nuevo cuando se diseñen (PEN-008) |
-| Inicio de sesión real | — | Sin iniciar | — | 2026-09-27 | Para la comunidad, la administración y los guardias. El código de Firebase se retiró (ADR-022) y el paquete sigue instalado (PEN-026); falta definir con el equipo cómo será |
+| Inicio de sesión real | — | Completado | Miguel · Julian | 2026-09-28 | Microsoft vía Firebase para todos los roles; cada petición al backend lleva el token (`auth.interceptor.ts`) y las rutas esperan a que Firebase restaure la sesión (PEN-013). Verificado en el navegador con una cuenta de vigilante: el panel de seguridad recibe 200 del backend |
 | Ionic / Capacitor | — | Pendiente | Julian | 2026-09-28 | Capacitor 8 para probar en Android (`capacitor.config.ts`). La carpeta `android/` no se sube: cada quien la genera con los pasos de [dependencias.md](dependencias.md), incluido el permiso de cámara. Falta acordarlo con el equipo (ADR-015). Ionic sigue sin instalar |
 
 ---
@@ -120,9 +123,9 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 
 ### Fase 5 · Integración con el usuario
 
-**Estado de la fase: Sin iniciar** (lo que se había hecho con datos de demostración se retiró el 2026-09-27, ADR-022)
+**Estado de la fase: Pendiente** (iniciada con la integración del 2026-09-28)
 
-- [ ] Disponibilidad e historial del usuario alimentados por los movimientos reales — Sin iniciar: la versión de demostración (estancias guardadas en el navegador) se retiró el 2026-09-27 (ADR-022). Se hará con las zonas y los registros de acceso del backend cuando exista el inicio de sesión de la comunidad
+- [ ] Disponibilidad e historial del usuario alimentados por los movimientos reales — Pendiente: la disponibilidad ya sale de `GET /parkingZone`; el historial usa `GET /parking/historical/:plate`, que el backend todavía no le permite a userEstandar (PEN-030)
 - [ ] Notificar al usuario cada ingreso y salida (por confirmar, [pregunta 4](#9-preguntas-abiertas)) — Sin iniciar
 
 ### Fase 6 · PWA en portería y opción nativa
@@ -161,12 +164,26 @@ Cada tarea lleva su casilla y su estado. Cada fase dice en qué estado quedó.
 - [ ] «Movimientos de hoy» — Sin iniciar: necesita consultar los registros del día, no solo los abiertos (PEN-021)
 - [ ] Una sola acción según si la persona está dentro o no (dirección automática, ADR-006) — Sin iniciar: ya es posible con `GET /parking/records/open`
 
+### Fase 9 · Integración de las ramas y orden del proyecto
+
+**Estado de la fase: Completada (2026-09-28)**, sin commit: queda para revisión de Julian (ADR-024)
+
+- [x] Crear `frontend-integracion` desde `frontend-miguel` y unirle `frontend-julian`, recuperando lo que el merge automático había borrado — **Completado** (2026-09-28): commit `b869f89`
+- [x] Ordenar los servicios por módulo del backend (`services/api`, `auth`, `scanner`, `student-panel`) y unir los duplicados — **Completado** (2026-09-28)
+- [x] Retirar el modo demostración y todo dato quemado: cuentas, semillas, documentos de ejemplo y accesos directos del login — **Completado** (2026-09-28)
+- [x] Inicio de sesión con Microsoft y token en cada petición al backend (PEN-027); las rutas esperan la sesión (PEN-013) — **Completado** (2026-09-28)
+- [x] Registro de vehículos solo contra el backend, sin documentos — **Completado** (2026-09-28)
+- [x] Novedades de seguridad con el formato del backend (título, descripción y quién reporta) — **Completado** (2026-09-28)
+- [x] Borrar el código, los estilos y las pruebas que ya no usa nada; rehacer las pruebas sobre los servicios reales — **Completado** (2026-09-28): 163 pruebas pasando
+- [x] Verificar en el navegador: login, rutas por rol, visitantes y panel de seguridad con una sesión real — **Completado** (2026-09-28)
+
 ### Después
 
-- [ ] Inicio de sesión real para la comunidad, la administración y los guardias (el código de Firebase se retiró el 2026-09-27, ADR-022) — Sin iniciar
-- [ ] Conectar al backend el dashboard de usuarios, el registro de vehículos, la administración y las notificaciones, que hoy son solo diseño (ADR-022) — Sin iniciar
-- [ ] Administración: crear y desactivar cuentas de guardias; historial de turnos — Sin iniciar
-- [ ] Incidencias reportadas por seguridad desde su dashboard — Sin iniciar
+- [x] Inicio de sesión real para la comunidad, la administración y los guardias — **Completado** (2026-09-28, Fase 9)
+- [x] Conectar al backend el dashboard de usuarios, el registro de vehículos y la administración — **Completado** (2026-09-28, Fase 9); el historial espera el permiso del backend (PEN-030)
+- [ ] Administración: cambiar el rol de una cuenta (así se crean los guardias) y cerrar incidencias (PEN-031) — Sin iniciar
+- [x] Incidencias reportadas por seguridad desde su dashboard — **Completado** (2026-09-28, Fase 9)
+- [ ] Notificaciones, cuando el backend las tenga — Sin iniciar
 - [ ] Registrar movimientos sin conexión y sincronizar después — Sin iniciar
 - [ ] Aviso de nueva versión de la PWA (PEN-011) — Sin iniciar
 
@@ -344,36 +361,39 @@ Tipos: **COR** corrección (algo funciona mal) · **MEJ** mejora · **PEN** pend
 | COR-001 | Alta | Rutas | `/inicio` no tenía guard de sesión y el historial de demostración era global: sin sesión, o con sesión de administrador, se veía el historial de prueba del usuario. Resuelto con las rutas por rol y el historial filtrado por cuenta. | **Completado** (2026-09-15) |
 | COR-002 | Alta | Visitantes | El pase QR no se guardaba en ningún lado, así que seguridad no podía validarlo. Resuelto: `VisitorPassService` guarda los pases, portería los valida y quedan usados con la estancia y el guardia. | **Completado** (2026-09-15) |
 | PEN-001 | Alta | Backend | Firebase no estaba configurado y todo funcionaba en modo demostración, con los datos guardados en el navegador (`uniparking.demo.v2.*`). | **Completado** (2026-09-27): ya no se guarda nada en el navegador. Visitantes y Seguridad usan el backend del equipo (ADR-020, ADR-021) y el resto quedó sin datos hasta conectarse (ADR-022) |
-| PEN-002 | Alta | Seguridad | Faltan los permisos por rol en el servidor (antes se pensaban como reglas de Firestore y claims). Las rutas por rol ordenan la navegación, pero no protegen datos, y la API de Visitantes y Parking hoy no pide sesión. | Sin iniciar |
-| PEN-003 | Media | Registro de vehículos | Subir los documentos del registro al backend. Desde el 2026-09-27 adjuntar solo avisa que no está conectado (ADR-022). | Sin iniciar |
-| PEN-004 | Baja | Notificaciones | El botón de configuración no hace nada. | Sin iniciar |
-| PEN-005 | Baja | Header | El buscador ya funciona en seguridad (lleva a Control de acceso), pero en usuarios y administración no hace nada. «Configuración» del menú de cuenta no tiene función. | Pendiente |
-| PEN-006 | Baja | Dashboard de usuarios | «Parqueaderos» y «Estadísticas» del menú no llevan a ninguna parte. | Sin iniciar |
-| PEN-007 | Media | Administración | Las estadísticas salen vacías: el generador de datos simulados se retiró el 2026-09-27 (ADR-022). Faltan los datos del backend; se pueden calcular a partir de los registros de acceso. | Sin iniciar |
+| PEN-002 | Alta | Seguridad | Faltan los permisos por rol en el servidor (antes se pensaban como reglas de Firestore y claims). Las rutas por rol ordenan la navegación, pero no protegen datos, y la API de Visitantes y Parking hoy no pide sesión. | **Completado** (2026-09-28): el backend exige token y permiso en cada ruta (ADR-023). Falta que compruebe de quién es cada dato (PEN-029) |
+| PEN-003 | Media | Registro de vehículos | Subir los documentos del registro al backend. El backend no tiene dónde recibirlos; desde el 2026-09-28 el registro no los pide (ADR-024). | Por decidir (backend) |
+| PEN-004 | Baja | Notificaciones | El botón de configuración no hace nada. | **Completado** (2026-09-28): la campana se retiró hasta que exista la API (ADR-024) |
+| PEN-005 | Baja | Header | El buscador funciona en seguridad (lleva a Control de acceso), pero en usuarios y administración no hace nada. («Configuración» del menú de cuenta se retiró el 2026-09-28 porque no tenía función.) | Pendiente |
+| PEN-006 | Baja | Dashboard de usuarios | «Parqueaderos» y «Estadísticas» del menú no llevan a ninguna parte. | **Completado** (2026-09-28): las dos pantallas llegaron con la rama de Miguel |
+| PEN-007 | Media | Administración | La administración no tiene estadísticas: la sección de gráficas se retiró con el modo demostración. Se pueden calcular a partir de los registros de acceso cuando el backend los publique por fecha. | Sin iniciar |
 | PEN-008 | Baja | Componentes | `accessibility` y `footer` estaban creados, pero vacíos, y se borraron el 2026-09-26. Se crean de nuevo cuando se diseñen. | Sin iniciar |
 | PEN-009 | Alta | Registro de vehículos | El registro de bicicletas no pedía documento, y portería las busca por documento (ADR-007). Resuelto: tipo y número de documento obligatorios en bicicletas. | **Completado** (2026-09-15) |
 | PEN-010 | Media | PWA | Probar en Android e iOS la instalación, el uso sin conexión y el lector de QR con la cámara en vivo (exige HTTPS). Verificado solo en computador: la PWA en Edge sin interfaz y el lector leyendo la foto de un pase. | Sin iniciar (Fase 6) |
 | PEN-011 | Media | PWA | Avisar cuando hay una versión nueva de la app (`SwUpdate`), para no dejar a nadie con una versión vieja. | Sin iniciar |
 | PEN-012 | Baja | PWA | El manifiesto y los íconos son de Uniempresarial; cada cliente necesitará los suyos al publicar. | Sin iniciar |
-| PEN-013 | Alta | Autenticación | Con un inicio de sesión real la sesión se restaura de forma asíncrona: las rutas por rol deben esperarla antes de decidir (hoy la sesión simulada de los guardias es inmediata). | Sin iniciar |
-| PEN-014 | Media | Autenticación | En la PWA instalada en iOS, la ventana emergente de Microsoft puede fallar: usar redirección en modo `standalone`, como ya se hace en la app nativa. Solo aplica si vuelve el inicio con Microsoft, que se retiró el 2026-09-27 (ADR-022). | Por decidir |
+| PEN-013 | Alta | Autenticación | Con un inicio de sesión real la sesión se restaura de forma asíncrona: las rutas por rol deben esperarla antes de decidir (hoy la sesión simulada de los guardias es inmediata). | **Completado** (2026-09-28): `roleGuard` y `redirectToHome` esperan `AuthService.waitUntilReady()` (con tope de 10 s); tiene su prueba |
+| PEN-014 | Media | Autenticación | En la PWA instalada en iOS, la ventana emergente de Microsoft puede fallar: usar redirección en modo `standalone`, como ya se hace en la app nativa. | Sin iniciar |
 | PEN-015 | Media | Documentación | Completar TSDoc en el código anterior a la Fase 1 (ADR-017). | Pendiente |
 | PEN-016 | Alta | Visitantes | En demostración los pases vivían en el navegador: un pase solo se validaba en el mismo navegador donde se generó. | **Completado** (2026-09-26): con el backend real (ADR-020) el visitante queda guardado en la base de datos, así que cualquier guardia lo valida desde cualquier navegador |
 | PEN-017 | Baja | Seguridad | Vibrar al registrar un movimiento en los celulares que lo permitan (4.2). | Sin iniciar |
-| PEN-018 | Alta | Seguridad | El QR de ingreso/salida de un usuario institucional se genera en otra parte del proyecto (ADR-020); acá se asumió que codifica la **placa** del vehículo, porque es el único identificador que expone el módulo de Vehículos. Falta confirmarlo con quien construya esa generación. | Por decidir |
+| PEN-018 | Alta | Seguridad | El QR de un vehículo de la comunidad («Vehículos», rama de Miguel) codifica el identificador que tiene en el backend: la placa en las motos y el que asigna el backend en bicicletas y scooters. Portería lo busca con `GET /vehicles/:plate`, así que funciona; falta confirmar con el equipo que es el formato definitivo. | Por decidir |
 | PEN-019 | Media | Todo el proyecto | La limpieza de datos quemados solo se había hecho en Visitantes y Seguridad (ADR-020): el dashboard de usuarios, la administración, el registro de vehículos y las notificaciones seguían en modo demostración, con sus servicios (`parking`, `parking-stats`, `stay`, `vehicle-registration`, `incident`, `notification`, `upload`). | **Completado** (2026-09-27): Julian pidió retirarlo todo antes de integrar la rama. Esas pantallas quedan con su diseño y sin datos (ADR-022) |
 | PEN-021 | Alta | Seguridad y visitantes | Para el flujo del módulo Parking (ADR-021) el backend debía publicar cuatro cosas. Camilo publicó (commit `84c49a2`) el ingreso y la salida de visitantes por id y la consulta de zonas (`GET /parkingZone`). La cuarta se agregó el 2026-09-27, con su autorización, para «Dentro ahora»: `GET /parking/records/open` (registros sin salida). Falta consultar los registros del día para «Movimientos de hoy». | Pendiente (backend) |
 | PEN-022 | Alta | Seguridad | Errores del backend en `camilo-dev` (`84c49a2`), encontrados al probar por la API el 2026-09-27: **(1)** ningún ingreso se guarda: `RegisterEntryUseCase` y `RegisterEntryVisitorUseCase` crean el registro con id `""` y Postgres lo rechaza (`invalid input syntax for type integer: ""`); con `null` o sin id lo genera la base de datos. **(2)** El puesto de la zona se descuenta antes de guardar el registro y sin transacción: cada ingreso fallido deja un puesto ocupado de más (los de las pruebas se devolvieron con `PATCH /parkingZone/:id`). **(3)** Latente, se verá al corregir (1): a los visitantes sin placa se les guarda la placa como `""`, y el índice único de registros abiertos por placa solo excluye `NULL`, así que no podrían estar dentro dos visitantes sin placa a la vez. Corrección (autorizada por el líder de backend, solo estos tres puntos, en `RegisterEntryUseCase.ts` y `RegisterEntryVisitorUseCase.ts`): el registro se crea con id `null`, se guarda antes de descontar el puesto, y la placa vacía se guarda como `null`. Verificado por la API: ingresos y salidas, dos visitantes sin placa dentro a la vez, ingresos repetidos rechazados sin gastar puestos, y con un guardado que falla la zona no se toca. Segunda ronda, también autorizada: **(a)** la salida cerraba el registro después de liberar el puesto; ahora lo cierra primero y solo si seguía abierto, así dos salidas simultáneas no liberan dos puestos. **(b)** El contador de puestos se leía, se restaba y se guardaba: dos ingresos simultáneos podían dejarlo descuadrado. Ahora Postgres suma o resta en el mismo `UPDATE`, con tope en 0 y en la capacidad, y el ingreso reserva el puesto antes de guardar el registro (si el registro falla, lo devuelve). **(c)** `npm run build` fallaba por errores de tipos en Incidencias, Usuarios, Vehículos, Visitantes y los scripts; el de Incidencias era una falla real: al actualizar, el dueño nunca cambiaba. Verificado con ingresos y salidas simultáneos contra la base real. | **Completado** (2026-09-27), sin commit: queda para revisión de backend |
 | PEN-023 | Media | Visitantes | El QR del visitante no vence después de la salida: el backend solo rechaza el ingreso si el visitante está dentro en ese momento, así que con el mismo QR puede volver a entrar ese día o cualquier otro. Si cada QR debe servir para una sola visita (un ingreso y una salida), el ingreso del visitante tiene que rechazar a quien ya tenga un registro cerrado, y el visitante llenaría el formulario en cada visita. | Por decidir (con backend) |
 | PEN-024 | Media | Backend | En `camilo-dev` la carpeta `dist/` sigue versionada aunque `.gitignore` la excluye (en `master` y `nico_dev` ya se sacó): cada `npm run build` modifica unos 190 archivos versionados. Se arregla sacándola del índice (`git rm -r --cached dist`). | Por decidir (backend) |
 | PEN-025 | Media | Seguridad | En el celular, «Leer desde una foto» todavía falla en algunas fotos reales de la pantalla (Julian, 2026-09-27), aunque con las fotos simuladas lee 16 de 16. La cámara en vivo sí funciona. Si hace falta, la opción más robusta es el lector nativo ML Kit, como en `lector-codigo`. | Sin iniciar |
-| PEN-026 | Baja | Dependencias | El paquete `firebase` sigue en `package.json`, aunque desde el 2026-09-27 ningún archivo lo importa (Julian decidió dejarlo instalado). No pesa en la app, porque no entra en el build, pero conviene quitarlo si el inicio de sesión real no lo usa. | Por decidir |
-| PEN-027 | Alta | Seguridad | Desde el 2026-09-28, en `master` del backend todas las rutas piden un token de Firebase con permiso, salvo `POST /visitors` (ADR-023). El panel de seguridad todavía usa la sesión simulada y no envía token, así que contra `master` recibe 401 en todo. Hace falta el inicio de sesión real con Firebase (PEN-013) y un interceptor que agregue `Authorization: Bearer <token>`; el claim `rolId` se traduce a los roles del frontend (2 → `security`, 3 y 4 → `admin`, 1 → `user`). Desde el merge de `nico_dev` (2026-09-28), el inicio de sesión debe usar el proyecto de Firebase de Nico y cuentas `@uniempresarial.edu.co`: `POST /users` rechaza otros correos, incluido `test@test.com`. El formulario de visitantes sigue funcionando. | Sin iniciar |
-| PEN-028 | Alta | Visitantes | El formulario de visitantes solo acepta placas `ABC123` (formato de carro), así que rechaza las de moto. El backend (`master`, 2026-09-28) ya acepta `ABC12D`, las antiguas `ABC12` y `ABC123` (`/^[A-Z]{3}[0-9]{2}[A-Z0-9]?$/`); falta alinear `PLATE_PATTERN` en `visitor.ts` y su mensaje. | Sin iniciar |
+| PEN-026 | Baja | Dependencias | El paquete `firebase` sigue en `package.json`, aunque desde el 2026-09-27 ningún archivo lo importa (Julian decidió dejarlo instalado). | **Completado** (2026-09-28): vuelve a usarse para el inicio de sesión con Microsoft (ADR-024) |
+| PEN-027 | Alta | Seguridad | Desde el 2026-09-28, en `master` del backend todas las rutas piden un token de Firebase con permiso, salvo `POST /visitors` y `POST /users` (ADR-023). Hacía falta el inicio de sesión real, un interceptor que agregue `Authorization: Bearer <token>` y traducir el claim `rolId` a los roles del frontend. | **Completado** (2026-09-28): `auth.interceptor.ts` agrega el token solo a las peticiones a `environment.apiUrl`; `rolId` 1 → `user`, 2 → `security`, 3 y 4 → `admin` (ADR-024). Las cuentas deben ser `@uniempresarial.edu.co`, también las de los guardias: `POST /users` rechaza otros correos |
+| PEN-028 | Alta | Visitantes | El formulario de visitantes solo acepta placas `ABC123` (formato de carro), así que rechaza las de moto. El backend (`master`, 2026-09-28) ya acepta `ABC12D`, las antiguas `ABC12` y `ABC123` (`/^[A-Z]{3}[0-9]{2}[A-Z0-9]?$/`). | **Completado** (2026-09-28): mismo patrón y mensaje «Usa el formato de placa de moto: ABC12D.» |
 | PEN-029 | Media | Backend | Observaciones para el líder de backend al agregar roles (2026-09-28): **(1)** el backend no comprueba que un vehículo, historial o usuario sea de quien lo pide; por eso userEstandar solo tiene permisos que no exponen datos ajenos. **(2)** `POST /vehicles` toma el dueño del cuerpo y no del token. **(3)** Un rol nuevo llega al token cuando este se renueva (hasta 1 hora). **(4)** `role_id_user` es texto y no es llave foránea a `Role`. **(5)** Restaurar un usuario reactiva en Firebase un uid fijo (`testRestoreUser.ts`), no el del usuario. **(6)** El `.env` sigue versionado aunque está en el `.gitignore`: la contraseña de la base y la llave de Firebase quedaron en el repositorio; hay que sacarlo del índice y cambiar la llave. **(7)** El dominio `@uniempresarial.edu.co` que exige `POST /users` está escrito en el código; para vender el producto a otras instituciones (ADR-001) debería venir del `.env`. | Por decidir (backend) |
+| PEN-030 | Alta | Backend | El rol userEstandar no tiene `access-record:historical` ni `access-record:read-open`, así que el historial y las estadísticas del usuario (`GET /parking/historical/:plate`) y «Vehículos dentro» de Parqueaderos (`GET /parking/records/open`) reciben 403 y muestran su aviso de error. No basta con darle los permisos: el backend no comprueba que la placa sea de quien pregunta (PEN-029), y los registros abiertos exponen las placas de todos. Propuesta: que el historial valide el dueño con el uid del token y que haya un conteo de ocupación sin placas. | Por decidir (backend) |
+| PEN-031 | Media | Administración | Faltan en la administración: cambiar el rol de una cuenta (`PATCH /users/:userId/role`, que es como se crea un guardia: se registra con su correo institucional y la administración le asigna «vigilante»), dar de baja un usuario (`DELETE /users/:id`) y marcar una incidencia como resuelta. | Sin iniciar |
+| PEN-032 | Baja | Backend | `GET /parkingZone` responde 201 (Created) en lugar de 200; el frontend lo acepta igual, pero no es el código correcto para una consulta. | Por decidir (backend) |
 | PEN-020 | Baja | Seguridad | En «Dentro ahora», un vehículo institucional no tenía hora de ingreso real (el backend solo guardaba `is_authorized`), así que el orden por hora lo dejaba al final. Con los registros de acceso (ADR-021) cada ingreso tiene su hora: se resuelve al reconstruir «Dentro ahora» sobre ellos (PEN-021). | **Completado** (2026-09-27): «Dentro ahora» ordena por la hora real de ingreso de todos |
-| MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista lo usa. Por eso el paquete inicial pesa 536 kB (límite de 500 kB) y sus clases chocan con `.card`, `.table` y `.btn`. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
-| MEJ-002 | Baja | Estilos | El límite de estilos por componente se subió a 12 kB (aviso) por `admin-dashboard` y `register-vehicle`. Revisarlo al separar componentes. | Sin iniciar |
+| MEJ-001 | Media | Estilos | Bootstrap está importado en `styles.css`, pero ninguna vista usa sus clases (revisado de nuevo el 2026-09-28): solo aplica su hoja base. Sus 252 kB son los que dejan el paquete inicial en 555 kB (límite de 500 kB), y sus clases chocan con `.card`, `.table` y `.btn`. Quitarlo pide revisar a ojo todas las pantallas. Conviene decidirlo antes de evaluar Ionic (ADR-015). | Por decidir |
+| MEJ-002 | Baja | Estilos | El límite de estilos por componente se subió a 12 kB (aviso) por `admin-dashboard` y `register-vehicle`. El 2026-09-28 los dos bajaron mucho al borrar sus estilos sin uso: se puede volver al límite normal. | Sin iniciar |
 | MEJ-003 | Baja | Documentación | Generar un sitio navegable con la documentación del código (p. ej. Compodoc). Hay que verificar antes su compatibilidad con Angular 22. | Por decidir |
 | MEJ-004 | Baja | Dependencias | `npm audit` reporta dos avisos moderados en dependencias de las herramientas (`hono` y `qs`). Revisar con `npm audit fix`. | Por decidir |
 | MEJ-005 | Baja | Seguridad | La tarjeta de resultado se reevalúa cuando cambia algo en portería, no con el paso del tiempo: el aviso de movimiento repetido (menos de 2 minutos) puede seguir visible un rato de más si nada cambia. Al registrar se vuelve a evaluar con la hora real, así que no permite errores. | Sin iniciar |
@@ -387,9 +407,9 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 | ID | Fecha | Decisión | Estado |
 | --- | --- | --- | --- |
 | ADR-001 | 2026-08-31 | Marca personalizable desde un solo archivo | Aceptado |
-| ADR-002 | 2026-09-05 | Firebase JS SDK en lugar de `@angular/fire` | Retirado por ADR-022 (el código se borró; el paquete sigue instalado, PEN-026) |
+| ADR-002 | 2026-09-05 | Firebase JS SDK en lugar de `@angular/fire` | Aceptado (vuelve con ADR-024 tras retirarse en ADR-022) |
 | ADR-003 | 2026-09-05 | Pase de visitante con token opaco, vigencia corta y uso único | Reemplazado por ADR-020 |
-| ADR-004 | 2026-09-13 | Verificación humana de la tarjeta de propiedad | Aceptado |
+| ADR-004 | 2026-09-13 | Verificación humana de la tarjeta de propiedad | Reemplazado en parte por ADR-024 (sin documentos mientras el backend no los reciba, PEN-003) |
 | ADR-005 | 2026-09-13 | Modo demostración con datos locales | Reemplazado por ADR-022 |
 | ADR-006 | 2026-09-14 | Un solo flujo de control de acceso con dirección automática | Aceptado |
 | ADR-007 | 2026-09-14 | Identificación según el tipo de vehículo y de persona | Aceptado |
@@ -407,8 +427,9 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
 | ADR-019 | 2026-09-15 | Leer el QR desde una foto como respaldo de la cámara | Aceptado |
 | ADR-020 | 2026-09-26 | Conexión al backend real (`camilo-dev`): nuevo modelo de visitantes y reducción del dashboard de seguridad | Reemplazado en parte por ADR-021 (ingreso del visitante) |
 | ADR-021 | 2026-09-27 | Módulo Parking: el QR valida el ingreso y la ocupación sale de las zonas | Aceptado |
-| ADR-022 | 2026-09-27 | Retiro del modo demostración: quedan Visitantes, Seguridad y el acceso simulado de los guardias | Aceptado |
+| ADR-022 | 2026-09-27 | Retiro del modo demostración: quedan Visitantes, Seguridad y el acceso simulado de los guardias | Reemplazado en parte por ADR-024 (sale también el acceso simulado; vuelve Firebase) |
 | ADR-023 | 2026-09-28 | Roles y permisos en el backend: cada ruta exige su permiso | Aceptado |
+| ADR-024 | 2026-09-28 | Integración de las ramas: sin modo demostración, inicio de sesión real y servicios por módulo del backend | Aceptado |
 
 ### ADR-001 · Marca personalizable desde un solo archivo
 
@@ -677,11 +698,77 @@ Formato ADR ligero: contexto, decisión, alternativas y consecuencias. Estados p
   - El frontend tiene que enviar el token de Firebase en cada petición al backend (PEN-027); hasta entonces, el panel de seguridad no funciona contra `master`.
   - La matriz de permisos es una propuesta: la confirma el líder de backend. Hasta que el backend compruebe a quién pertenece cada dato, userEstandar tiene lo mínimo (PEN-029).
 
+### ADR-024 · Integración de las ramas: sin modo demostración, inicio de sesión real y servicios por módulo del backend
+
+- **Estado:** Aceptado; reemplaza en parte ADR-022 (el acceso simulado de los guardias) y ADR-004 (documentos), y reactiva ADR-002 · **Fecha:** 2026-09-28
+- **Contexto:** con el backend y el frontend casi terminados, Julian pidió integrar el trabajo. `frontend-miguel` tenía casi todos los módulos conectados al backend (inicio de sesión con Microsoft, panel de usuario, registro de vehículos, administración, foto de placa en Android); `frontend-julian` tenía el retiro del modo demostración, Visitantes, Seguridad y el módulo Parking. Las dos ramas habían divergido y los servicios estaban repetidos y dispersos (`core/services/modules/...`, archivos `.sp.service.ts`, servicios sueltos en `core/services/`). Julian pidió borrar todo lo que no se use en el flujo del parking y todo dato quemado, y ordenar los servicios sin dejar archivos sueltos.
+- **Decisión:**
+  - **Rama:** `frontend-integracion` sale de `frontend-miguel` y se le une `frontend-julian` (commit `b869f89`); ninguna de las dos ramas originales se toca. El merge automático había borrado o cambiado en silencio archivos que Miguel usa: se recuperaron antes del commit.
+  - **Servicios por módulo del backend**, un archivo por módulo, sin duplicados: `services/api/` (`users-api`, `vehicles-api`, `visitors-api`, `parking-api`, `incidents-api`), `services/auth/` (`auth.service` y `firebase-auth`), `services/scanner/` (`qr-scanner` y `plate-scanner`) y `services/student-panel/` (`student-vehicles` y `student-parking`, lo que combina varios módulos para el panel del usuario). Los archivos se movieron con `git mv` para conservar su historial.
+  - **Sin modo demostración:** salen las cuentas simuladas, los accesos directos del login, las semillas de solicitudes, los documentos de ejemplo y todo lo que solo existía para la demostración. Se usa solo el inicio de sesión con Microsoft (Firebase), con la configuración real del proyecto (sus valores son públicos por diseño; lo protegen las reglas y el backend).
+  - **Autenticación:** el interceptor envía el token solo al backend (`environment.apiUrl`); el rol sale del claim `rolId`; las rutas esperan a que Firebase restaure la sesión antes de decidir. Firebase se usa a través del token `FIREBASE_AUTH`, que las pruebas reemplazan por uno sin red.
+  - **Registro de vehículos** solo contra el backend y sin documentos, porque el backend no los recibe (opción elegida por Julian). Sale el modo «actualizar documentos».
+  - **Novedades de seguridad** con los campos que guarda el backend (título, descripción, estado y quién reporta); la placa, si se escribe, va en la descripción. Salen la gravedad y la zona, que el backend no tiene.
+  - Se borra lo que ya no tiene uso: la campana de notificaciones (sin API), «Configuración» del menú de cuenta (sin función), servicios repetidos, modelos y funciones sin uso y 173 reglas de CSS que ninguna plantilla usaba.
+- **Alternativas descartadas:**
+  - Unir las ramas directamente en `main` o en una de las dos: si algo salía mal, se perdía el punto de partida de ambas.
+  - Ordenar los servicios por pantalla (como estaba `modules/security-dashboard`): la misma API terminaba repetida en varias carpetas.
+  - Dejar el modo demostración apagado con una bandera: seguiría habiendo código y datos que nadie usa.
+- **Consecuencias:**
+  - Resuelve PEN-013, PEN-026, PEN-027 y PEN-028. Todas las pantallas trabajan con el backend real.
+  - El historial, las estadísticas y «Vehículos dentro» del usuario reciben 403 hasta que el backend le dé esos permisos a userEstandar de forma segura (PEN-030).
+  - Todas las cuentas, también las de los guardias, deben ser `@uniempresarial.edu.co`: `POST /users` rechaza las demás.
+  - Las pruebas usan cuentas ficticias por rol (`testing/test-session.ts`) y respuestas del backend fabricadas (`testing/backend-stubs.ts`). La suite queda en 163 pruebas.
+
 ---
 
 ## 7. Bitácora de cambios
 
 Basada en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/): lo más reciente va arriba, las fechas en formato AAAA-MM-DD y los cambios se agrupan en **Agregado**, **Cambiado**, **Corregido**, **Eliminado** y **Seguridad**. Lo que aún no está en `main` va en **Sin publicar**.
+
+### [Sin publicar] · rama `frontend-integracion`
+
+Une `frontend-miguel` y `frontend-julian` (ADR-024). Salvo el merge (`b869f89`), todo va sin commit, para revisión de Julian.
+
+#### Agregado
+
+- 2026-09-28 · Rama `frontend-integracion`: parte de `frontend-miguel` y le une `frontend-julian`. Trae de Miguel el inicio de sesión con Microsoft, el panel de usuario (inicio, «Vehículos» con el QR de cada vehículo, «Parqueaderos» y «Estadísticas»), el registro de vehículos contra el backend, la administración y la foto de placa con ML Kit en Android.
+- 2026-09-28 · `auth.interceptor.ts`: envía el token de Firebase en cada petición al backend, y a nadie más (PEN-027).
+- 2026-09-28 · Seguridad, sección **Novedades**: el guardia reporta una incidencia con título, descripción y placa opcional; la administración la ve en su sección de incidencias.
+- 2026-09-28 · Administración: avisos cuando el backend no responde o rechaza un cambio, y los botones se desactivan mientras se guarda.
+- 2026-09-28 · Pruebas: `testing/test-session.ts` (cuentas ficticias por rol y un Firebase sin red) y `testing/backend-stubs.ts` (respuestas fabricadas del backend para el panel de usuario). Pruebas nuevas: la espera de la sesión en las rutas, el reporte de novedades, las acciones de la administración y el registro de vehículos contra el backend. La suite pasa a 163 pruebas.
+
+#### Cambiado
+
+- 2026-09-28 · Servicios ordenados por módulo del backend (ADR-024): `services/api/` (`users-api`, `vehicles-api`, `visitors-api`, `parking-api` e `incidents-api`), `services/auth/` (`auth.service` y `firebase-auth`, antes `microsoft-auth`), `services/scanner/` (`qr-scanner`, antes `scanner.service`, y `plate-scanner`) y `services/student-panel/` (`student-vehicles`, antes `students.service`, y `student-parking`, antes `parking.service`). Las clases se renombraron igual (`QrScannerService`, `VehiclesApiService`, `VisitorsApiService`, `UsersApiService`, `IncidentsApiService`, `StudentVehiclesService` y `StudentParkingService`).
+- 2026-09-28 · Las rutas por rol esperan a que Firebase restaure la sesión antes de decidir (PEN-013); el rol sale del claim `rolId` (1 usuario, 2 seguridad, 3 y 4 administración).
+- 2026-09-28 · Registro de vehículos en tres pasos (vehículo, datos y confirmar): crea el vehículo en el backend y avisa que queda pendiente de aprobación. Los campos son los que guarda el backend (placa, marca, modelo y color en la moto; marca y color en bicicleta y scooter).
+- 2026-09-28 · El panel de administración usa los estilos de la marca en lugar de estilos escritos en la plantilla, y una sección desconocida muestra el resumen.
+- 2026-09-28 · El formulario de visitantes acepta las placas que acepta el backend: `ABC12D`, `ABC12` y `ABC123` (PEN-028).
+- 2026-09-28 · El QR (del visitante y de cada vehículo) se dibuja con un solo ayudante, `utils/qr-code.ts`, que las pruebas pueden reemplazar.
+- 2026-09-28 · Modelos: `visitor-pass.ts` pasa a `visitor.ts`; `vehicle.ts` sin «línea» ni serial del marco, que el backend no guarda; `isAuthorized` documentado como lo que es, el permiso para entrar.
+- 2026-09-28 · `environments.ts` apunta a `http://localhost:3000`; cada quien pone ahí la dirección de su backend sin subir el cambio.
+
+#### Corregido
+
+- 2026-09-28 · El superadmin (`rolId` 4) entraba como usuario común; ahora entra a la administración.
+- 2026-09-28 · Administración: «Aprobados» mostraba la lista de pendientes, y «Rechazar» y «Eliminar» llamaban rutas que no hacen eso; el contador de incidencias del menú nunca se actualizaba.
+- 2026-09-28 · Las novedades se enviaban con campos que el backend no conoce (gravedad, zona, placa) y sin quién las reportó.
+- 2026-09-28 · Texto dañado por la codificación en «Parqueaderos» («quiAc!n estAc!») y en comentarios del panel de seguridad.
+- 2026-09-28 · Pruebas que ya no compilaban en la rama de Miguel (tipos del backend desactualizados y servicios que ya no existían).
+
+#### Eliminado
+
+- 2026-09-28 · El modo demostración: cuentas y accesos directos del login, semillas de solicitudes, documentos de ejemplo, reloj y almacenamiento de demostración (`core/demo`), la sesión simulada de los guardias y `parking.config.ts`.
+- 2026-09-28 · Servicios repetidos o sin uso: `parking-api.sp`, `vehicles-api.sp`, `admin-api`, `user-profile`, `notification`, `parking-stats`, `upload` y `vehicle-registration`, con sus modelos (`parking-stats.ts`, `vehicle-registration.ts`, `notification.ts`) y `utils/id.ts`.
+- 2026-09-28 · Del registro de vehículos: el paso de documentos, el modo «actualizar documentos» y los campos «línea» y serial del marco.
+- 2026-09-28 · La campana de notificaciones del header (sin API, siempre vacía) y «Configuración» del menú de cuenta (sin función).
+- 2026-09-28 · De los modelos, lo que ya nada usaba: estancias con auditoría, anulaciones y movimientos (`parking.ts`), `visitorFullName` y `documentLabel`, `momentLabel`, `totalOccupied` y `UsersApiService.deactivate`.
+- 2026-09-28 · 173 reglas de CSS que ninguna plantilla usaba (gráficas, revisión de documentos y visor de la administración; subida de archivos del registro; temporizador del pase de visitante).
+
+#### Seguridad
+
+- 2026-09-28 · El token de Firebase solo viaja al backend propio (`environment.apiUrl`), nunca a servicios de terceros.
 
 ### [Sin publicar] · rama `frontend-julian`
 
@@ -868,6 +955,7 @@ Una fase queda **Completada** cuando todas sus tareas lo están, **Pendiente** s
 
 - `main`: versión estable.
 - `frontend-julian` y `frontend-miguel`: una rama por desarrollador.
+- `frontend-integracion`: une las dos anteriores (ADR-024); desde aquí se propone el pull request a `main`.
 - Propuesta: integrar a `main` mediante pull request revisado.
 
 ### Mensajes de commit (propuesta)
@@ -892,24 +980,36 @@ Tipos: `feat` (función nueva), `fix` (corrección), `docs`, `refactor`, `test`,
 
 ### Estructura de `core/` y `testing/`
 
-Revisada el 2026-09-27: todo lo que queda tiene uso. «Solo diseño» son las pantallas que esperan backend (ADR-022).
+Revisada el 2026-09-28 (ADR-024): todo lo que queda tiene uso, y cada servicio que consume el backend vive en `services/api/`, uno por módulo del backend.
 
 | Archivo | Para qué sirve | Quién lo usa |
 | --- | --- | --- |
 | `config/branding.config.ts` | Colores, logos y nombres de la marca (ADR-001) | Toda la app |
-| `guards/auth.guards.ts` | Deja entrar a cada grupo de rutas solo al rol que le toca y manda a cada quien a su inicio (ADR-010) | Rutas y login |
+| `config/firebase.config.ts` | Proyecto de Firebase y tenant de Microsoft (valores públicos por diseño) | `services/auth/firebase-auth.ts` |
+| `guards/auth.guards.ts` | Espera la sesión, deja entrar a cada grupo de rutas solo al rol que le toca y manda a cada quien a su inicio (ADR-010) | Rutas y login |
+| `interceptors/auth.interceptor.ts` | Agrega el token de Firebase a las peticiones al backend | `app.config.ts` |
 | `layout/drawer-state.ts` | Menú lateral: cerrado en el celular, abierto en el computador | `dashboard-layout` |
 | `navigation/dashboard-navigation.ts` | Cada rol declara su menú y su buscador del header (ADR-010) | Layout, sidebar y las rutas de cada rol |
-| `services/auth.service.ts` | Sesión simulada de los guardias | Login, guards y header |
-| `services/modules/` | Consumo del backend (visitantes, parqueadero y vehículos) y lector de QR | Visitantes y seguridad |
+| `services/api/users-api.service.ts` | Módulo de usuarios: registrarse al entrar, ver un usuario con sus vehículos, inactivos y reactivar | Sesión, panel de usuario y administración |
+| `services/api/vehicles-api.service.ts` | Módulo de vehículos: registrar, buscar por placa, aprobar y quitar el permiso | Registro de vehículos, seguridad y administración |
+| `services/api/visitors-api.service.ts` | Módulo de visitantes: registrar la visita y buscarla por id, documento o placa | Visitantes y seguridad |
+| `services/api/parking-api.service.ts` | Módulo Parking: zonas, registros abiertos, historial por placa, ingresos y salidas | Seguridad y panel de usuario |
+| `services/api/incidents-api.service.ts` | Módulo de incidencias: listar y reportar | Seguridad (reporta) y administración (lista y contador) |
+| `services/auth/auth.service.ts` | La sesión: inicio con Microsoft, registro en el backend, rol del token y cierre | Login, guards, header y pantallas |
+| `services/auth/firebase-auth.ts` | Única puerta al SDK de Firebase (`FIREBASE_AUTH`), cargado solo al usarlo | `auth.service` y el interceptor |
+| `services/scanner/qr-scanner.service.ts` | Cámara y lectura del QR con ZXing | `lector-codigo-qr` |
+| `services/scanner/plate-scanner.service.ts` | Foto de la placa y lectura con ML Kit (solo en la app de Android) | Seguridad |
+| `services/student-panel/student-vehicles.service.ts` | «Mis vehículos» de quien tiene la sesión, compartido entre pantallas | Inicio, vehículos, registro y `student-parking` |
+| `services/student-panel/student-parking.service.ts` | Zonas e historial de los vehículos de quien tiene la sesión | Inicio, parqueaderos y estadísticas |
 | `utils/dates.ts` | Horas para portería: «hoy a las 7:05 p. m.» | Seguridad |
-| `models/visitor-pass.ts` | Datos del formulario de visitantes y tipos de documento | Visitantes; registro de vehículos |
-| `models/vehicle.ts` | Tipos de vehículo y cómo se muestran; lo de «Mis vehículos» | Visitantes y seguridad; pantallas de solo diseño |
-| `models/parking.ts` | Zonas y su estado (Disponible, Casi lleno, Sin cupos); estancias e historial | Seguridad (zonas); dashboard de usuarios (historial) |
-| `models/notification.ts` | Forma de un aviso y «hace 5 min» | Campana del header |
-| `models/vehicle-registration.ts` | Solicitudes de registro, documentos y revisión | Registro de vehículos y administración (solo diseño) |
-| `models/incident.ts` y `models/parking-stats.ts` | Incidencias y estadísticas | Administración (solo diseño) |
-| `testing/demo-session.ts` | Abre sesiones dentro de las pruebas: los guardias y cuentas ficticias de comunidad y administración | Solo las pruebas; no entra en la app |
+| `utils/qr-code.ts` | Dibuja un QR (`QR_CODE_RENDERER`) | Visitantes y vehículos |
+| `models/visitor.ts` | Datos del formulario de visitantes y tipos de documento | Visitantes |
+| `models/vehicle.ts` | Tipos de vehículo, qué datos pide cada uno y cómo se muestran | Todo el proyecto |
+| `models/parking.ts` | Zonas y su estado (Disponible, Casi lleno, Sin cupos); estancias e historial | Seguridad y panel de usuario |
+| `models/incident.ts` | Incidencias y sus estados | Administración |
+| `environments/environments.ts` | Dirección del backend (`apiUrl`) | Servicios de `api/` e interceptor |
+| `testing/test-session.ts` | Cuentas ficticias por rol y un Firebase sin red, para las pruebas | Solo las pruebas; no entra en la app |
+| `testing/backend-stubs.ts` | Respuestas del backend fabricadas para las pruebas del panel de usuario | Solo las pruebas; no entra en la app |
 
 Los archivos `*.spec.ts` son las pruebas unitarias (`npm test`) y tampoco entran en la app.
 
@@ -942,8 +1042,8 @@ registerVisitorEntry(visitorId: number): Promise<BackendAccessRecord>
 - Compilar: `npx ng build`
 - Pruebas: `npx ng test --no-watch`
 - PWA: el service worker no corre con `ng serve`. Hay que compilar y servir `dist/parking/browser` con cualquier servidor estático, y abrirlo en Chrome o Edge.
-- Control de acceso con QR en computador (con el backend corriendo): registrar una visita en `/visitantes`, guardar una captura del QR, entrar como «Guardia Carlos» → Control de acceso → «Leer desde una foto».
-- Cerrar la sesión simulada del guardia: menú de cuenta → cerrar sesión, o cerrar la pestaña (vive en `sessionStorage`).
+- Control de acceso con QR en computador (con el backend corriendo): registrar una visita en `/visitantes`, guardar una captura del QR, iniciar sesión con una cuenta `@uniempresarial.edu.co` que tenga el rol vigilante → Control de acceso → «Leer desde una foto».
+- Dar un rol a una cuenta: la persona inicia sesión una vez (queda como userEstandar) y después se le cambia con `PATCH /users/:userId/role` o, para el primer superadmin, con `scripts/setRol.ts` del backend. El rol nuevo llega al renovar el token (cerrar sesión y volver a entrar).
 
 ### Terminado significa
 
@@ -976,7 +1076,7 @@ Referencias: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · [Arc
 | 2 | ¿Cuáles son los cupos reales por tipo de vehículo en Uniempresarial? Hoy las zonas del backend tienen 50 (motos), 20 (bicicletas) y 10 (scooters) de ejemplo. | Ocupación |
 | 3 | ¿Cuánto tiempo se guardan las fotos de las placas? Son datos personales (Ley 1581 de 2012). | Movimientos (Fase 4) |
 | 4 | ¿Se notifica al usuario cada ingreso y salida de su vehículo? | Fase 5 |
-| 5 | ¿La universidad dará correo institucional a los guardias? Si lo hace, solo cambia el inicio de sesión (ADR-009). | Inicio de sesión |
+| 5 | ¿La universidad dará correo institucional a los guardias? Desde el 2026-09-28 es obligatorio: el backend solo registra cuentas `@uniempresarial.edu.co` (ADR-024). Si no lo da, el backend tendría que aceptar otro dominio para los vigilantes. | Inicio de sesión |
 | 6 | ¿Una persona puede tener dos roles, por ejemplo un administrativo con vehículo propio? | Roles y layout |
 | 7 | ¿A qué hora cierra el parqueadero? Sirve para alertar sobre vehículos que se quedan dentro. | Resumen de seguridad |
 | 8 | ¿Se quita Bootstrap o se empieza a usar? (MEJ-001) | Estilos |

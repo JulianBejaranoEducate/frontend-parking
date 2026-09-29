@@ -1,16 +1,13 @@
-/** Novedad registrada dentro del parqueadero. */
-export type IncidentSeverity = 'high' | 'medium' | 'low';
-export type IncidentStatus = 'open' | 'in-review' | 'resolved';
-
-export const INCIDENT_SEVERITY_LABELS: Record<IncidentSeverity, string> = {
-  high: 'Alta',
-  medium: 'Media',
-  low: 'Baja',
-};
+/**
+ * Novedad reportada dentro del parqueadero (módulo de incidencias del backend).
+ *
+ * El backend guarda un tipo (aquí, el título), una descripción, un estado,
+ * la fecha y quién la reportó; no guarda gravedad ni placa.
+ */
+export type IncidentStatus = 'open' | 'resolved';
 
 export const INCIDENT_STATUS_LABELS: Record<IncidentStatus, string> = {
   open: 'Abierta',
-  'in-review': 'En revisión',
   resolved: 'Resuelta',
 };
 
@@ -18,11 +15,8 @@ export interface Incident {
   id: string;
   title: string;
   description: string;
-  zoneName: string;
-  severity: IncidentSeverity;
   status: IncidentStatus;
   reportedAt: Date;
+  /** Nombre de quien la reportó; vacío si el backend no trae el usuario. */
   reportedBy: string;
-  plate?: string;
-  resolvedAt?: Date;
 }

@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { AuthService } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth/auth.service';
+import { provideFirebaseWithoutSession } from '../../testing/test-session';
 import { Header } from './header';
 
 describe('Header', () => {
@@ -11,7 +12,7 @@ describe('Header', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Header],
-      providers: [provideRouter([])],
+      providers: [provideRouter([]), provideFirebaseWithoutSession()],
     }).compileComponents();
 
     auth = TestBed.inject(AuthService);
@@ -50,14 +51,12 @@ describe('Header', () => {
     expect(component).toBeTruthy();
   });
 
-  it('no muestra micrófono ni botón de crear, solo búsqueda, notificaciones y cuenta', () => {
+  it('solo muestra búsqueda y cuenta: sin notificaciones mientras el backend no las tenga', () => {
     const labels = [...host().querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
 
     expect(labels).toContain('Buscar');
-    // La campana incluye la cuenta de pendientes en su etiqueta.
-    expect(labels.some((label) => label?.startsWith('Notificaciones'))).toBe(true);
     expect(labels).toContain('Cuenta');
-    expect(host().textContent).not.toContain('Create');
+    expect(labels.some((label) => label?.startsWith('Notificaciones'))).toBe(false);
   });
 
   it('el menú de cuenta está cerrado hasta que se pulsa el avatar', async () => {
@@ -93,7 +92,7 @@ describe('Header', () => {
     expect(host().querySelector('.account__affiliation')).toBeNull();
   });
 
-  it('las cuentas de guardias no tienen correo: muestran nombre y portería', async () => {
+  it('si la cuenta no trae correo, muestra nombre y vínculo', async () => {
     signIn({
       displayName: 'Carlos Ramírez',
       email: '',
@@ -110,13 +109,13 @@ describe('Header', () => {
     );
   });
 
-  it('cierra sesión y termina el menú con esa opción', async () => {
+  it('el menú de cuenta solo ofrece cerrar sesión', async () => {
     signIn();
     api().toggleProfile();
     await fixture.whenStable();
 
     const items = [...host().querySelectorAll('.account__item')].map((i) => i.textContent?.trim());
-    expect(items).toEqual(['Configuración', 'Cerrar sesión']);
+    expect(items).toEqual(['Cerrar sesión']);
   });
 
   it('avisa al contenedor cuando se pulsa la hamburguesa', () => {

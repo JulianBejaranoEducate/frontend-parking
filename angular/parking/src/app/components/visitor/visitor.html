@@ -240,7 +240,7 @@
                   autocomplete="off"
                   spellcheck="false"
                   maxlength="6"
-                  placeholder="ABC123"
+                  placeholder="ABC12D"
                   (input)="normalizePlate()"
                   [class.field__control--invalid]="isInvalid('plate')"
                   [attr.aria-invalid]="isInvalid('plate')"
@@ -249,7 +249,7 @@
                 @if (errorFor('plate'); as message) {
                   <p class="field__error" id="plate-error">{{ message }}</p>
                 } @else {
-                  <p class="field__hint" id="plate-hint">Formato ABC123.</p>
+                  <p class="field__hint" id="plate-hint">Formato ABC12D.</p>
                 }
               </div>
             }

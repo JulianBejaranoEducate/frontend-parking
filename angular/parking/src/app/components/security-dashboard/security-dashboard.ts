@@ -1,16 +1,13 @@
-import { PlateScannerService } from '../../core/services/modules/security-dashboard/plate-scanner.service';
-import { IncidentService } from '../../core/services/incident.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import type { ParkingZone } from '../../core/models/parking';
 import { VEHICLE_TYPES, type VehicleType, vehicleLabel } from '../../core/models/vehicle';
-import {
-  type BackendAccessRecord,
-  type BackendParkingZone,
-  ParkingApiService,
-} from '../../core/services/modules/security-dashboard/parking-api.service';
-import { type BackendVehicle, VehicleApiService } from '../../core/services/modules/security-dashboard/vehicle-api.service';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
+import { IncidentsApiService } from '../../core/services/api/incidents-api.service';
+import { type BackendAccessRecord, ParkingApiService, toParkingZone } from '../../core/services/api/parking-api.service';
+import { type BackendVehicle, VehiclesApiService } from '../../core/services/api/vehicles-api.service';
+import { type BackendVisitor, VisitorsApiService } from '../../core/services/api/visitors-api.service';
+import { AuthService } from '../../core/services/auth/auth.service';
+import { PlateScannerService } from '../../core/services/scanner/plate-scanner.service';
 import { dayAndTime } from '../../core/utils/dates';
 import { LectorCodigoQr } from '../lector-codigo-qr/lector-codigo-qr';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
@@ -22,11 +19,8 @@ const SECTION_COPY: Record<SecuritySection, { title: string; subtitle: string }>
     title: 'Control de acceso',
     subtitle: 'Escanea el código del visitante o de la comunidad, o búscalo por documento o placa.',
   },
-  incidencias: { title: 'Reportar Novedad', subtitle: 'Crea una incidencia para que sea revisada por la administración.' }
+  incidencias: { title: 'Novedades', subtitle: 'Reporta una novedad para que la revise la administración.' },
 };
-
-/** Cómo se nombra cada tipo de vehículo en plural: "Zona de motos", "3 bicicletas". */
-const PLURALS: Record<VehicleType, string> = { moto: 'motos', bicicleta: 'bicicletas', scooter: 'scooters' };
 
 /** Los documentos colombianos tienen de 6 a 11 dígitos; el id de un visitante es más corto. */
 const DOCUMENT_NUMBER_PATTERN = /^\d{6,11}$/;
@@ -65,21 +59,7 @@ type ScanResult =
   | { kind: 'visitante'; visitor: BackendVisitor; outcome: AccessOutcome | null }
   | { kind: 'institucional'; vehicle: BackendVehicle; outcome: AccessOutcome | null };
 
-function vehiclePlural(type: string): string {
-  return PLURALS[type as VehicleType] ?? type;
-}
-
-function toParkingZone(zone: BackendParkingZone): ParkingZone {
-  return {
-    id: String(zone.id),
-    name: `Zona de ${vehiclePlural(zone.vehicleType)}`,
-    accepts: zone.vehicleType as VehicleType,
-    capacity: zone.totalCapacity,
-    occupied: zone.totalCapacity - zone.availableSpaces,
-  };
-}
-
-/** El backend explica por qué rechazó un ingreso o una salida en `details`. */
+/** El backend explica por qué rechazó una petición en `details`. */
 function backendMessage(error: unknown, fallback: string): string {
   const details: unknown = error instanceof HttpErrorResponse ? error.error?.details : undefined;
   return typeof details === 'string' ? details : fallback;
@@ -95,6 +75,8 @@ function backendMessage(error: unknown, fallback: string): string {
  *   el ingreso abre su registro de acceso, y la salida lo cierra. Lo mismo con
  *   la placa de un vehículo de la comunidad. El guardia ve las dos acciones y
  *   el backend rechaza la que no corresponde, con su motivo.
+ * - Novedades: el guardia reporta un incidente a la administración, que lo ve
+ *   en su sección de novedades.
  */
 @Component({
   imports: [LectorCodigoQr, ZoneAvailability],
@@ -106,10 +88,11 @@ export class SecurityDashboard {
   /** Parámetro de ruta :section. */
   readonly section = input<string>('resumen');
 
-  private readonly visitorApi = inject(VisitorApiService);
-  private readonly incidentApi = inject(IncidentService);
+  private readonly auth = inject(AuthService);
+  private readonly visitorApi = inject(VisitorsApiService);
+  private readonly incidentsApi = inject(IncidentsApiService);
   private readonly plateScanner = inject(PlateScannerService);
-  private readonly vehicleApi = inject(VehicleApiService);
+  private readonly vehicleApi = inject(VehiclesApiService);
   private readonly parkingApi = inject(ParkingApiService);
 
   protected readonly vehicleLabel = (type: string) => vehicleLabel(type as VehicleType);
@@ -180,13 +163,6 @@ export class SecurityDashboard {
    * Los registros abiertos dicen quién entró (id del visitante o placa); los
    * nombres salen de Visitantes y de Vehículos.
    */
-  public async submitIncident(event: Event, title: string, description: string, severity: any, plate: string) {
-    event.preventDefault();
-    if (!title.trim() || !description.trim()) return;
-    await this.incidentApi.report({ title, description, severity, plate: plate || null, zoneName: 'General', reportedBy: 'Guardia' } as any);
-    this.flash.set('Incidencia reportada correctamente.');
-  }
-
   private async loadInside(): Promise<void> {
     this.insideLoading.set(true);
     this.insideError.set(null);
@@ -465,6 +441,53 @@ export class SecurityDashboard {
       this.plateError.set((error as Error).message);
     } finally {
       this.scanningPlate.set(false);
+    }
+  }
+
+  // ---- Novedades: reporte a la administración ------------------------------------------------
+
+  protected readonly incidentSending = signal(false);
+  protected readonly incidentError = signal<string | null>(null);
+
+  /**
+   * Reporta la novedad del formulario a nombre del guardia con la sesión abierta.
+   * El backend no tiene un campo de placa: si se escribe, va al final de la
+   * descripción. Si el backend la guarda, el formulario se limpia.
+   */
+  protected async submitIncident(event: SubmitEvent): Promise<void> {
+    event.preventDefault();
+
+    if (this.incidentSending()) {
+      return;
+    }
+
+    const form = event.target as HTMLFormElement;
+    const data = new FormData(form);
+    const title = String(data.get('title') ?? '').trim();
+    const description = String(data.get('description') ?? '').trim();
+    const plate = String(data.get('plate') ?? '').trim().toUpperCase();
+
+    // Los mismos mínimos que valida el backend.
+    if (title.length < 3 || description.length < 5) {
+      this.incidentError.set('Escribe un título de al menos 3 caracteres y una descripción de al menos 5.');
+      return;
+    }
+
+    this.incidentError.set(null);
+    this.incidentSending.set(true);
+
+    try {
+      await this.incidentsApi.report({
+        title,
+        description: plate ? `${description} (Placa: ${plate})` : description,
+        reporterUid: this.auth.effectiveUid(),
+      });
+      form.reset();
+      this.flash.set('Novedad reportada a la administración.');
+    } catch (error) {
+      this.incidentError.set(backendMessage(error, 'No pudimos reportar la novedad. Revisa la conexión con el backend.'));
+    } finally {
+      this.incidentSending.set(false);
     }
   }
 }

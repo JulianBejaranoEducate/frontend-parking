@@ -15,7 +15,7 @@ const ADMIN_ROUTES: Routes = [
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'resumen' },
       {
-        // :section elige la vista; ?solicitud=<id> abre la revisión de una solicitud.
+        // :section elige la vista (ver ADMIN_SECTIONS); una desconocida muestra el resumen.
         path: ':section',
         title: 'Uni-parking | Administración',
         loadComponent: () => import('./admin-dashboard').then((m) => m.AdminDashboard),

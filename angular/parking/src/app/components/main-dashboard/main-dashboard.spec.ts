@@ -1,118 +1,42 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import {
-  type BackendAccessRecord,
-  type BackendParkingZone,
-  type BackendVehicleStatus,
-  ParkingApiService,
-} from '../../core/services/modules/parking-student-panel/parking-api.sp.service';
-import {
-  type BackendStudent,
-  type BackendUserVehicle,
-  StudentsApiService,
-} from '../../core/services/modules/students-student-panel/students-api.sp.service';
-import { signInForTest } from '../../testing/demo-session';
+import { ParkingApiService } from '../../core/services/api/parking-api.service';
+import { UsersApiService } from '../../core/services/api/users-api.service';
+import { ParkingApiStub, UsersApiStub, accessRecord, testUser, testUserVehicle } from '../../testing/backend-stubs';
+import { signInForTest } from '../../testing/test-session';
+import { StayHistory } from '../stay-history/stay-history';
 import { MainDashboard } from './main-dashboard';
-
-const vehicle = (
-  plate: string,
-  type: string,
-  overrides: Partial<BackendUserVehicle> = {},
-): BackendUserVehicle => ({
-  plate,
-  brand: 'Yamaha',
-  model: 2022,
-  color: 'Negro',
-  type,
-  is_authorized: true,
-  id_owner: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-  ...overrides,
-});
-
-const student = (vehicles: BackendUserVehicle[]): BackendStudent => ({
-  id: 'Ctj1W2XEcKVNxKt7seae8xvR8fR2',
-  name: 'test s',
-  email: 'test@test.com',
-  roleId: '3',
-  status_user: true,
-  vehicles,
-});
-
-class StudentsApiServiceStub {
-  student: BackendStudent = student([]);
-  fail = false;
-
-  findById(_id: string): Promise<BackendStudent> {
-    return this.fail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.student);
-  }
-}
 
 const now = Date.now();
 const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString();
 const hoursAgo = (n: number) => new Date(now - n * 3_600_000).toISOString();
 
-const record = (
-  id: number,
-  plate: string,
-  entryDateTime: string,
-  exitDateTime: string | null,
-): BackendAccessRecord => ({ id, plate, visitorId: null, zoneType: 'moto', entryDateTime, exitDateTime });
-
-/** No extiende ParkingApiService (que inyecta HttpClient) para no tener que proveerlo. */
-class ParkingApiServiceStub {
-  zoneRows: BackendParkingZone[] = [
-    { id: 1, vehicleType: 'moto', totalCapacity: 60, availableSpaces: 53 },
-    { id: 2, vehicleType: 'bicicleta', totalCapacity: 30, availableSpaces: 27 },
-    { id: 3, vehicleType: 'scooter', totalCapacity: 20, availableSpaces: 18 },
-  ];
-  /** Historial por placa. Por defecto, KZT45F: cuatro estancias repartidas en 20 días, una en curso. */
-  historyByPlate: Record<string, BackendAccessRecord[]> = {
-    KZT45F: [
-      record(1, 'KZT45F', daysAgo(20), daysAgo(19.9)),
-      record(2, 'KZT45F', daysAgo(10), daysAgo(9.9)),
-      record(3, 'KZT45F', daysAgo(3), daysAgo(2.9)),
-      record(4, 'KZT45F', hoursAgo(2), null),
-    ],
-  };
-  zonesFail = false;
-  historyFail = false;
-  historyCalls: string[] = [];
-
-  zones(): Promise<BackendParkingZone[]> {
-    return this.zonesFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.zoneRows);
-  }
-
-  zoneByType(vehicleType: string): Promise<BackendParkingZone> {
-    const zone = this.zoneRows.find((candidate) => candidate.vehicleType === vehicleType);
-    return zone ? Promise.resolve(zone) : Promise.reject(new Error('zona no encontrada'));
-  }
-
-  history(plate: string): Promise<BackendAccessRecord[]> {
-    this.historyCalls.push(plate);
-    return this.historyFail ? Promise.reject(new Error('sin conexión')) : Promise.resolve(this.historyByPlate[plate] ?? []);
-  }
-
-  status(plate: string): Promise<BackendVehicleStatus> {
-    return Promise.resolve({ plate, isInside: false, entryDateTime: null, exitDateTime: null });
-  }
-}
+/** Cuatro estancias de KZT45F repartidas en 20 días, una en curso. */
+const kzt45fHistory = [
+  accessRecord(1, 'KZT45F', 'moto', daysAgo(20), daysAgo(19.9)),
+  accessRecord(2, 'KZT45F', 'moto', daysAgo(10), daysAgo(9.9)),
+  accessRecord(3, 'KZT45F', 'moto', daysAgo(3), daysAgo(2.9)),
+  accessRecord(4, 'KZT45F', 'moto', hoursAgo(2), null),
+];
 
 describe('MainDashboard', () => {
   let component: MainDashboard;
   let fixture: ComponentFixture<MainDashboard>;
-  let studentsApi: StudentsApiServiceStub;
-  let parkingApi: ParkingApiServiceStub;
+  let usersApi: UsersApiStub;
+  let parkingApi: ParkingApiStub;
 
   const configure = async () => {
-    studentsApi = new StudentsApiServiceStub();
-    studentsApi.student = student([vehicle('KZT45F', 'moto')]);
-    parkingApi = new ParkingApiServiceStub();
+    usersApi = new UsersApiStub();
+    usersApi.user = testUser([testUserVehicle('KZT45F', 'moto')]);
+    parkingApi = new ParkingApiStub();
+    parkingApi.historyByPlate = { KZT45F: kzt45fHistory };
 
     await TestBed.configureTestingModule({
       imports: [MainDashboard],
       providers: [
         provideRouter([]),
-        { provide: StudentsApiService, useValue: studentsApi },
+        { provide: UsersApiService, useValue: usersApi },
         { provide: ParkingApiService, useValue: parkingApi },
       ],
     }).compileComponents();
@@ -132,11 +56,16 @@ describe('MainDashboard', () => {
     component as unknown as {
       greeting: () => string;
       elapsedSince: (date: Date) => string;
-      historyRange: () => number;
-      setHistoryRange: (days: number) => void;
-      filteredStays: () => unknown[];
       vehiclesLoading: () => boolean;
       vehiclesError: () => string | null;
+    };
+
+  /** El historial es un componente aparte (StayHistory), compartido con /estadisticas. */
+  const history = () =>
+    fixture.debugElement.query(By.directive(StayHistory)).componentInstance as {
+      range: () => number;
+      setHistoryRange: (days: number) => void;
+      filteredStays: () => unknown[];
     };
 
   const vehicleRows = () => [...host().querySelectorAll('.vehicle')];
@@ -180,7 +109,7 @@ describe('MainDashboard', () => {
 
   it('si el backend falla, avisa y no inventa vehículos', async () => {
     await configure();
-    studentsApi.fail = true;
+    usersApi.fail = true;
     await create();
 
     expect(api().vehiclesLoading()).toBe(false);
@@ -188,11 +117,11 @@ describe('MainDashboard', () => {
     expect(vehicleRows()).toHaveLength(0);
   });
 
-  it('lista los vehículos de verdad, con su estado real (dentro/fuera) y el cupo usado', async () => {
+  it('lista los vehículos de verdad, con su estado de aprobación y el cupo usado', async () => {
     await configure();
-    studentsApi.student = student([
-      vehicle('KZT45F', 'moto', { is_authorized: true }),
-      vehicle('uuid-bici', 'bicicleta', { is_authorized: false, brand: 'Trek', color: 'Verde' }),
+    usersApi.user = testUser([
+      testUserVehicle('KZT45F', 'moto', { is_authorized: true }),
+      testUserVehicle('uuid-bici', 'bicicleta', { is_authorized: false, brand: 'Trek', color: 'Verde' }),
     ]);
     await create();
 
@@ -203,10 +132,10 @@ describe('MainDashboard', () => {
 
   it('la placa es el título cuando el backend la asigna de verdad (moto); si no, el tipo de vehículo', async () => {
     await configure();
-    studentsApi.student = student([
-      vehicle('KZT45F', 'moto'),
+    usersApi.user = testUser([
+      testUserVehicle('KZT45F', 'moto'),
       // El backend genera su propio identificador para lo que no lleva placa real.
-      vehicle('5333040a-7100-466c-adcf-a1f581798453', 'scooter'),
+      testUserVehicle('5333040a-7100-466c-adcf-a1f581798453', 'scooter'),
     ]);
     await create();
 
@@ -216,7 +145,7 @@ describe('MainDashboard', () => {
 
   it('sin vehículos, muestra el estado vacío', async () => {
     await configure();
-    studentsApi.student = student([]);
+    usersApi.user = testUser([]);
     await create();
 
     expect(host().querySelector('.empty')?.textContent).toContain('Todavía no has registrado');
@@ -224,12 +153,12 @@ describe('MainDashboard', () => {
 
   it('con 5 vehículos reales, agregar queda bloqueado y explica por qué', async () => {
     await configure();
-    studentsApi.student = student([
-      vehicle('AAA11A', 'moto'),
-      vehicle('BBB22B', 'moto'),
-      vehicle('CCC33C', 'moto'),
-      vehicle('DDD44D', 'moto'),
-      vehicle('EEE55E', 'moto'),
+    usersApi.user = testUser([
+      testUserVehicle('AAA11A', 'moto'),
+      testUserVehicle('BBB22B', 'moto'),
+      testUserVehicle('CCC33C', 'moto'),
+      testUserVehicle('DDD44D', 'moto'),
+      testUserVehicle('EEE55E', 'moto'),
     ]);
     await create();
 
@@ -248,7 +177,7 @@ describe('MainDashboard', () => {
     const labels = [...host().querySelectorAll('.range__label')].map((l) => l.textContent?.trim());
 
     expect(labels).toEqual(['1 día', '7 días', '15 días', '30 días']);
-    expect(api().historyRange()).toBe(7);
+    expect(history().range()).toBe(7);
   });
 
   it('ampliar el periodo nunca muestra menos estancias', async () => {
@@ -258,9 +187,9 @@ describe('MainDashboard', () => {
     const counts: number[] = [];
 
     for (const days of [1, 7, 15, 30]) {
-      api().setHistoryRange(days);
+      history().setHistoryRange(days);
       await fixture.whenStable();
-      counts.push(api().filteredStays().length);
+      counts.push(history().filteredStays().length);
     }
 
     expect(counts).toEqual([...counts].sort((a, b) => a - b));
@@ -289,7 +218,7 @@ describe('MainDashboard', () => {
 
   it('el historial solo pide movimientos de los vehículos propios', async () => {
     await configure();
-    studentsApi.student = student([vehicle('KZT45F', 'moto'), vehicle('AAA11A', 'moto')]);
+    usersApi.user = testUser([testUserVehicle('KZT45F', 'moto'), testUserVehicle('AAA11A', 'moto')]);
     await create();
 
     expect(parkingApi.historyCalls.sort()).toEqual(['AAA11A', 'KZT45F']);

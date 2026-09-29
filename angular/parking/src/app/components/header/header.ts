@@ -1,15 +1,13 @@
 import { Component, type ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
-import { AFFILIATION_LABELS, AuthService } from '../../core/services/auth.service';
-import { Notifications } from '../notifications/notifications';
+import { AFFILIATION_LABELS, AuthService } from '../../core/services/auth/auth.service';
 
 /**
- * Barra superior de los dashboards: buscador al centro, notificaciones y menú
- * de cuenta a la derecha. Vive aparte para que la reutilicen las demás vistas
- * (seguridad, administración) sin duplicar el marcado.
+ * Barra superior de los dashboards: buscador al centro y menú de cuenta a la
+ * derecha. Vive aparte para que la reutilicen las demás vistas (seguridad,
+ * administración) sin duplicar el marcado.
  */
 @Component({
-  imports: [Notifications],
   selector: 'app-header',
   styleUrl: './header.css',
   templateUrl: './header.html',
@@ -85,11 +83,6 @@ export class Header {
     if (query) {
       this.searched.emit(query);
     }
-  }
-
-  /** TODO: llevará a la configuración de la cuenta cuando exista esa sección. */
-  protected openSettings(): void {
-    this.closeProfile();
   }
 
   protected async logout(): Promise<void> {

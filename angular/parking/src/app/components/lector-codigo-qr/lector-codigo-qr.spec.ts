@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type ScanOptions, ScannerService } from '../../core/services/modules/security-dashboard/scanner.service';
+import { type ScanOptions, QrScannerService } from '../../core/services/scanner/qr-scanner.service';
 import { LectorCodigoQr } from './lector-codigo-qr';
 
 /** Cámara simulada: jsdom no tiene getUserMedia y las pruebas no deben pedir permisos. */
@@ -47,10 +47,10 @@ describe('LectorCodigoQr', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [LectorCodigoQr],
-      providers: [{ provide: ScannerService, useClass: ScannerStub }],
+      providers: [{ provide: QrScannerService, useClass: ScannerStub }],
     }).compileComponents();
 
-    scanner = TestBed.inject(ScannerService) as unknown as ScannerStub;
+    scanner = TestBed.inject(QrScannerService) as unknown as ScannerStub;
     fixture = TestBed.createComponent(LectorCodigoQr);
     reads = [];
     fixture.componentInstance.read.subscribe((value) => reads.push(value));

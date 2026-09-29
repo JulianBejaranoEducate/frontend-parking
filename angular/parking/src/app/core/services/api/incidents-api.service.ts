@@ -1,56 +1,78 @@
+/**
+ * Módulo de incidencias del backend (`/incidents`).
+ *
+ * Guarda la lista cargada en un signal porque la comparten la sección de
+ * incidencias y el contador del menú de administración.
+ */
 import { HttpClient } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { environment } from '../../environments/environments';
-import type { Incident, IncidentStatus } from '../models/incident';
-import { createId } from '../utils/id';
+import { environment } from '../../../environments/environments';
+import type { Incident } from '../../models/incident';
 
+/** Estado con el que se crea una novedad; el backend lo guarda como texto libre. */
+const OPEN_STATUS = 'abierta';
+
+/** Incidencia tal como la devuelve el backend. */
 export interface BackendIncident {
-  id: number;
+  id_incidencia: number;
+  /** ISO 8601. */
+  fecha_hora: string;
+  tipo: string;
+  descripcion: string;
+  estado: string;
+  /** Quien la reportó (la fila de la tabla de usuarios). */
+  owner?: { id_user: string; name_user: string } | null;
+}
+
+/** Lo que llena portería al reportar una novedad. */
+export interface NewIncident {
   title: string;
   description: string;
-  reportDate: string;
-  status: string;
-  severity: string;
-  userId: string | null;
-  plate: string | null;
+  /** uid de quien la reporta. */
+  reporterUid: string;
+}
+
+function toIncident(incident: BackendIncident): Incident {
+  return {
+    id: String(incident.id_incidencia),
+    title: incident.tipo,
+    description: incident.descripcion,
+    status: /^resuel/i.test(incident.estado) ? 'resolved' : 'open',
+    reportedAt: new Date(incident.fecha_hora),
+    reportedBy: incident.owner?.name_user ?? '',
+  };
 }
 
 @Injectable({ providedIn: 'root' })
-export class IncidentService {
+export class IncidentsApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = `${environment.apiUrl}/incidents`;
-
   private readonly state = signal<Incident[]>([]);
-  readonly incidents = computed(() => this.state());
 
-  async loadIncidents(): Promise<void> {
-    const data = await firstValueFrom(this.http.get<BackendIncident[]>(this.baseUrl));
-    this.state.set(data.map(i => ({
-      id: String(i.id),
-      title: i.title,
-      description: i.description,
-      zoneName: 'General',
-      status: (i.status as IncidentStatus) || 'open',
-      severity: i.severity as any,
-      reportedAt: new Date(i.reportDate),
-      reportedBy: i.userId || 'Sistema',
-      plate: i.plate || undefined,
-    })));
+  /** Incidencias cargadas con {@link load}, en el orden del backend. */
+  readonly incidents = this.state.asReadonly();
+
+  async load(): Promise<void> {
+    const incidents = await firstValueFrom(this.http.get<BackendIncident[]>(this.baseUrl));
+    this.state.set(incidents.map(toIncident));
   }
 
-  async report(incident: Omit<Incident, 'id' | 'status' | 'reportedAt'>): Promise<void> {
-    await firstValueFrom(this.http.post(this.baseUrl, {
-      title: incident.title,
-      description: incident.description,
-      severity: incident.severity,
-      plate: incident.plate,
-    }));
-    await this.loadIncidents();
-  }
-
-  async resolve(id: string, resolution: string): Promise<void> {
-    await firstValueFrom(this.http.put(`${this.baseUrl}/${id}`, { status: 'resolved' }));
-    await this.loadIncidents();
+  /**
+   * Reporta una novedad con la hora actual y estado «abierta».
+   *
+   * @throws HttpErrorResponse si el backend la rechaza, p. ej. si el título tiene
+   * menos de 3 caracteres o la descripción menos de 5.
+   */
+  async report({ title, description, reporterUid }: NewIncident): Promise<void> {
+    await firstValueFrom(
+      this.http.post(this.baseUrl, {
+        fecha_hora: new Date().toISOString(),
+        tipo: title,
+        descripcion: description,
+        estado: OPEN_STATUS,
+        id_usuario: reporterUid,
+      }),
+    );
   }
 }

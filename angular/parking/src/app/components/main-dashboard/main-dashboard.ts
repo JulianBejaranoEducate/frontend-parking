@@ -8,9 +8,9 @@ import {
   vehicleDetails,
   vehicleTitle,
 } from '../../core/models/vehicle';
-import { AuthService } from '../../core/services/auth.service';
-import { ParkingService } from '../../core/services/parking.service';
-import { StudentsService } from '../../core/services/students.service';
+import { AuthService } from '../../core/services/auth/auth.service';
+import { StudentParkingService } from '../../core/services/student-panel/student-parking.service';
+import { StudentVehiclesService } from '../../core/services/student-panel/student-vehicles.service';
 import { StayHistory } from '../stay-history/stay-history';
 import { ZoneAvailability } from '../zone-availability/zone-availability';
 
@@ -29,8 +29,8 @@ import { ZoneAvailability } from '../zone-availability/zone-availability';
 })
 export class MainDashboard {
   private readonly auth = inject(AuthService);
-  private readonly parking = inject(ParkingService);
-  private readonly studentsService = inject(StudentsService);
+  private readonly parking = inject(StudentParkingService);
+  private readonly studentsService = inject(StudentVehiclesService);
   private readonly router = inject(Router);
 
   protected readonly brand = BRAND;
@@ -40,13 +40,9 @@ export class MainDashboard {
   protected readonly maxVehicles = MAX_VEHICLES_PER_USER;
 
   /**
-   * Vehículos institucionales de verdad del usuario con sesión (`GET
-   * /users/:id`, vía `StudentsService`, compartido con `Vehicles` y
-   * `RegisterVehicle`). No hay ni estado de aprobación ni eliminación en el
-   * backend real todavía — eso solo existe en la solicitud de demostración
-   * que arma el registro (PEN-020); aquí solo se lee y se muestra lo que de
-   * verdad quedó guardado, con `is_authorized` como único estado real
-   * (dentro/fuera).
+   * Vehículos del usuario con sesión (`GET /users/:id`, vía
+   * `StudentVehiclesService`, compartido con `Vehicles` y `RegisterVehicle`).
+   * Su estado es `is_authorized`: si la administración ya lo aprobó.
    */
   protected readonly vehiclesLoading = this.studentsService.loading;
   protected readonly vehiclesError = this.studentsService.error;
@@ -80,7 +76,7 @@ export class MainDashboard {
   });
 
   constructor() {
-    // La promesa la observan los signals de StudentsService; un rechazo no bloquea nada aquí.
+    // La promesa la observan los signals de StudentVehiclesService; un rechazo no bloquea nada aquí.
     void this.studentsService.refresh().catch(() => {});
   }
 

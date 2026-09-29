@@ -25,7 +25,6 @@ export interface VehicleRequirements {
   brand: FieldRequirement;
   color: FieldRequirement;
   plate: FieldRequirement;
-  frameSerial: FieldRequirement;
 }
 
 /**
@@ -33,35 +32,24 @@ export interface VehicleRequirements {
  * salen tanto los campos que se muestran como los validadores del formulario
  * de visitantes y del registro de vehículos.
  *
- * La marca es obligatoria en los tres tipos: el backend real de Vehículos la
- * exige siempre, sin excepción por tipo (`CreateVehicle.validation.ts`), así
- * que el frontend no puede dejarla opcional para el scooter aunque antes lo
- * fuera en el modelo de demostración — si se registrara así, el vehículo
- * real fallaría al crearse.
- *
- * - Bicicleta: serial del marco opcional, porque no todas lo tienen a la vista.
+ * Marca y color son obligatorios en los tres tipos porque el backend los exige
+ * siempre (`CreateVehicle.validation.ts`); la placa, solo en la moto.
  */
 export const VEHICLE_REQUIREMENTS: Record<VehicleType, VehicleRequirements> = {
-  moto: { brand: 'required', color: 'required', plate: 'required', frameSerial: 'none' },
-  scooter: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'none' },
-  bicicleta: { brand: 'required', color: 'required', plate: 'none', frameSerial: 'optional' },
+  moto: { brand: 'required', color: 'required', plate: 'required' },
+  scooter: { brand: 'required', color: 'required', plate: 'none' },
+  bicicleta: { brand: 'required', color: 'required', plate: 'none' },
 };
 
 /** Datos de un vehículo; cuáles lleva según su tipo lo decide `VEHICLE_REQUIREMENTS`. */
 export interface Vehicle {
   type: VehicleType;
-  /** Moto y bicicleta; en el scooter es opcional. */
   brand?: string;
-  /** Obligatorio en los tres tipos (en registros anteriores a la Fase 2 puede faltar en scooters). */
   color?: string;
   /** Solo para moto: scooter y bicicleta no llevan placa. */
   plate?: string;
-  /** Moto: la "línea" de la licencia de tránsito (p. ej. "FZ 2.0"). */
-  line?: string;
-  /** Moto: el "modelo" de la licencia de tránsito, que en Colombia es el año. */
+  /** El "modelo" de la licencia de tránsito, que en Colombia es el año. */
   modelYear?: number;
-  /** Bicicleta: número grabado en el marco, cuando lo tiene. */
-  frameSerial?: string;
 }
 
 export function vehicleLabel(value: VehicleType): string {
@@ -81,11 +69,9 @@ export function vehicleTitle(vehicle: Vehicle): string {
   return vehicle.plate ?? vehicleLabel(vehicle.type);
 }
 
-/** Datos secundarios sin repetir el título. Ej. "Moto · Yamaha FZ 2.0 · Negro". */
+/** Datos secundarios sin repetir el título. Ej. "Moto · Yamaha · Negro". */
 export function vehicleDetails(vehicle: Vehicle): string {
-  const model = [vehicle.brand, vehicle.line].filter(Boolean).join(' ');
-
-  return [vehicle.plate ? vehicleLabel(vehicle.type) : null, model, vehicle.color]
+  return [vehicle.plate ? vehicleLabel(vehicle.type) : null, vehicle.brand, vehicle.color]
     .filter(Boolean)
     .join(' · ');
 }
@@ -94,8 +80,7 @@ export function vehicleDetails(vehicle: Vehicle): string {
 
 /**
  * Vehículo institucional tal como lo muestran "Mis vehículos" y "Vehículos":
- * un `Vehicle` de pantalla más el identificador real y si está dentro del
- * parqueadero ahora mismo. Lo arma {@link toDashboardVehicle} a partir de la
+ * un `Vehicle` de pantalla más el identificador real y si ya está aprobado. Lo arma {@link toDashboardVehicle} a partir de la
  * respuesta del backend (`GET /users/:id`).
  */
 export interface DashboardVehicle extends Vehicle {
@@ -106,13 +91,16 @@ export interface DashboardVehicle extends Vehicle {
    * codificar en el QR — nunca `plate`, que aquí es solo para mostrar en pantalla.
    */
   id: string;
-  /** true = está dentro del parqueadero ahora mismo (no es un estado de aprobación). */
+  /**
+   * true cuando la administración ya aprobó el vehículo: solo entonces el
+   * backend le registra ingresos. Un vehículo recién registrado llega en false.
+   */
   isAuthorized: boolean;
 }
 
 /**
  * Datos mínimos que trae cada vehículo anidado en `GET /users/:id`
- * (`BackendUserVehicle` en `students-api.sp.service.ts`). Se declara aquí,
+ * (`BackendUserVehicle` en `users-api.service.ts`). Se declara aquí,
  * sin importar ese tipo, para que este archivo de modelos no dependa de un
  * servicio.
  */

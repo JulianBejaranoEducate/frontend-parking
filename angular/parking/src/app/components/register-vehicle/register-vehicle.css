@@ -241,124 +241,6 @@
   align-items: start;
 }
 
-/* ---------- Documentos ---------- */
-
-.tips {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.75rem 0.875rem 0.75rem 2rem;
-  margin: 0.875rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--brand-text-muted);
-  background: var(--brand-primary-soft);
-  border-radius: 0.75rem;
-}
-
-.uploads {
-  display: grid;
-  gap: 0.875rem;
-  margin-top: 1.25rem;
-}
-
-.upload {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1.5px dashed var(--brand-border);
-  border-radius: 0.875rem;
-}
-
-.upload--filled {
-  border-style: solid;
-}
-
-.upload__label {
-  margin: 0;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: var(--brand-text);
-}
-
-.upload__hint {
-  margin: 0.25rem 0 0;
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  color: var(--brand-text-muted);
-}
-
-.upload__preview {
-  display: grid;
-  gap: 0.375rem;
-  margin: 0;
-}
-
-.upload__preview img {
-  width: 100%;
-  max-height: 16rem;
-  object-fit: contain;
-  background: color-mix(in srgb, var(--brand-border) 35%, var(--brand-surface));
-  border-radius: 0.625rem;
-}
-
-.upload__file {
-  display: grid;
-  place-items: center;
-  height: 6rem;
-  color: var(--brand-secondary);
-  background: var(--brand-secondary-soft);
-  border-radius: 0.625rem;
-}
-
-.upload__file svg {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-.upload__name {
-  overflow: hidden;
-  font-size: 0.75rem;
-  color: var(--brand-text-muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.upload__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-/* El input está oculto dentro del label: el foco se hace visible en el label. */
-.upload__actions label:focus-within {
-  outline: 2px solid var(--brand-primary);
-  outline-offset: 2px;
-}
-
-.upload__progress {
-  display: inline-flex;
-  gap: 0.5rem;
-  align-items: center;
-  font-size: 0.8125rem;
-  color: var(--brand-text-muted);
-}
-
-.spinner {
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid var(--brand-primary-soft);
-  border-top-color: var(--brand-primary);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-/* "Tomar foto" solo tiene sentido con cámara: se oculta con ratón de escritorio. */
-@media (pointer: fine) {
-  .upload__camera {
-    display: none;
-  }
-}
-
 /* ---------- Resumen ---------- */
 
 .summary {
@@ -406,21 +288,6 @@
   overflow-wrap: anywhere;
 }
 
-.summary__documents {
-  display: grid;
-  gap: 0.5rem;
-  padding: 0;
-  margin: 0;
-  font-size: 0.875rem;
-  list-style: none;
-}
-
-.summary__documents li {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
 .declaration {
   display: flex;
   gap: 0.625rem;
@@ -449,67 +316,7 @@
   border-radius: 0.75rem;
 }
 
-/* ---------- Actualización y confirmación ---------- */
-
-.vehicle-head {
-  display: flex;
-  gap: 0.875rem;
-  align-items: center;
-}
-
-.vehicle-head__icon {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 3rem;
-  height: 3rem;
-  color: var(--brand-primary);
-  background: var(--brand-primary-soft);
-  border-radius: 0.75rem;
-}
-
-.vehicle-head__icon svg {
-  width: 1.625rem;
-  height: 1.625rem;
-}
-
-.vehicle-head__details {
-  margin: 0.125rem 0 0;
-  font-size: 0.875rem;
-  color: var(--brand-text-muted);
-}
-
-.request-note {
-  padding: 0.875rem 1rem;
-  margin-top: 1.25rem;
-  background: var(--brand-warning-soft);
-  border-radius: 0.75rem;
-}
-
-.request-note p {
-  margin: 0;
-}
-
-.request-note__title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: var(--brand-warning);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.request-note__document {
-  margin-top: 0.25rem !important;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  color: var(--brand-text);
-}
-
-.request-note__text {
-  margin-top: 0.25rem !important;
-  font-size: 0.875rem;
-  color: var(--brand-text);
-}
+/* ---------- Confirmación ---------- */
 
 .done {
   display: grid;
@@ -619,10 +426,6 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .field--wide {
-    grid-column: 1 / -1;
-  }
-
   .nav {
     display: flex;
     justify-content: space-between;
@@ -630,10 +433,6 @@
 
   .nav--center {
     justify-content: center;
-  }
-
-  .uploads {
-    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
   }
 }
 
@@ -647,9 +446,5 @@
   .type,
   .btn {
     transition: none;
-  }
-
-  .spinner {
-    animation-duration: 1.5s;
   }
 }

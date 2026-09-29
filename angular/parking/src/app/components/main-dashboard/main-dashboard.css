@@ -59,31 +59,7 @@
   color: var(--brand-text-muted);
 }
 
-/* La disponibilidad por zona vive en el componente zone-availability. */
-
 /* ---------- Historial ---------- */
-
-.time {
-  font-variant-numeric: tabular-nums;
-}
-
-.time--in {
-  color: var(--brand-success);
-}
-
-.time--out {
-  color: var(--brand-secondary);
-}
-
-.history-table {
-  display: none;
-  margin: 0 -1.25rem -1.125rem;
-  overflow-x: auto;
-}
-
-.data-table__muted {
-  color: var(--brand-text-muted) !important;
-}
 
 .stays {
   display: grid;
@@ -99,50 +75,9 @@
   border-radius: 0.75rem;
 }
 
-.stay__head {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.875rem;
-}
-
-.stay__date {
-  font-weight: 600;
-  color: var(--brand-text-muted);
-}
-
-.stay__times {
-  display: grid;
-  /* La tercera columna es más ancha: "Permanencia" es la etiqueta más larga y
-     a 375 px se partía por la mitad. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
-  gap: 0.5rem;
-  margin: 0.625rem 0 0;
-}
-
-.stay__times dt {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  color: var(--brand-text-muted);
-}
-
-.stay__times dd {
-  margin: 0.125rem 0 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
 /* ---------- Adaptaciones por pantalla ---------- */
 
 @media (min-width: 48rem) {
-  .history-table {
-    display: block;
-  }
-
   .stays {
     display: none;
   }

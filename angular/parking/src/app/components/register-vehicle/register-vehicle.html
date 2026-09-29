@@ -1,83 +1,6 @@
 <main class="page page--narrow">
-  <!-- ======================= Reenviar un documento pedido ======================= -->
-    @if (isUpdateMode()) {
-      <h1 class="page__title">Actualizar documentos</h1>
-
-      @if (step() === 'done') {
-        <section class="card step">
-          <div class="done" role="status">
-            <span class="done__badge" aria-hidden="true">
-              <svg viewBox="0 0 24 24"><path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" /></svg>
-            </span>
-            <h2 class="step__title" id="step-title" tabindex="-1">Documento enviado</h2>
-            <p class="done__text">
-              Tu solicitud volvió a la fila de revisión. Te avisaremos en las notificaciones cuando haya una respuesta.
-            </p>
-            <div class="nav nav--center">
-              <a class="btn btn--primary" routerLink="/inicio">Ir al inicio</a>
-            </div>
-          </div>
-        </section>
-      } @else if (updateTarget(); as target) {
-        <section class="card step" aria-labelledby="step-title">
-          <div class="vehicle-head">
-            <span class="vehicle-head__icon" aria-hidden="true">
-              <ng-container [ngTemplateOutlet]="vehicleIcon" [ngTemplateOutletContext]="{ $implicit: target.vehicle.type }" />
-            </span>
-            <div>
-              <h2 class="step__title" id="step-title" tabindex="-1">
-                <span [class.plate]="!!target.vehicle.plate">{{ vehicleTitle(target.vehicle) }}</span>
-              </h2>
-              <p class="vehicle-head__details">{{ vehicleDetails(target.vehicle) }}</p>
-            </div>
-          </div>
-
-          @if (requestedReview(); as review) {
-            <div class="request-note">
-              <p class="request-note__title">La administración pidió actualizar:</p>
-              @if (review.documentKind) {
-                <p class="request-note__document">{{ documentLabels[review.documentKind] }}</p>
-              }
-              @if (review.note) {
-                <p class="request-note__text">{{ review.note }}</p>
-              }
-            </div>
-          }
-
-          <div class="uploads">
-            @for (requirement of requirements(); track requirement.kind) {
-              <ng-container [ngTemplateOutlet]="uploadTile" [ngTemplateOutletContext]="{ $implicit: requirement }" />
-            }
-          </div>
-
-          @if (documentsAttempted() && missingDocuments().length) {
-            <p class="field__error step__error" role="alert">Adjunta el documento para poder enviarlo.</p>
-          }
-
-          @if (submitError(); as message) {
-            <p class="alert" role="alert">{{ message }}</p>
-          }
-
-          <div class="nav">
-            <a class="btn btn--ghost" routerLink="/inicio">Cancelar</a>
-            <button type="button" class="btn btn--primary" [disabled]="!!uploading()" (click)="continueFromDocuments()">
-              Enviar documento
-            </button>
-          </div>
-        </section>
-      } @else {
-        <section class="card step">
-          <h2 class="step__title" id="step-title" tabindex="-1">No hay nada que actualizar</h2>
-          <p class="step__lead">Esta solicitud no espera documentos nuevos o ya no está disponible.</p>
-          <div class="nav">
-            <a class="btn btn--primary" routerLink="/inicio">Ir al inicio</a>
-          </div>
-        </section>
-      }
-    }
-
     <!-- ==================== Consultando cuántos vehículos ya tiene ==================== -->
-    @else if (vehiclesCountLoading()) {
+    @if (vehiclesCountLoading()) {
       <h1 class="page__title">Registrar vehículo</h1>
       <section class="card step">
         <p class="step__lead">Consultando tus vehículos…</p>
@@ -245,27 +168,6 @@
                       }
                     </div>
 
-                    @if (shows('line')) {
-                      <div class="field">
-                        <label class="field__label" for="line">Línea</label>
-                        <input
-                          class="field__control"
-                          id="line"
-                          type="text"
-                          maxlength="40"
-                          autocomplete="off"
-                          placeholder="FZ 2.0"
-                          formControlName="line"
-                          [class.field__control--invalid]="isInvalid('line')"
-                          [attr.aria-invalid]="isInvalid('line')"
-                          [attr.aria-describedby]="isInvalid('line') ? 'line-error' : null"
-                        />
-                        @if (errorFor('line'); as message) {
-                          <p class="field__error" id="line-error">{{ message }}</p>
-                        }
-                      </div>
-                    }
-
                     @if (shows('modelYear')) {
                       <div class="field">
                         <label class="field__label" for="modelYear">Modelo (año)</label>
@@ -309,34 +211,6 @@
                       }
                     </div>
 
-                    @if (shows('frameSerial')) {
-                      <div class="field field--wide">
-                        <label class="field__label" for="frameSerial">
-                          Serial del marco <span class="field__optional">(opcional)</span>
-                        </label>
-                        <input
-                          class="field__control field__control--plate"
-                          id="frameSerial"
-                          type="text"
-                          maxlength="30"
-                          autocapitalize="characters"
-                          autocomplete="off"
-                          spellcheck="false"
-                          formControlName="frameSerial"
-                          (input)="normalizeSerial()"
-                          [class.field__control--invalid]="isInvalid('frameSerial')"
-                          [attr.aria-invalid]="isInvalid('frameSerial')"
-                          [attr.aria-describedby]="isInvalid('frameSerial') ? 'frameSerial-error' : 'frameSerial-hint'"
-                        />
-                        @if (errorFor('frameSerial'); as message) {
-                          <p class="field__error" id="frameSerial-error">{{ message }}</p>
-                        } @else {
-                          <p class="field__hint" id="frameSerial-hint">
-                            Suele estar grabado debajo del pedalier. No todas las bicicletas lo tienen.
-                          </p>
-                        }
-                      </div>
-                    }
                   </div>
               </fieldset>
 
@@ -347,60 +221,10 @@
             </form>
           }
 
-          <!-- --------------------------- 3. Documentos --------------------------- -->
-          @case ('documents') {
-            <h2 class="step__title" id="step-title" tabindex="-1">Documentos</h2>
-
-            @switch (vehicleType()) {
-              @case ('moto') {
-                <p class="step__lead">
-                  Con la foto de la tarjeta de propiedad, la administración compara los datos que escribiste y el
-                  nombre del propietario.
-                </p>
-                <ul class="tips">
-                  <li>Buena luz y sin reflejos.</li>
-                  <li>La tarjeta completa, derecha y sin cortar.</li>
-                  <li>Que se lean la placa y el propietario.</li>
-                </ul>
-              }
-              @case ('bicicleta') {
-                <p class="step__lead">
-                  Este paso es opcional, pero si tu bicicleta tiene serial, una foto donde se lea ayuda a comprobar que
-                  es tuya.
-                </p>
-              }
-              @default {
-                <p class="step__lead">
-                  Este paso es opcional. Si tienes la factura o el certificado de importación, adjúntalo: agiliza la
-                  aprobación.
-                </p>
-              }
-            }
-
-            <div class="uploads">
-              @for (requirement of requirements(); track requirement.kind) {
-                <ng-container [ngTemplateOutlet]="uploadTile" [ngTemplateOutletContext]="{ $implicit: requirement }" />
-              }
-            </div>
-
-            @if (documentsAttempted() && missingDocuments().length) {
-              <p class="field__error step__error" role="alert">
-                Adjunta la {{ missingDocuments()[0].label.toLowerCase() }} para continuar.
-              </p>
-            }
-
-            <div class="nav">
-              <button type="button" class="btn btn--ghost" (click)="back()">Atrás</button>
-              <button type="button" class="btn btn--primary" [disabled]="!!uploading()" (click)="continueFromDocuments()">
-                Continuar
-              </button>
-            </div>
-          }
-
-          <!-- ---------------------------- 4. Confirmar ---------------------------- -->
+          <!-- ---------------------------- 3. Confirmar ---------------------------- -->
           @case ('review') {
             <h2 class="step__title" id="step-title" tabindex="-1">Revisa y envía</h2>
-            <p class="step__lead">Así llegará tu solicitud a la administración.</p>
+            <p class="step__lead">Así llegará tu vehículo a la administración.</p>
 
             <div class="summary">
               @if (summaryVehicle(); as vehicle) {
@@ -414,39 +238,16 @@
                     @if (vehicle.brand) {
                       <div><dt>Marca</dt><dd>{{ vehicle.brand }}</dd></div>
                     }
-                    @if (vehicle.line) {
-                      <div><dt>Línea</dt><dd>{{ vehicle.line }}</dd></div>
-                    }
                     @if (vehicle.modelYear) {
                       <div><dt>Modelo</dt><dd>{{ vehicle.modelYear }}</dd></div>
                     }
                     @if (vehicle.color) {
                       <div><dt>Color</dt><dd>{{ vehicle.color }}</dd></div>
                     }
-                    @if (vehicle.frameSerial) {
-                      <div><dt>Serial</dt><dd class="plate">{{ vehicle.frameSerial }}</dd></div>
-                    }
                   </dl>
                 </section>
               }
 
-              <section class="summary__section" aria-labelledby="summary-documents">
-                <h3 class="summary__title" id="summary-documents">Documentos</h3>
-                @if (requirements().length) {
-                  <ul class="summary__documents">
-                    @for (requirement of requirements(); track requirement.kind) {
-                      <li>
-                        @if (documentFor(requirement); as document) {
-                          <span class="chip chip--success">Adjunto</span>
-                        } @else {
-                          <span class="chip chip--neutral">Sin adjuntar</span>
-                        }
-                        {{ requirement.label }}
-                      </li>
-                    }
-                  </ul>
-                }
-              </section>
             </div>
 
             <label class="declaration">
@@ -458,12 +259,11 @@
                 (change)="toggleDeclaration($event)"
               />
               <span>
-                Declaro que la información es verídica y autorizo a {{ brand.organizationName }} a verificarla con los
-                documentos adjuntos.
+                Declaro que la información es verídica y autorizo a {{ brand.organizationName }} a verificarla.
               </span>
             </label>
             @if (declarationAttempted() && !declarationAccepted()) {
-              <p class="field__error" id="declaration-error">Acepta la declaración para enviar la solicitud.</p>
+              <p class="field__error" id="declaration-error">Acepta la declaración para registrar el vehículo.</p>
             }
 
             @if (submitError(); as message) {
@@ -472,7 +272,7 @@
 
             <div class="nav">
               <button type="button" class="btn btn--ghost" (click)="back()">Atrás</button>
-              <button type="button" class="btn btn--primary" (click)="submit()">Enviar solicitud</button>
+              <button type="button" class="btn btn--primary" (click)="submit()">Registrar vehículo</button>
             </div>
           }
 
@@ -482,15 +282,14 @@
               <span class="done__badge" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="m9.6 16.2-3.8-3.8-1.4 1.4 5.2 5.2L20.2 8.4l-1.4-1.4z" fill="currentColor" /></svg>
               </span>
-              <h2 class="step__title" id="step-title" tabindex="-1">Solicitud enviada</h2>
+              <h2 class="step__title" id="step-title" tabindex="-1">Vehículo registrado</h2>
               <p class="done__text">
-                La administración revisará tus datos y documentos. Te avisaremos en las notificaciones cuando haya una
-                respuesta.
+                La administración revisará tus datos. Podrás entrar al parqueadero cuando apruebe tu vehículo.
               </p>
 
-              @if (submitted(); as registration) {
+              @if (submitted(); as vehicle) {
                 <p class="done__vehicle">
-                  <span [class.plate]="!!registration.vehicle.plate">{{ vehicleTitle(registration.vehicle) }}</span>
+                  <span [class.plate]="!!vehicle.plate">{{ vehicleTitle(vehicle) }}</span>
                   <span class="chip chip--pending">Pendiente</span>
                 </p>
               }
@@ -509,83 +308,6 @@
 </main>
 
 <!-- ====================== Plantillas reutilizadas en la vista ====================== -->
-
-<ng-template #uploadTile let-requirement>
-  <div class="upload" [class.upload--filled]="!!documentFor(requirement)">
-    <div class="upload__head">
-      <p class="upload__label">
-        {{ requirement.label }}
-        @if (!requirement.required) {
-          <span class="field__optional">(opcional)</span>
-        }
-      </p>
-      <p class="upload__hint">{{ requirement.hint }}</p>
-    </div>
-
-    @if (documentFor(requirement); as document) {
-      <figure class="upload__preview">
-        @if (isImage(document)) {
-          <img [src]="document.dataUrl" [alt]="'Vista previa: ' + requirement.label" />
-        } @else {
-          <span class="upload__file">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9z" fill="currentColor" />
-            </svg>
-          </span>
-        }
-        <figcaption class="upload__name">{{ document.fileName }}</figcaption>
-      </figure>
-    }
-
-    <div class="upload__actions">
-      @if (uploading() === requirement.kind) {
-        <span class="upload__progress" role="status">
-          <span class="spinner" aria-hidden="true"></span>
-          Procesando archivo…
-        </span>
-      } @else {
-        <label class="small-btn small-btn--primary upload__camera">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path
-              d="M9 3 7.2 5H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10m0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6"
-              fill="currentColor"
-            />
-          </svg>
-          {{ documentFor(requirement) ? 'Tomar otra' : 'Tomar foto' }}
-          <input
-            class="sr-only"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            (change)="onFileSelected($event, requirement.kind)"
-          />
-        </label>
-        <label class="small-btn small-btn--ghost">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M11 16V7.8l-2.6 2.6L7 9l5-5 5 5-1.4 1.4L13 7.8V16zm-6 4v-5h2v3h10v-3h2v5z" fill="currentColor" />
-          </svg>
-          {{ documentFor(requirement) ? 'Cambiar archivo' : 'Subir archivo' }}
-          <input
-            class="sr-only"
-            type="file"
-            [attr.accept]="requirement.accept"
-            [attr.data-kind]="requirement.kind"
-            (change)="onFileSelected($event, requirement.kind)"
-          />
-        </label>
-        @if (documentFor(requirement)) {
-          <button type="button" class="small-btn small-btn--ghost" (click)="removeDocument(requirement.kind)">
-            Quitar
-          </button>
-        }
-      }
-    </div>
-
-    @if (uploadErrorFor(requirement); as message) {
-      <p class="field__error" role="alert">{{ message }}</p>
-    }
-  </div>
-</ng-template>
 
 <ng-template #vehicleIcon let-type>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

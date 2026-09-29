@@ -1,4 +1,4 @@
-import { atClock, calendarDaysAgo, dayAndTime, momentLabel } from './dates';
+import { atClock, calendarDaysAgo, dayAndTime } from './dates';
 
 describe('fechas de portería', () => {
   const now = new Date('2026-09-15T10:00:00');
@@ -21,10 +21,5 @@ describe('fechas de portería', () => {
     expect(dayAndTime(at('2026-09-15T07:05:00'), now)).toMatch(/^hoy a las 7:05/);
     expect(dayAndTime(at('2026-09-14T13:40:00'), now)).toMatch(/^ayer a la 1:40/);
     expect(dayAndTime(at('2026-09-12T18:40:00'), now)).toMatch(/^12 .+ a las 6:40/);
-  });
-
-  it('en la bitácora lo de hoy lleva solo la hora', () => {
-    expect(momentLabel(at('2026-09-15T07:05:00'), now)).toMatch(/^7:05/);
-    expect(momentLabel(at('2026-09-14T07:05:00'), now)).toMatch(/^ayer a las 7:05/);
   });
 });

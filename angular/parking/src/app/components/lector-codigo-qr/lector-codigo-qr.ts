@@ -1,5 +1,5 @@
 import { Component, ElementRef, type OnDestroy, inject, input, output, signal, viewChild } from '@angular/core';
-import { ScannerService } from '../../core/services/modules/security-dashboard/scanner.service';
+import { QrScannerService } from '../../core/services/scanner/qr-scanner.service';
 
 /**
  * Lector de códigos QR reutilizable (Fase 3, ADR-012).
@@ -23,7 +23,7 @@ export class LectorCodigoQr implements OnDestroy {
   /** Se emite con el texto del primer código leído. */
   readonly read = output<string>();
 
-  private readonly scanner = inject(ScannerService);
+  private readonly scanner = inject(QrScannerService);
   private readonly video = viewChild.required<ElementRef<HTMLVideoElement>>('video');
   /** Evita emitir dos veces si la cámara detecta el mismo código en cuadros seguidos. */
   private handled = false;

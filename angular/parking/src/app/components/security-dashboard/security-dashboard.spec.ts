@@ -5,9 +5,11 @@ import {
   type BackendAccessRecord,
   type BackendParkingZone,
   ParkingApiService,
-} from '../../core/services/modules/security-dashboard/parking-api.service';
-import { type BackendVehicle, VehicleApiService } from '../../core/services/modules/security-dashboard/vehicle-api.service';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
+} from '../../core/services/api/parking-api.service';
+import { IncidentsApiService, type NewIncident } from '../../core/services/api/incidents-api.service';
+import { type BackendVehicle, VehiclesApiService } from '../../core/services/api/vehicles-api.service';
+import { type BackendVisitor, VisitorsApiService } from '../../core/services/api/visitors-api.service';
+import { TEST_ACCOUNTS, signInForTest } from '../../testing/test-session';
 import { LectorCodigoQr } from '../lector-codigo-qr/lector-codigo-qr';
 import { SecurityDashboard } from './security-dashboard';
 
@@ -66,23 +68,28 @@ function rejection(details: string): HttpErrorResponse {
 describe('SecurityDashboard', () => {
   let fixture: ComponentFixture<SecurityDashboard>;
   // Objetos simples (no extienden las clases reales) para no necesitar HttpClient en las pruebas.
-  let visitorApi: Pick<VisitorApiService, 'findAll' | 'findById' | 'findLatestByDocument' | 'findLatestByPlate'>;
-  let vehicleApi: Pick<VehicleApiService, 'authorized' | 'findByPlate'>;
+  let visitorApi: Pick<VisitorsApiService, 'findAll' | 'findById' | 'findLatestByDocument' | 'findLatestByPlate'>;
+  let vehicleApi: Pick<VehiclesApiService, 'authorized' | 'findByPlate'>;
   let parkingApi: Pick<
     ParkingApiService,
     'zones' | 'openRecords' | 'registerVisitorEntry' | 'registerVisitorExit' | 'registerVehicleEntry' | 'registerVehicleExit'
   >;
+  let incidentsApi: Pick<IncidentsApiService, 'report'>;
+  let reported: NewIncident[];
   let calls: string[];
 
   const create = async (section = 'resumen') => {
     await TestBed.configureTestingModule({
       imports: [SecurityDashboard],
       providers: [
-        { provide: VisitorApiService, useValue: visitorApi },
-        { provide: VehicleApiService, useValue: vehicleApi },
+        { provide: VisitorsApiService, useValue: visitorApi },
+        { provide: VehiclesApiService, useValue: vehicleApi },
         { provide: ParkingApiService, useValue: parkingApi },
+        { provide: IncidentsApiService, useValue: incidentsApi },
       ],
     }).compileComponents();
+
+    signInForTest('security');
 
     fixture = TestBed.createComponent(SecurityDashboard);
     fixture.componentRef.setInput('section', section);
@@ -111,6 +118,13 @@ describe('SecurityDashboard', () => {
 
   beforeEach(() => {
     calls = [];
+    reported = [];
+    incidentsApi = {
+      report: (incident) => {
+        reported.push(incident);
+        return Promise.resolve();
+      },
+    };
     visitorApi = {
       findAll: () => Promise.resolve([]),
       findById: () => Promise.reject(new Error('no encontrado')),
@@ -460,6 +474,58 @@ describe('SecurityDashboard', () => {
       await click('Cerrar');
 
       expect(host().querySelector('#result-title')).toBeNull();
+    });
+  });
+
+  describe('novedades', () => {
+    const fill = (id: string, value: string) => {
+      const field = host().querySelector<HTMLInputElement | HTMLTextAreaElement>(`#${id}`)!;
+      field.value = value;
+    };
+    const send = async () => {
+      host().querySelector('.incident-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await flushAsync();
+      await fixture.whenStable();
+    };
+
+    it('reporta la novedad a nombre del guardia con la sesión, con la placa en la descripción', async () => {
+      await create('incidencias');
+      fill('inc-title', 'Vehículo mal parqueado');
+      fill('inc-desc', 'Ocupa dos puestos en la zona de motos.');
+      fill('inc-plate', 'abc12d');
+      await send();
+
+      expect(reported).toEqual([
+        {
+          title: 'Vehículo mal parqueado',
+          description: 'Ocupa dos puestos en la zona de motos. (Placa: ABC12D)',
+          reporterUid: TEST_ACCOUNTS.security.uid,
+        },
+      ]);
+      expect(text('.flash')).toContain('Novedad reportada');
+      expect(host().querySelector<HTMLInputElement>('#inc-title')!.value).toBe('');
+    });
+
+    it('no envía una novedad demasiado corta y explica los mínimos del backend', async () => {
+      await create('incidencias');
+      fill('inc-title', 'Ok');
+      fill('inc-desc', 'Mal');
+      await send();
+
+      expect(reported).toHaveLength(0);
+      expect(text('.incident-form .notice--critical')).toContain('al menos 3 caracteres');
+    });
+
+    it('si el backend la rechaza, muestra el motivo y conserva lo escrito', async () => {
+      incidentsApi.report = () => Promise.reject(rejection('El tipo de incidencia no es válido'));
+
+      await create('incidencias');
+      fill('inc-title', 'Golpe leve');
+      fill('inc-desc', 'Una moto golpeó a otra al salir.');
+      await send();
+
+      expect(text('.incident-form .notice--critical')).toBe('El tipo de incidencia no es válido');
+      expect(host().querySelector<HTMLInputElement>('#inc-title')!.value).toBe('Golpe leve');
     });
   });
 });

@@ -1,106 +1,154 @@
-<header class="header">
-  <div class="header__copy">
-    <h1 class="header__title">{{ sectionCopy[section()].title }}</h1>
-    <p class="header__subtitle">{{ sectionCopy[section()].subtitle }}</p>
-  </div>
-</header>
+<main class="page">
+  <header class="page__head">
+    <h1 class="page__title">{{ copy().title }}</h1>
+    <p class="page__subtitle">{{ copy().subtitle }}</p>
+  </header>
 
-<main class="content">
-  @switch (section()) {
+  @if (loadError(); as message) {
+    <p class="alert" role="alert">{{ message }}</p>
+  }
+  @if (actionError(); as message) {
+    <p class="alert" role="alert">{{ message }}</p>
+  }
+
+  @switch (activeSection()) {
     @case ('resumen') {
-      <section class="tiles tiles--4">
+      <section class="tiles tiles--3" aria-label="Indicadores">
         <article class="tile">
-          <p class="tile__label">Vehiculos Pendientes</p>
+          <p class="tile__label">Vehículos pendientes</p>
           <p class="tile__value">{{ pendingVehicles().length }}</p>
-          <p class="tile__note">Esperando aprobacion.</p>
+          <p class="tile__note">Esperando aprobación.</p>
         </article>
         <article class="tile">
-          <p class="tile__label">Usuarios Inactivos</p>
-          <p class="tile__value">{{ unactiveUsers().length }}</p>
-          <p class="tile__note">Esperando activacion.</p>
+          <p class="tile__label">Usuarios inactivos</p>
+          <p class="tile__value">{{ inactiveUsers().length }}</p>
+          <p class="tile__note">Dados de baja.</p>
         </article>
         <article class="tile">
           <p class="tile__label">Incidencias abiertas</p>
-          <p class="tile__value">{{ incidents().length }}</p>
-          <p class="tile__note">Reportadas por guardias.</p>
+          <p class="tile__value">{{ openIncidents().length }}</p>
+          <p class="tile__note">De {{ incidents().length }} reportadas por portería.</p>
         </article>
       </section>
     }
+
     @case ('pendientes') {
-      <div class="card">
+      <section class="card card--list" aria-label="Vehículos pendientes">
         @if (pendingVehicles().length) {
           <ul class="requests">
-            @for (v of pendingVehicles(); track v.plate) {
-              <li style="margin-bottom: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 8px;">
-                <p><strong>Placa:</strong> {{ v.plate }}</p>
-                <p><strong>Marca:</strong> {{ v.brand }} - {{ v.type }}</p>
-                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
-                  <button class="btn btn--primary" (click)="authorizeVehicle(v.plate)">Aprobar</button>
-                  <button class="btn btn--danger" (click)="deauthorizeVehicle(v.plate)">Rechazar / Eliminar</button>
+            @for (vehicle of pendingVehicles(); track vehicle.plate) {
+              <li class="request">
+                <div>
+                  <p class="request__title">{{ vehicle.plate }}</p>
+                  <p class="request__meta">
+                    {{ vehicleLabel(vehicle.type) }} · {{ vehicle.brand }} · {{ vehicle.color }}
+                    @if (vehicle.owner) {
+                      · {{ vehicle.owner.name }}
+                    }
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  class="small-btn small-btn--primary"
+                  [disabled]="busy() === vehicle.plate"
+                  (click)="authorizeVehicle(vehicle.plate)"
+                >
+                  Aprobar
+                </button>
               </li>
             }
           </ul>
         } @else {
-          <p class="empty">No hay vehiculos pendientes.</p>
+          <p class="empty">No hay vehículos pendientes.</p>
         }
-      </div>
+      </section>
     }
+
     @case ('aprobados') {
-      <div class="card">
+      <section class="card card--list" aria-label="Vehículos aprobados">
         @if (approvedVehicles().length) {
           <ul class="requests">
-            @for (v of approvedVehicles(); track v.plate) {
-              <li style="margin-bottom: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 8px;">
-                <p><strong>Placa:</strong> {{ v.plate }}</p>
-                <p><strong>Marca:</strong> {{ v.brand }} - {{ v.type }}</p>
-                <div style="margin-top: 1rem;">
-                  <button class="btn btn--danger" (click)="deauthorizeVehicle(v.plate)">Revocar Autorizacion</button>
+            @for (vehicle of approvedVehicles(); track vehicle.plate) {
+              <li class="request">
+                <div>
+                  <p class="request__title">{{ vehicle.plate }}</p>
+                  <p class="request__meta">
+                    {{ vehicleLabel(vehicle.type) }} · {{ vehicle.brand }} · {{ vehicle.color }}
+                    @if (vehicle.owner) {
+                      · {{ vehicle.owner.name }}
+                    }
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  class="small-btn small-btn--danger"
+                  [disabled]="busy() === vehicle.plate"
+                  (click)="deauthorizeVehicle(vehicle.plate)"
+                >
+                  Revocar autorización
+                </button>
               </li>
             }
           </ul>
         } @else {
-          <p class="empty">No hay vehiculos aprobados.</p>
+          <p class="empty">No hay vehículos aprobados.</p>
         }
-      </div>
+      </section>
     }
+
     @case ('usuarios') {
-      <div class="card">
-        @if (unactiveUsers().length) {
+      <section class="card card--list" aria-label="Usuarios inactivos">
+        @if (inactiveUsers().length) {
           <ul class="requests">
-            @for (u of unactiveUsers(); track u.id) {
-              <li style="margin-bottom: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 8px;">
-                <p><strong>Nombre:</strong> {{ u.name }}</p>
-                <p><strong>Email:</strong> {{ u.email }}</p>
-                <div style="margin-top: 1rem; display: flex; gap: 1rem;">
-                  <button class="btn btn--primary" (click)="activateUser(u.id)">Activar Usuario</button>
-                  <button class="btn btn--danger" (click)="deactivateUser(u.id)">Rechazar / Eliminar</button>
+            @for (user of inactiveUsers(); track user.id) {
+              <li class="request">
+                <div>
+                  <p class="request__title">{{ user.name }}</p>
+                  <p class="request__meta">{{ user.email }}</p>
                 </div>
+                <button
+                  type="button"
+                  class="small-btn small-btn--primary"
+                  [disabled]="busy() === user.id"
+                  (click)="restoreUser(user.id)"
+                >
+                  Reactivar usuario
+                </button>
               </li>
             }
           </ul>
         } @else {
           <p class="empty">No hay usuarios inactivos.</p>
         }
-      </div>
+      </section>
     }
+
     @case ('incidencias') {
-      <div class="card">
+      <section class="card card--list" aria-label="Incidencias">
         @if (incidents().length) {
           <ul class="incidents">
-            @for (i of incidents(); track i.id) {
-              <li style="margin-bottom: 1rem; border: 1px solid #ccc; padding: 1rem; border-radius: 8px;">
-                <p><strong>{{ i.title }}</strong> ({{ i.status }})</p>
-                <p>{{ i.description }}</p>
-                <p><small>Severidad: {{ i.severity }} | Fecha: {{ i.reportedAt | date:'medium' }}</small></p>
+            @for (incident of incidents(); track incident.id) {
+              <li class="incident">
+                <p class="request__title">
+                  {{ incident.title }}
+                  <span class="chip" [class]="incident.status === 'open' ? 'chip chip--pending' : 'chip chip--success'">
+                    {{ statusLabel(incident) }}
+                  </span>
+                </p>
+                <p class="incident__description">{{ incident.description }}</p>
+                <p class="request__meta">
+                  {{ incident.reportedAt | date: 'medium' }}
+                  @if (incident.reportedBy) {
+                    · Reportó: {{ incident.reportedBy }}
+                  }
+                </p>
               </li>
             }
           </ul>
         } @else {
           <p class="empty">No hay incidencias registradas.</p>
         }
-      </div>
+      </section>
     }
   }
 </main>

@@ -2,6 +2,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideDashboardNavigation } from '../../core/navigation/dashboard-navigation';
+import { provideFirebaseWithoutSession } from '../../testing/test-session';
 import { DashboardLayout } from './dashboard-layout';
 
 describe('DashboardLayout', () => {
@@ -12,6 +13,7 @@ describe('DashboardLayout', () => {
       imports: [DashboardLayout],
       providers: [
         provideRouter([]),
+        provideFirebaseWithoutSession(),
         provideDashboardNavigation(() => ({
           context: 'Pruebas',
           items: signal([{ id: 'uno', label: 'Opción de prueba', icon: 'M0 0h24v24H0z', route: '/uno' }]),
@@ -60,6 +62,7 @@ describe('DashboardLayout con buscador', () => {
       imports: [DashboardLayout],
       providers: [
         provideRouter([]),
+        provideFirebaseWithoutSession(),
         provideDashboardNavigation(() => ({
           context: 'Pruebas',
           items: signal([]),

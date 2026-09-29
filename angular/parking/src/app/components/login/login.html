@@ -69,19 +69,6 @@
       </button>
     </div>
 
-    @if (demoMode) {
-      <!-- Desaparece en cuanto Firebase esté configurado: el rol vendrá del token. -->
-      <div class="demo" role="group" aria-labelledby="demo-label">
-        <span class="demo__tag">Demostración</span>
-        <span class="demo__label" id="demo-label">Entrar como:</span>
-        @for (shortcut of demoShortcuts; track shortcut.profile) {
-          <button type="button" class="demo__link" [disabled]="loading()" (click)="signInAsDemo(shortcut.profile)">
-            {{ shortcut.label }}
-          </button>
-        }
-      </div>
-    }
-
     @if (error(); as message) {
       <div class="alert" role="alert">
         <span>{{ message }}</span>

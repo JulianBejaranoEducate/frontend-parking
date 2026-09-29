@@ -1,11 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import type { VisitorRegistration } from '../../core/models/visitor-pass';
-import { type BackendVisitor, VisitorApiService } from '../../core/services/modules/visitors/visitor-api.service';
+import type { VisitorRegistration } from '../../core/models/visitor';
+import { type BackendVisitor, VisitorsApiService } from '../../core/services/api/visitors-api.service';
+import { QR_CODE_RENDERER } from '../../core/utils/qr-code';
 import { Visitor } from './visitor';
 
-/** No extiende VisitorApiService (que inyecta HttpClient) para no tener que proveerlo. */
-class VisitorApiServiceStub {
+/** No extiende VisitorsApiService (que inyecta HttpClient) para no tener que proveerlo. */
+class VisitorsApiStub {
   calls: VisitorRegistration[] = [];
   private nextId = 1;
   failNext = false;
@@ -35,23 +36,24 @@ class VisitorApiServiceStub {
       created_at: new Date().toISOString(),
     });
   }
-
-  renderQrCode(): Promise<string> {
-    return Promise.resolve('data:image/png;base64,stub');
-  }
 }
 
 describe('Visitor', () => {
   let component: Visitor;
   let fixture: ComponentFixture<Visitor>;
-  let backend: VisitorApiServiceStub;
+  let backend: VisitorsApiStub;
 
   beforeEach(async () => {
-    backend = new VisitorApiServiceStub();
+    backend = new VisitorsApiStub();
 
     await TestBed.configureTestingModule({
       imports: [Visitor],
-      providers: [provideRouter([]), { provide: VisitorApiService, useValue: backend }],
+      providers: [
+        provideRouter([]),
+        { provide: VisitorsApiService, useValue: backend },
+        // Dibujar el QR necesita un canvas que el entorno de pruebas no tiene.
+        { provide: QR_CODE_RENDERER, useValue: (value: string) => Promise.resolve('data:image/png;base64,QR-' + value) },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Visitor);
@@ -121,7 +123,7 @@ describe('Visitor', () => {
     }
   });
 
-  it('la placa solo se pide para moto, con el formato que exige hoy el backend (ABC123)', () => {
+  it('la placa solo se pide para moto, con el formato que acepta el backend (ABC12D, y ABC12 o ABC123)', () => {
     fillPersonalData();
     api().form.patchValue({ vehicleBrand: 'GW', vehicleColor: 'Verde' });
 
@@ -133,12 +135,11 @@ describe('Visitor', () => {
     expect(api().form.valid).toBe(false);
 
     const plate = api().form.controls.plate;
-    for (const valid of ['ABC123', 'XYZ987']) {
+    for (const valid of ['ABC12D', 'ABC12', 'ABC123']) {
       plate.setValue(valid);
       expect(plate.valid).toBe(true);
     }
-    // El formato antiguo (3 letras, 2 números, 1 letra) ya no lo acepta el backend.
-    for (const invalid of ['ABC12D', 'AB123', '123ABC']) {
+    for (const invalid of ['AB123', '123ABC', 'ABCD12']) {
       plate.setValue(invalid);
       expect(plate.valid).toBe(false);
     }
@@ -155,9 +156,9 @@ describe('Visitor', () => {
 
   it('normaliza la placa y el documento mientras se escriben', () => {
     chooseType('moto');
-    api().form.controls.plate.setValue('abc-123');
+    api().form.controls.plate.setValue('abc-12d');
     api().normalizePlate();
-    expect(api().form.controls.plate.value).toBe('ABC123');
+    expect(api().form.controls.plate.value).toBe('ABC12D');
 
     api().form.controls.documentNumber.setValue('10.123.456');
     api().normalizeDocumentNumber();
@@ -167,7 +168,7 @@ describe('Visitor', () => {
   it('registrar la visita la envía al backend y muestra el QR con su id (el ingreso lo valida portería)', async () => {
     fillPersonalData();
     chooseType('moto');
-    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC123' });
+    api().form.patchValue({ vehicleBrand: 'Yamaha', vehicleColor: 'Negro', plate: 'ABC12D' });
 
     await api().submit();
 
@@ -177,11 +178,11 @@ describe('Visitor', () => {
       lastName: 'Rodríguez',
       documentType: 'CC',
       documentNumber: '1012345678',
-      vehicle: { type: 'moto', brand: 'Yamaha', color: 'Negro', plate: 'ABC123' },
+      vehicle: { type: 'moto', brand: 'Yamaha', color: 'Negro', plate: 'ABC12D' },
     });
 
     expect(api().visitor().id).toBe(1);
-    expect(api().qrDataUrl()).toContain('data:image');
+    expect(api().qrDataUrl()).toBe('data:image/png;base64,QR-1');
   });
 
   it('no envía nada al backend mientras el formulario esté incompleto', async () => {
